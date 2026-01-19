@@ -12,7 +12,8 @@ In what follows we reference theorems from [listdecoding] by default.
 
 ## References
 
-* [Venkatesan Guruswami, *Algorithmic Results in List Decoding*][listdecoding]
+* [Guruswami, V. and others, *Algorithmic results in list decoding*][listdecoding]
+* [Guruswami, V., Rudra, A., and Sudan, M., *Essential coding theory*][codingtheory]
 -/
 
 variable {n : ℕ}
@@ -50,8 +51,33 @@ noncomputable def J (q δ : ℚ) : ℝ :=
   let frac := q / (q - 1)
   (1 / frac) * (1 - Real.sqrt (1 - frac * δ))
 
-lemma sqrt_le_J {q x : ℚ} :
-  1 - ((1-x) : ℝ).sqrt ≤ J q x := by sorry
+/-- A lemma for proving sqrt_le_J
+-/
+lemma division_by_conjugate {a b : ℝ} (hpos : 0 ≤ b) (hnonzero : a + b.sqrt ≠ 0) :
+  a - (b).sqrt = (a^2 - b)/(a + b.sqrt) := by
+  rw[eq_div_iff hnonzero]
+  ring_nf
+  simp_all
+
+lemma sqrt_le_J {q δ : ℚ} (hq : q > 1) (hx0 : 0 ≤ δ) (hx1 : δ ≤ 1) (hqx : q / (q - 1) * δ ≤ 1) :
+  1 - ((1-δ) : ℝ).sqrt ≤ J q δ := by
+  unfold J
+  set frac := q / (q - 1) with hfrac
+  have hfrac_ge : frac ≥ 1 := by rw [hfrac, ge_iff_le, one_le_div] <;> grind
+  have hx' : 1 - δ ≥ 0 := by linarith
+  have hfracx' : 1 - frac * δ ≥ 0 := by nlinarith
+  suffices 1 - √(1 - δ) ≤ (1 / frac) * (1 - √(1 - frac * δ)) by simpa
+  rw[
+    division_by_conjugate (by exact_mod_cast hx') (by positivity),
+    division_by_conjugate (by exact_mod_cast hfracx') (by positivity)]
+  have : δ = 1 - (1 - δ) := by ring
+  have : frac * δ = 1 - (1 - frac * δ) := by ring
+  field_simp
+  norm_cast
+  gcongr
+  have : 1 * δ  ≤ frac * δ  := by exact mul_le_mul_of_nonneg_right hfrac_ge hx0
+  simp at this
+  exact this
 
 /-- The `q`-ary Johnson bound.
 -/
@@ -60,11 +86,154 @@ def JohnsonConditionWeak (B : Finset (Fin n → F)) (e : ℕ) : Prop :=
   let q : ℚ := Fintype.card F
   (e : ℚ) / n < J q (d / n)
 
-lemma johnson_condition_weak_implies_strong {B : Finset (Fin n → F)} {v : Fin n → F} {e : ℕ}
-  (h : JohnsonConditionWeak B e)
+lemma johnson_condition_weak_implies_strong [Field F]
+  {B : Finset (Fin n → F)}
+  {v : Fin n → F}
+  {e : ℕ}
+  (h_J_cond_weak : JohnsonConditionWeak B e)
+  (h_B2_not_one : 1 < (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)).card)
+  (h_F_nontriv : 2 ≤ Fintype.card F)
   :
   JohnsonConditionStrong (B ∩ ({ x | Δ₀(x, v) ≤ e } : Finset _)) v := by
-  sorry
+  --We show that n > 0, the theorem is ill-posed in this case but it follows from our assumptions.
+  have h_n_pos : 0 < n := by
+    by_contra hn
+    push_neg at hn
+    have : n = 0 := by omega
+    subst this
+    have B_singleton : B.card ≤ 1 := by
+      have : ∀ u ∈ B, ∀ v ∈ B, u = v := by
+        intros u hu v hv
+        funext s
+        exact Fin.elim0 s
+      have : ¬∃ (u v : B), u ≠ v := by grind
+      have neg_of_ineq := (Fintype.one_lt_card_iff.1).mt this
+      simp at neg_of_ineq
+      exact neg_of_ineq
+    have B2_too_small : (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)).card ≤ 1 := by
+      have B_supset : B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _) ⊆ B := by grind
+      have eval_cards := Finset.card_le_card B_supset
+      linarith
+    omega
+  unfold JohnsonConditionStrong
+  intro e_1 d q frac
+  -- The real 'proof' is not really by cases, the second case is uninteresting in practice.
+  -- However, the theorem still holds when 1 - frac * d / ↑n < 0 and we prove both cases to avoid
+  -- adding unnecessary assumptions.
+  by_cases h_dsqrt_pos : (0 : ℝ)  ≤ 1 - frac * d / ↑n
+  · have h_B2_nonempty : (0 : ℚ) < ((B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)).card : ℚ)
+      := by norm_cast; omega
+    have h_frac_pos : frac > 0 := by
+      unfold frac
+      have : 1 < Fintype.card F := by linarith
+      field_simp
+      unfold q
+      exact_mod_cast this
+    --The main proof is here, and in the proof of err_n, the rest is algebraic manipulations.
+    have j_fun_bound : (↑e / ↑n : ℝ) < (1/↑frac * (1-√(1 - ↑frac * ↑d / ↑n)))  := by
+      unfold JohnsonConditionWeak J at h_J_cond_weak
+      simp_all
+      let d_weak := sInf {d | ∃ u ∈ B, ∃ v ∈ B, ¬u=v ∧ Δ₀(u,v)=d}
+      have d_subset : ↑d_weak ≤ (d : ℚ)  := by
+          unfold d
+          unfold JohnsonBound.d
+          unfold d_weak
+          have min_dist := min_dist_le_d h_B2_not_one
+          have subset_inf_ineq : sInf {d | ∃ u ∈ B, ∃ v ∈ B, u ≠ v ∧ Δ₀(u, v) = d} ≤
+              sInf {d |
+              ∃ u ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+              ∃ v_1 ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+              u ≠ v_1 ∧ Δ₀(u, v_1) = d}:= by
+              have subset : {d |
+                          ∃ u ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+                          ∃ v_1 ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+                          u ≠ v_1 ∧ Δ₀(u, v_1) = d}
+                          ⊆ {d | ∃ u ∈ B, ∃ v ∈ B, u ≠ v ∧ Δ₀(u, v) = d} := by
+                intro d ⟨u, hu_in, v_1, hv_in, hne, heq⟩
+                exact
+                  ⟨u, by simp at hu_in; exact hu_in.1, v_1
+                  , by simp at hv_in; exact hv_in.1, hne, heq⟩
+              gcongr
+              obtain ⟨u, hu, v_1, hv_1, hne⟩ := Finset.one_lt_card.mp h_B2_not_one
+              use Δ₀(u, v_1)
+              exact ⟨u, hu, v_1, hv_1, hne, rfl⟩
+          calc ↑d_weak
+              = ↑(sInf {d | ∃ u ∈ B, ∃ v ∈ B, ¬u = v ∧ Δ₀(u, v) = d}) := by rfl
+            _ ≤ ↑(sInf {d |
+              ∃ u ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+              ∃ v_1 ∈ (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)),
+              u ≠ v_1 ∧ Δ₀(u, v_1) = d}):= by exact_mod_cast subset_inf_ineq
+            _ ≤ JohnsonBound.d (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _)) := by exact_mod_cast min_dist
+      have bound: (↑frac)⁻¹ * (1 - √(1 - ↑frac * ↑d_weak / ↑n))
+        ≤ (↑frac)⁻¹ * (1 - √(1 - ↑frac * ↑d / ↑n)) := by
+        have ineq1 : (↑d_weak / ↑n) ≤ (d / ↑n) := by
+          rw[←mul_le_mul_iff_of_pos_left (Nat.cast_pos.mpr h_n_pos)]
+          field_simp
+          exact d_subset
+        have ineq2 : frac * (d_weak / n) ≤ frac * (d / n) := by
+          exact_mod_cast (mul_le_mul_iff_of_pos_left h_frac_pos).mpr ineq1
+        have ineq3 : 1 - frac * (d / n) ≤ 1 - frac * (d_weak / n ) := by linarith
+        have ineq3' : (1 : ℝ) - frac * d / n ≤ (1 : ℝ) - frac * d_weak / n := by
+          norm_cast; grind
+        have ineq4 : √(1 - ↑frac * ↑d / ↑n) ≤ √(1 - ↑frac * ↑d_weak / ↑n) :=
+          by exact Real.sqrt_le_sqrt ineq3'
+        have ineq5 :  (1 - √(1 - ↑frac * ↑d_weak / ↑n)) ≤ (1 - √(1 - ↑frac * ↑d / ↑n)) := by
+          linarith
+        simp_all
+      have h_J_cond_weak' : ↑e / ↑n < 1 / (↑frac) * (1 - √(1 - frac * (d_weak / ↑n))) := by
+        unfold frac
+        unfold q
+        unfold d_weak
+        push_cast
+        rw [one_div_div]
+        exact h_J_cond_weak
+      field_simp
+      field_simp at h_J_cond_weak'
+      field_simp at bound
+      linarith
+    have err_n : (↑e_1 / ↑n : ℝ) ≤ (↑e / ↑n : ℝ)   := by
+      gcongr
+      have err : e_1 ≤ e := by
+          unfold e_1
+          dsimp[JohnsonBound.e]
+          have : ∀ x ∈ B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _), Δ₀(v, x) ≤ e := by
+            unfold hammingDist
+            simp
+            (simp_rw [eq_comm] ; grind)
+          have sum_bound :=
+            Finset.sum_le_card_nsmul (B ∩ ({x | Δ₀(x, v) ≤ e} : Finset _))
+              (fun x => Δ₀(v, x)) e this
+          simp
+          rw[inv_mul_le_iff₀ h_B2_nonempty]
+          exact_mod_cast sum_bound
+      exact_mod_cast err
+    have j_fun_bound_e1 : (↑e_1 / ↑n : ℝ) < (1/↑frac * (1-√(1 - ↑frac * ↑d / ↑n))) :=
+      by linarith [err_n, j_fun_bound]
+    have rearrange_jboundw_e1 : √(1 - ↑frac * ↑d / ↑n) < 1 - frac * e_1 / ↑n := by
+      have : frac * e_1 / ↑n < 1-√(1 - frac * d / ↑n) := by
+        calc ↑frac * ↑e_1 / ↑n
+            = ↑frac * (↑e_1 / ↑n) := by ring
+          _ < ↑frac * (1/↑frac * (1-√(1 - ↑frac * ↑d / ↑n))) := by
+              exact (mul_lt_mul_left (by exact_mod_cast h_frac_pos)).mpr j_fun_bound_e1
+          _ = 1-√(1 - ↑frac * ↑d / ↑n) := by ring_nf ; field_simp
+      linarith
+    have h_esqrtpos :  (0 : ℝ)  ≤ 1- frac * e_1 / ↑n  := by
+      have : (0 : ℝ) ≤ √(1 - ↑frac * ↑d / ↑n) := by aesop
+      linarith[this, rearrange_jboundw_e1]
+    suffices recast_main_goal : (1 - frac * d / ↑n : ℝ) < (1 - frac * e_1 / ↑n) ^ 2 by
+     exact_mod_cast recast_main_goal
+    suffices roots : √(1 - frac * d / ↑n) < 1- frac * e_1 / ↑n by
+      rw[←Real.sqrt_lt h_dsqrt_pos h_esqrtpos]
+      exact_mod_cast roots
+    exact rearrange_jboundw_e1
+  · have strict_neg : 1 - ↑frac * ↑d / ↑n < (0 : ℚ) := by
+      have : ¬(0 : ℚ)  ≤ 1 - frac * d / ↑n := by exact_mod_cast h_dsqrt_pos
+      rw[Rat.not_le] at this
+      exact this
+    have nonneg : (0 : ℝ) ≤(1 - ↑frac * ↑e_1 / ↑n) ^ 2  :=
+      by exact_mod_cast sq_nonneg (1 - frac * ↑e_1 / ↑n)
+    calc 1 - ↑frac * ↑d / ↑n < (0 : ℚ) := strict_neg
+      _ ≤ (1 - ↑frac * ↑e_1 / ↑n) ^ 2 := by exact_mod_cast nonneg
 
 private lemma johnson_condition_strong_implies_n_pos
   (h_johnson : JohnsonConditionStrong B v)
@@ -126,9 +295,6 @@ theorem johnson_bound [Field F]
     (johnson_condition_strong_implies_2_le_F_card h_condition)
 
 /-- Alphabet-free Johnson bound from [codingtheory].
-## References
-
-* [Venkatesan Guruswami, Atri Rudra, Madhu Sudan, *Essential Coding Theory*][codingtheory]
 -/
 theorem johnson_bound_alphabet_free [Field F] [DecidableEq F]
   {B : Finset (Fin n → F)}
