@@ -76,8 +76,8 @@ applies the natural indexing operations from the vector being read in. -/
 def messageOracleContext (vPSpec : VectorSpec n) (α : Type) :
     OracleContext ((r : vPSpec.MessageIdx) × Fin (vPSpec.length r))
       (ReaderM (vPSpec.toProtocolSpec α).Messages) where
-  spec := _ →ₒ α
-  impl | ⟨r, i⟩ => ReaderT.mk fun xss => return (xss r)[i]
+  spec := (r : vPSpec.MessageIdx) × Fin (vPSpec.length r) →ₒ α
+  impl | ⟨r, i⟩ => do return ((← read) r)[i]
 
 -- /-- All messages in an V-IOR have the same vector oracle interface. -/
 -- instance : OracleInterfaces (vPSpec.toProtocolSpec A) where

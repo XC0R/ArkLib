@@ -95,48 +95,50 @@ def stirRelation
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     {ι : Type} [Fintype ι] [Nonempty ι]
     (degree : ℕ) (φ : ι ↪ F) (err : ℝ≥0)
-    : Set ((Unit × ∀ i, (OracleStatement ι F i)) × Unit) :=
-  fun ⟨⟨_, oracle⟩, _⟩ => δᵣ(oracle (), ReedSolomon.code φ degree) ≤ err
+    : Set ((Unit × (OracleStatement ι F ())) × Unit) :=
+  fun ⟨⟨_, oracle⟩, _⟩ => δᵣ(oracle, ReedSolomon.code φ degree) ≤ err
 
--- /-- Theorem 5.1 : STIR main theorem
---   Consider the following ingrediants,
---   a security parameter `secpar`
---   a ReedSolomon code `RS[F, ι, degree]` with rate `ρ = degree/ |ι|`, where ι is a smooth domain
---   a proximity parameter `δ ∈ (0, 1 - 1.05 * √ρ)`
---   a folding parameter `k ≥ 4`, being a power of 2
---   if `|F| ≤ secpar * 2^{secpar * degree² * |ι|^3.5 / log(1/ρ)}`, then
---   there exists a `vector IOPP π` for `RS` with
---   - `round by round soundness error ≤ 2 ^ (- secpar)`,
---   - `M = O(logₖdegree)`
---   - `proof length = |ι| + Oₖ(log degree)`
---   - `query complexity to input = secpar / (- log(1-δ))`
---   - `query complexity to proof strings = Oₖ(log degree + secpar * log(log degree / log(1/ρ)))`
--- -/
--- theorem stir_main
---   (secpar : ℕ) [SampleableType F]
---   {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
---   {φ : ι ↪ F} {degree : ℕ} [hsmooth : Smooth φ]
---   {k proofLen qNumtoInput qNumtoProofstr : ℕ}
---   (hk : ∃ p, k = 2 ^ p) (hkGe : k ≥ 4)
---   (δ : ℝ≥0) (hδub : δ < 1 - 1.05 * Real.sqrt (degree / Fintype.card ι))
---   (hF : Fintype.card F ≤
---         secpar * 2 ^ secpar * degree ^ 2 * (Fintype.card ι) ^ (7 / 2) /
---           Real.log (1 / rate (code φ degree))) :
---   ∃ n : ℕ,
---   ∃ vPSpec : ProtocolSpec.VectorSpec n,
---   ∃ ε_rbr : vPSpec.ChallengeIdx → ℝ≥0,
---   ∃ π : VectorIOP Unit (OracleStatement ι F ()) Unit vPSpec F _ _,
---   IsSecureWithGap (stirRelation degree φ 0)
---                   (stirRelation degree φ δ)
---                   ε_rbr π
---   ∧ ∀ i, ε_rbr i ≤ (1 : ℚ≥0) / (2 ^ secpar)
---   ∧ ∃ c > 0, M ≤ c * (Real.log degree / Real.log k)
---   ∧ ∃ cₖ : ℕ → ℝ, proofLen ≤ (Fintype.card ι) + (cₖ k) * (Real.log degree)
---   ∧ qNumtoInput = secpar / (- Real.log (1 - δ))
---   ∧ ∃ cₖ : ℕ → ℝ, qNumtoProofstr ≤
---     (cₖ k) * ((Real.log degree) +
---       secpar * (Real.log ((Real.log degree) / Real.log (1/rate (code φ degree)))))
--- := by sorry
+/-- Theorem 5.1 : STIR main theorem
+  Consider the following ingrediants,
+  a security parameter `secpar`
+  a ReedSolomon code `RS[F, ι, degree]` with rate `ρ = degree/ |ι|`, where ι is a smooth domain
+  a proximity parameter `δ ∈ (0, 1 - 1.05 * √ρ)`
+  a folding parameter `k ≥ 4`, being a power of 2
+  if `|F| ≤ secpar * 2^{secpar * degree² * |ι|^3.5 / log(1/ρ)}`, then
+  there exists a `vector IOPP π` for `RS` with
+  - `round by round soundness error ≤ 2 ^ (- secpar)`,
+  - `M = O(logₖdegree)`
+  - `proof length = |ι| + Oₖ(log degree)`
+  - `query complexity to input = secpar / (- log(1-δ))`
+  - `query complexity to proof strings = Oₖ(log degree + secpar * log(log degree / log(1/ρ)))`
+-/
+theorem stir_main
+  (secpar : ℕ) [SampleableType F]
+  {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {φ : ι ↪ F} {degree : ℕ} [hsmooth : Smooth φ]
+  {k proofLen qNumtoInput qNumtoProofstr : ℕ}
+  (hk : ∃ p, k = 2 ^ p) (hkGe : k ≥ 4)
+  (δ : ℝ≥0) (hδub : δ < 1 - 1.05 * Real.sqrt (degree / Fintype.card ι))
+  (hF : Fintype.card F ≤
+        secpar * 2 ^ secpar * degree ^ 2 * (Fintype.card ι) ^ (7 / 2) /
+          Real.log (1 / rate (code φ degree)))
+  {Qₛᵢ} (Oₛᵢ : OracleContext Qₛᵢ (ReaderM (OracleStatement ι F ()))) :
+  ∃ n : ℕ,
+  ∃ vPSpec : ProtocolSpec.VectorSpec n,
+  ∃ ε_rbr : vPSpec.ChallengeIdx → ℝ≥0,
+  -- dtumad: I think `Oₛᵢ.spec` is not what we actually want here? Maybe both of these sholuld be
+  ∃ π : VectorIOP Unit (OracleStatement ι F ()) Unit vPSpec F Oₛᵢ Oₛᵢ.spec,
+  IsSecureWithGap (stirRelation degree φ 0)
+                  (stirRelation degree φ δ)
+                  ε_rbr π
+  ∧ ∀ i, ε_rbr i ≤ (1 : ℚ≥0) / (2 ^ secpar)
+  ∧ ∃ c > 0, M ≤ c * (Real.log degree / Real.log k)
+  ∧ ∃ cₖ : ℕ → ℝ, proofLen ≤ (Fintype.card ι) + (cₖ k) * (Real.log degree)
+  ∧ qNumtoInput = secpar / (- Real.log (1 - δ))
+  ∧ ∃ cₖ : ℕ → ℝ, qNumtoProofstr ≤
+    (cₖ k) * ((Real.log degree) +
+      secpar * (Real.log ((Real.log degree) / Real.log (1/rate (code φ degree)))))
+:= by sorry
 
 end MainTheorem
 
