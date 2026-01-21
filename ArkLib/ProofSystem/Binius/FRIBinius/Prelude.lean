@@ -51,8 +51,9 @@ instance linearIndependentBooleanHypercubeBasis : Fact (LinearIndependent K ⇑�
 def BinaryBasefoldAbstractOStmtIn : (RingSwitching.AbstractOStmtIn L ℓ') where
   ιₛᵢ := Fin (BinaryBasefold.toOutCodewordsCount ℓ' ϑ (i:=0))
   OStmtIn := BinaryBasefold.OracleStatement K β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ 0
-  Oₛᵢ := Binius.BinaryBasefold.instOracleStatementBinaryBasefold K β
-    (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (ϑ := ϑ) (i := 0)
+  Oₛᵢ := sorry -- dtumad: I think I have the indexing wrong to make `ιₛᵢ` not work?
+    -- Binius.BinaryBasefold.instOracleContextBinaryBasefold K β
+    --   (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (ϑ := ϑ) (i := 0)
   initialCompatibility := fun ⟨t, oStmt⟩ =>
     Binius.BinaryBasefold.firstOracleWitnessConsistencyProp K β (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
       t (f₀ := Binius.BinaryBasefold.getFirstOracle K β oStmt)

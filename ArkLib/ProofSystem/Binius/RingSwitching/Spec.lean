@@ -53,33 +53,33 @@ def fullPspec := (pSpecLargeFieldReduction κ (L:=L) (K:=K) (ℓ':=ℓ')) ++ₚ 
 
 /-! ## Oracle Interface instances for Messages-/
 
-instance : OracleInterface (TensorAlgebra K L) := OracleInterface.instDefault
-instance : OracleInterface (Fin κ → L) := OracleInterface.instDefault
+-- instance : OracleInterface (TensorAlgebra K L) := OracleInterface.instDefault
+-- instance : OracleInterface (Fin κ → L) := OracleInterface.instDefault
 
-instance : ∀ j, OracleInterface ((pSpecBatching κ L K).Message j)
-  | ⟨0, _⟩ => OracleInterface.instDefault -- ŝ ∈ A
-  | ⟨1, _⟩ => OracleInterface.instDefault -- r'' ∈ L^κ
+-- instance : ∀ j, OracleInterface ((pSpecBatching κ L K).Message j)
+--   | ⟨0, _⟩ => OracleInterface.instDefault -- ŝ ∈ A
+--   | ⟨1, _⟩ => OracleInterface.instDefault -- r'' ∈ L^κ
 
-instance : ∀ j, OracleInterface ((pSpecSumcheckRound (L:=L)).Message j)
-  | ⟨0, _⟩ => OracleInterface.instDefault -- h_i(X) polynomial
-  | ⟨1, _⟩ => OracleInterface.instDefault -- challenge r'_i
+-- instance : ∀ j, OracleInterface ((pSpecSumcheckRound (L:=L)).Message j)
+--   | ⟨0, _⟩ => OracleInterface.instDefault -- h_i(X) polynomial
+--   | ⟨1, _⟩ => OracleInterface.instDefault -- challenge r'_i
 
-instance : ∀ j, OracleInterface ((pSpecSumcheckLoop (L:=L) ℓ').Message j)
-  := instOracleInterfaceMessageSeqCompose
+-- instance : ∀ j, OracleInterface ((pSpecSumcheckLoop (L:=L) ℓ').Message j)
+--   := instOracleInterfaceMessageSeqCompose
 
-instance : ∀ i, OracleInterface ((pSpecFinalSumcheck (L:=L)).Message i)
-  | ⟨0, _⟩ => OracleInterface.instDefault -- final constant c
+-- instance : ∀ i, OracleInterface ((pSpecFinalSumcheck (L:=L)).Message i)
+--   | ⟨0, _⟩ => OracleInterface.instDefault -- final constant c
 
-instance : ∀ i, OracleInterface ((pSpecCoreInteraction (L:=L) (ℓ':=ℓ')).Message i) :=
-  instOracleInterfaceMessageAppend
+-- instance : ∀ i, OracleInterface ((pSpecCoreInteraction (L:=L) (ℓ':=ℓ')).Message i) :=
+--   instOracleInterfaceMessageAppend
 
-instance : ∀ i, OracleInterface ((pSpecLargeFieldReduction κ (L:=L) (K:=K) (ℓ':=ℓ')).Message i) :=
-  instOracleInterfaceMessageAppend
+-- instance : ∀ i, OracleInterface ((pSpecLargeFieldReduction κ (L:=L) (K:=K) (ℓ':=ℓ')).Message i) :=
+--   instOracleInterfaceMessageAppend
 
-instance : ∀ i, OracleInterface (mlIOPCS.pSpec.Message i) := fun i => mlIOPCS.Oₘ i
+-- instance : ∀ i, OracleInterface (mlIOPCS.pSpec.Message i) := fun i => mlIOPCS.Oₘ i
 
-instance : ∀ i, OracleInterface ((fullPspec κ (L:=L) (K:=K) (ℓ':=ℓ') mlIOPCS).Message i) :=
-  instOracleInterfaceMessageAppend
+-- instance : ∀ i, OracleInterface ((fullPspec κ (L:=L) (K:=K) (ℓ':=ℓ') mlIOPCS).Message i) :=
+--   instOracleInterfaceMessageAppend
 
 /-! ## SampleableType instances -/
 

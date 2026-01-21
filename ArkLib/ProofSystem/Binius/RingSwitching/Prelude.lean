@@ -247,6 +247,8 @@ def AbstractOStmtIn.toRelInput (aOStmtIn : AbstractOStmtIn L ℓ') :
     MLPEvalRelation L ℓ' aOStmtIn.ιₛᵢ aOStmtIn.OStmtIn input
     ∧ aOStmtIn.initialCompatibility ⟨input.2.t, input.1.2⟩}
 
+#check OracleContext.empty
+
 structure MLIOPCS extends (AbstractOStmtIn L ℓ') where
   /-- Protocol specification -/
   numRounds : ℕ
@@ -256,9 +258,9 @@ structure MLIOPCS extends (AbstractOStmtIn L ℓ') where
   -- /-- The evaluation protocol Π' as an OracleReduction -/
   oracleReduction : OracleReduction (oSpec:=[]ₒ)
     (StmtIn := MLPEvalStatement L ℓ') (OStmtIn:= ∀ i, OStmtIn i)
-    (StmtOut := Bool) (OStmtOut := Unit)
+    (StmtOut := Bool) (OStmtOut := Empty → Unit)
     (WitIn := WitMLP L ℓ') (WitOut := Unit)
-    (pSpec := pSpec) sorry sorry sorry
+    (pSpec := pSpec) (OracleContext.empty) OracleContext.empty []ₒ -- dtumad: Change these
   -- Security properties
   perfectCompleteness : ∀ {σ : Type} {init : ProbComp σ} {impl : QueryImpl []ₒ (StateT σ ProbComp)},
     HasEvalSPMF.NeverFail init →

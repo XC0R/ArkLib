@@ -328,6 +328,21 @@ def fullPSpec := (pSpecCoreInteraction 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_
 --     answer := fun oracleData queryPoint => oracleData queryPoint
 --   }
 
+-- Oracle Interface instances for Ostmt
+instance instOracleContextBinaryBasefold {i : Fin (ℓ + 1)} :
+    OracleContext ((j : Fin r) × sDomain 𝔽q β h_ℓ_add_R_rate (Fin.ofNat r (j * ϑ)))
+      (ReaderM (∀ j, OracleStatement 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i j)) where
+  spec := (j : Fin r) × ((sDomain 𝔽q β h_ℓ_add_R_rate) (Fin.ofNat r (j * ϑ))) →ₒ L
+  impl | ⟨j, queryPoint⟩ => do return (← read) sorry sorry
+  --   ∀ j, OracleInterface (OracleStatement 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i j) :=
+  -- fun j => {
+  --   Query := (sDomain 𝔽q β h_ℓ_add_R_rate) ⟨j.val * ϑ, by
+  --     calc j.val * ϑ < ℓ := by exact toCodewordsCount_mul_ϑ_lt_ℓ ℓ ϑ i j
+  --     _ < r := by omega⟩
+  --   Response := L
+  --   answer := fun oracleData queryPoint => oracleData queryPoint
+  -- }
+
 /-! ## SampleableType instances -/
 
 instance {i : Fin ℓ} : ∀ j, SampleableType ((pSpecCommit 𝔽q β

@@ -385,9 +385,9 @@ def foldVerifierOStmtContext : OracleContext
 
 def foldVerifierMsgContext : OracleContext
     (evalDomain D x (∑ j' ∈ finRangeTo i.1, s j'))
-    (ReaderM (OracleStatement D x s i.castSucc)) where
+    (ReaderM (pSpec D x s i).Messages) where
   spec := (evalDomain D x (∑ j' ∈ finRangeTo i.1, s j')) →ₒ F
-  impl t := do return (← read) t.1 t.2
+  impl t := do return (← read) sorry
 
 def foldVerifierOStmtOutSpec : OracleSpec
     ((j : Fin (i.castSucc + 1)) × evalDomain D x (∑ j' ∈ finRangeTo j.1, s j')) := by
