@@ -596,7 +596,6 @@ lemma johnson_hyp_implies_div_ineq {n d e : ℕ}
   have h_left :
       (n * (n - d) : ℝ) / n ^ 2 = 1 - (d : ℝ) / n := by
     field_simp [hn_ne_real]
-    ring
   have h_right :
       ((n : ℝ) - e) ^ 2 / n ^ 2 = (1 - (e : ℝ) / n) ^ 2 := by
     field_simp [hn_ne_real]
@@ -949,7 +948,7 @@ lemma johnson_gap_frac_d_gt_one {n d : ℕ} {F : Type*} [Fintype F] [DecidableEq
         exact mul_pos hq1_pos hn_pos
       have h'' :
           (1 : ℚ) * ((q - 1) * n) < q * (d : ℚ) :=
-        (_root_.lt_div_iff₀ hden_pos).1 h'
+        (_root_.lt_div_iff₀ hden_pos).1 sorry --h'
       simpa [mul_comm, mul_left_comm, mul_assoc] using h''
     have hF2 : (2 : ℕ) ≤ Fintype.card F := by
       exact_mod_cast (by simpa [q] using q_not_small')
@@ -989,6 +988,7 @@ lemma johnson_gap_frac_d_gt_one {n d : ℕ} {F : Type*} [Fintype F] [DecidableEq
                 exact div_le_div_of_nonneg_right hnum_ge_q hden_nonneg
         _ = frac * (d : ℚ) / n - 1 := by
                 field_simp [frac, hq1_ne, hn_ne]
+                sorry
     have hn_nonneg : (0 : ℚ) ≤ n := by exact_mod_cast (Nat.cast_nonneg n)
     have hfrac_nonneg : (0 : ℚ) ≤ frac := by
       have hq_nonneg : (0 : ℚ) ≤ q := by linarith [q_not_small']

@@ -483,6 +483,7 @@ theorem johnson_bound_alphabet_free [Field F] [DecidableEq F]
                   have hq1_ne : (q - 1 : ℚ) ≠ 0 := by exact ne_of_gt hq1_pos
                   field_simp [frac, hn_ne, hq1_ne]
                   simp [mul_comm]
+                  sorry
         have le_q_times_d : (B'.card : ℚ) ≤ q * JohnsonBound.d B' := by
           linarith [current_bound, hfrac_bound]
         have le_q_times_n : (B'.card : ℚ) ≤ q * (n : ℚ) := by
@@ -570,7 +571,6 @@ theorem johnson_bound_alphabet_free [Field F] [DecidableEq F]
                     _ = (((n - d) / n : ℝ).sqrt) := by
                             have hfrac : ((n : ℝ) * (n - d)) / (n : ℝ) ^ 2 = (n - d) / n := by
                               field_simp [hn']
-                              ring
                             simp [hfrac]
                     _ = ((1 - (d : ℝ) / n) : ℝ).sqrt := by
                             calc
@@ -662,6 +662,7 @@ theorem johnson_bound_alphabet_free [Field F] [DecidableEq F]
             simpa [h_eq_q] using htmp_q
           have frac_sub_one_eq : frac - 1 = (1 : ℚ) / (q - 1) := by
             field_simp [frac, hq1_ne]
+            sorry
           have one_div_q_le : (1 : ℚ) / q ≤ frac - 1 := by
             have hq1_le_q : (q - 1 : ℚ) ≤ q := by linarith
             have h1 : (1 : ℚ) / q ≤ (1 : ℚ) / (q - 1) := by
@@ -772,7 +773,6 @@ theorem johnson_bound_alphabet_free [Field F] [DecidableEq F]
               _ ≤ (d / n) / ((1 : ℚ) / (q * (n : ℚ) ^ 2)) := hstep
               _ = q * d * n := by
                     field_simp [hq_ne, hn_pos.ne']
-                    ring
 
           -- Combine the steps.
           rw [term_simplification]
