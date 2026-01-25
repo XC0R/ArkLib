@@ -517,18 +517,11 @@ section FunctionalDomainView
 variable (ℓ R_rate : ℕ)
 variable (h_ℓ_add_R_rate_concrete : ℓ + R_rate < r)
 
-/-- Define as a Finset (Finite Set) instead of a logical Set -/
-def EvaluationDomainFinset : Finset BTF₃ := {
-  1, 2, 3
-}
-#eval EvaluationDomainFinset
-
 -- 1. Define the data as a LIST (Ordered & Computable)
-def EvalDomainList : List BTF₃ := [
-  computableBasisExplicit 3 0,
+def EvalDomainList : List BTF₃ := -- TODO: replace this with the actual evaluation domain
+[ computableBasisExplicit 3 0,
   computableBasisExplicit 3 1,
-  computableBasisExplicit 3 2
-]
+  computableBasisExplicit 3 2 ]
 -- 2. Define the Finset for the Math (Logical)
 def EvalDomain : Finset BTF₃ := EvalDomainList.toFinset
 
@@ -546,18 +539,11 @@ instance : Repr (EvalDomain → BTF₃) where
     let values := inputs_with_proofs.map f
     Std.Format.text ("!" ++ (values.map repr).toString)
 
-#eval -- ![0#8, 0#8]
-  let f : (Fin (2) → BTF₃) := fun _ => 0
-  f
+#eval let f : (Fin (2) → BTF₃) := fun _ => 0; f -- ![0#8, 0#8]
 
 -- 3. Evaluate
--- Error: could not synthesize a 'ToExpr', 'Repr', or 'ToString' instance for type
-  -- { x // x ∈ EvalDomain } → BTF₃Lean 4
-#eval
-  let f : (EvalDomain → BTF₃) := myRestrictedFunc
-  f
+#eval let f : (EvalDomain → BTF₃) := myRestrictedFunc; f
 
 end FunctionalDomainView
-
 
 end AdditiveNTT

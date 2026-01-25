@@ -217,8 +217,7 @@ import ArkLib.ToMathlib.MvPolynomial.Equiv
 import ArkLib.ToMathlib.NumberTheory.PrattCertificate
 import ArkLib.ToMathlib.UInt.Equiv
 import ArkLib.ToVCVio.DistEq
-import ArkLib.ToVCVio.Execution
 import ArkLib.ToVCVio.Lemmas
 import ArkLib.ToVCVio.Oracle
 import ArkLib.ToVCVio.SimOracle
-import ArkLib.ToVCVio.StateTLemmas
+import ArkLib.ToVCVio.SimulationInfrastructure
