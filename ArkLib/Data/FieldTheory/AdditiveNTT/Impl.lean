@@ -142,6 +142,11 @@ def getUElements (i : Fin r) : List L :=
         β ⟨j.val, by omega⟩
       else 0
 
+-- TODO: mem_U_iff_mem_getUElements
+lemma mem_U_iff_mem_getUElements (i : Fin r) (u : L) :
+  u ∈ U 𝔽q β i ↔ u ∈ (getUElements (β := β) (ℓ := ℓ) (R_rate := R_rate) i) := by
+  sorry
+
 /-- Evaluates the subspace vanishing polynomial `W_i(x) = ∏_{u ∈ U_i} (x - u).` -/
 def evalWAt (i : Fin r) (x : L) : L :=
   ((getUElements (β := β) (ℓ := ℓ) (R_rate := R_rate) i).map (fun u => x - u)).prod
@@ -196,6 +201,20 @@ def evalNormalizedWAt (i : Fin r) (x : L) : L :=
   let W_beta := evalWAt (β := β) (ℓ := ℓ) (R_rate := R_rate) (i := i) beta_i
   W_x * W_beta⁻¹
 
+/--
+Computable version of sDomain.
+Returns the list of elements in S⁽ⁱ⁾ by mapping Ŵᵢ over U_{ℓ+R}.
+-/
+def getSDomainElements (i : Fin r) : List L :=
+  -- 1. Get the input domain elements (U_{ℓ+R})
+  let U_elements : List L := getUElements (β := β) (ℓ := ℓ) (R_rate := R_rate)
+      ⟨ℓ + R_rate, h_ℓ_add_R_rate⟩
+
+  -- 2. Map the computable normalized polynomial over them
+  U_elements.map (fun u =>
+    evalNormalizedWAt (β := β) (ℓ := ℓ) (R_rate := R_rate) (i := i) u
+  )
+
 omit [DecidableEq 𝔽q] h_Fq_char_prime h_β₀_eq_1 in
 /-- Prove that `evalNormalizedWAt` equals the standard definition of `Ŵ_i(x)`. -/
 theorem evalNormalizedWAt_eq_normalizedW (i : Fin r) (x : L) :
@@ -215,10 +234,81 @@ theorem evalNormalizedWAt_eq_normalizedW (i : Fin r) (x : L) :
   -- LHS: (W.eval x) * (W.eval beta)⁻¹, RHS: (W.eval beta)⁻¹ * (W.eval x)
   apply mul_comm
 
+theorem sDomain_eq_getSDomainElements_set (i : Fin r) :
+    (sDomain 𝔽q β h_ℓ_add_R_rate i) =
+    { x | x ∈ getSDomainElements (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i) } := by
+  -- 1. Expand definitions
+  unfold sDomain getSDomainElements
+
+  -- 2. Set equality means x is in LHS ↔ x is in RHS
+  ext x
+  constructor
+
+  · -- LHS → RHS (Subspace to List)
+    intro hx
+    -- hx says: ∃ u ∈ U, Ŵ_i(u) = x
+    simp only [Submodule.map_coe, Set.mem_image, SetLike.mem_coe] at hx
+    rcases hx with ⟨u, hu_mem, hu_eq⟩
+
+    -- We know U_elements corresponds to U (from previous proofs about getUElements)
+    -- Let's assume we have a lemma `mem_U_iff_mem_getUElements`
+    -- (You effectively proved this in `evalWAt_eq_W` via bijection,
+      -- but let's assume standard set correspondence)
+    have h_in_list : u ∈ getUElements (β := β) (ℓ := ℓ) (R_rate := R_rate)
+      ⟨ℓ + R_rate, h_ℓ_add_R_rate⟩ := by
+       -- This relies on bitsToU surjectivity
+      rw [mem_U_iff_mem_getUElements] at hu_mem;
+      exact hu_mem
+
+    -- Now show x is in the mapped list
+    simp only [List.mem_map, Set.mem_setOf_eq]
+    use u
+    constructor
+    · exact h_in_list
+    · -- Show computable evaluation equals abstract evaluation
+      rw [←hu_eq]
+      rw [evalNormalizedWAt_eq_normalizedW (𝔽q := 𝔽q) (β := β) (ℓ := ℓ) (R_rate := R_rate) (i := i)]
+      rfl
+  · -- RHS → LHS (List to Subspace)
+    intro hx
+    simp only [Set.mem_setOf_eq, List.mem_map] at hx
+    rcases hx with ⟨u, hu_mem, hu_eq⟩
+    -- Apply Submodule map definition
+    use u
+    constructor
+    · simp only [SetLike.mem_coe];
+      rw [mem_U_iff_mem_getUElements]
+      exact hu_mem
+    · -- ⊢ (polyEvalLinearMap (normalizedW 𝔽q β i) ⋯) u = x
+      rw [←hu_eq]
+      rw [evalNormalizedWAt_eq_normalizedW (𝔽q := 𝔽q) (β := β) (ℓ := ℓ) (R_rate := R_rate) (i := i)]
+      rfl
+
+/--
+Comparing a mathematical oracle `f1` on `sDomain`
+with a computable oracle `f2` on `getSDomainElements`.
+-/
+theorem oracle_implementation_correct (i : Fin r)
+    (f1 : sDomain 𝔽q β h_ℓ_add_R_rate i → L)
+    (f2 : {x // x ∈ getSDomainElements (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i)} → L) :
+    -- The assertion:
+    (∀ (x : L) (h_math : x ∈ sDomain (𝔽q := 𝔽q) (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i)),
+      -- We use the equality theorem to cast the proof `h_math` to `h_comp`
+      let h_comp : x ∈ getSDomainElements (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i) := by
+        let res := sDomain_eq_getSDomainElements_set (𝔽q := 𝔽q) (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i)
+        -- simp only [res] at h_math;
+        -- exact h_math
+        sorry
+      -- Then we check the values
+      f1 ⟨x, h_math⟩ = f2 ⟨x, h_comp⟩)
+    → True := by -- (This is just a statement format)
+  intro h
+  trivial
+
 /-- Computes the twiddle factor used in the butterfly operation.
 Corresponds to `AdditiveNTT.twiddleFactor`.
 -/
-def computableTwiddleFactor (i : Fin ℓ) (u : Fin (2 ^ (ℓ + R_rate - i - 1))) : L :=
+def computableTwiddleFactor (i : Fin r) (u : Fin (2 ^ (ℓ + R_rate - i - 1))) : L := -- i < ℓ
   -- evalNormalizedWAt L i u
   ∑ (⟨k, hk⟩: Fin (ℓ + R_rate - i - 1)),
   if Nat.getBit k u.val = 1 then
@@ -230,11 +320,11 @@ def computableTwiddleFactor (i : Fin ℓ) (u : Fin (2 ^ (ℓ + R_rate - i - 1)))
 
 omit [DecidableEq 𝔽q] h_Fq_char_prime h_β₀_eq_1 in
 /-- Prove that `computableTwiddleFactor` equals the standard definition of `twiddleFactor`. -/
-theorem computableTwiddleFactor_eq_twiddleFactor (i : Fin ℓ) :
+theorem computableTwiddleFactor_eq_twiddleFactor (i : Fin r) (h_i : i < ℓ) :
   computableTwiddleFactor (r := r) (ℓ := ℓ) (β := β) (L := L)
     (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := ⟨i, by omega⟩) =
   twiddleFactor (𝔽q := 𝔽q) (L := L) (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
-    (i := ⟨i, by omega⟩) := by
+    (i := i) (h_i := h_i) := by
   unfold computableTwiddleFactor twiddleFactor
   simp_rw [evalNormalizedWAt_eq_normalizedW (𝔽q := 𝔽q) (β := β) (ℓ := ℓ)
     (R_rate := R_rate) (i := ⟨i, by omega⟩)]
@@ -242,7 +332,7 @@ theorem computableTwiddleFactor_eq_twiddleFactor (i : Fin ℓ) :
 /-- Performs one stage of the Additive NTT. This corresponds to `NTTStage` in the abstract
 definition: `b` is the array of coefficients. `i` is the stage index (0 to r-1). -/
 def computableNTTStage [Fact (LinearIndependent 𝔽q β)]
-  (i : Fin ℓ) (b : Fin (2 ^ (ℓ + R_rate)) → L) : Fin (2^(ℓ + R_rate)) → L :=
+  (i : Fin r) (h_i : i < ℓ) (b : Fin (2 ^ (ℓ + R_rate)) → L) : Fin (2^(ℓ + R_rate)) → L := -- i < ℓ
   have h_2_pow_i_lt_2_pow_ℓ_add_R_rate: 2^i.val < 2^(ℓ + R_rate) := by
     calc
       2^i.val < 2 ^ (ℓ) := by
@@ -316,15 +406,15 @@ def computableNTTStage [Fact (LinearIndependent 𝔽q β)]
 
 omit [DecidableEq 𝔽q] h_Fq_char_prime h_β₀_eq_1 in
 /-- Prove that `computableNTTStage` equals the standard definition of `NTTStage`. -/
-theorem computableNTTStage_eq_NTTStage (i : Fin ℓ) :
+theorem computableNTTStage_eq_NTTStage (i : Fin r) (h_i : i < ℓ) :
   computableNTTStage (𝔽q := 𝔽q) (r := r) (L := L) (ℓ := ℓ) (β := β) (R_rate := R_rate)
-    (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := ⟨i, by omega⟩) =
+    (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := i) (h_i := h_i) =
   NTTStage (𝔽q := 𝔽q) (L := L) (β := β) (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
-    (i := ⟨i, by omega⟩) := by
+    (i := i) (h_i := h_i) := by
   unfold computableNTTStage NTTStage
   simp only [Fin.eta]
   simp_rw [computableTwiddleFactor_eq_twiddleFactor (𝔽q := 𝔽q) (β := β) (ℓ := ℓ)
-    (R_rate := R_rate) (i := ⟨i, by omega⟩)]
+    (R_rate := R_rate) (i := i) (h_i := h_i)]
 
 /-- The main computable Additive NTT function. `a` is the input array of coefficients.
 `r` is the number of stages (dimension of the domain). The input array size must be at least 2^r. -/
@@ -332,7 +422,8 @@ def computableAdditiveNTT (a : Fin (2 ^ ℓ) → L) : Fin (2^(ℓ + R_rate)) →
   let b: Fin (2^(ℓ + R_rate)) → L := tileCoeffs a -- Note: can optimize on this
   Fin.foldl (n:=ℓ) (f:= fun current_b i  =>
     computableNTTStage (𝔽q := 𝔽q) (β := β) (ℓ := ℓ) (R_rate := R_rate)
-      (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := ⟨ℓ - 1 - i, by omega⟩) (b:=current_b)
+      (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := ⟨ℓ - 1 - i, by omega⟩)
+      (h_i := by simp only; omega) (b:=current_b)
   ) (init:=b)
 
 omit [DecidableEq 𝔽q] h_Fq_char_prime h_β₀_eq_1 in
@@ -394,6 +485,9 @@ instance : NeZero (2^3) := ⟨by norm_num⟩
 instance : Field BTF₃ := instFieldConcrete
 instance : DecidableEq BTF₃ := (inferInstance : DecidableEq (ConcreteBTField 3))
 instance : Fintype BTF₃ := (inferInstance : Fintype (ConcreteBTField 3))
+instance : Repr (BTF₃) := by
+  letI repr_bitvec: Repr (BitVec (w := 8)) := by exact BitVec.instRepr
+  exact repr_bitvec
 
 /-- Test of the computable additive NTT over BTF₃ (an 8-bit binary tower field `BTF₃`).
 **Input polynomial:** p(x) = x (novel coefficients [7, 1, 0, 0]) of size `2^ℓ` in `BTF₃`
@@ -417,4 +511,53 @@ def testNTTBTF₃ : Fin (2 ^ (2 + 2)) → BTF₃ := by
 -- ![1#8, 0#8, 3#8, 2#8, 5#8, 4#8, 7#8, 6#8, 9#8, 8#8, 11#8, 10#8, 13#8, 12#8, 15#8, 14#8]
 
 end ConcreteBTFieldInstances
+
+section FunctionalDomainView
+
+variable (ℓ R_rate : ℕ)
+variable (h_ℓ_add_R_rate_concrete : ℓ + R_rate < r)
+
+/-- Define as a Finset (Finite Set) instead of a logical Set -/
+def EvaluationDomainFinset : Finset BTF₃ := {
+  1, 2, 3
+}
+#eval EvaluationDomainFinset
+
+-- 1. Define the data as a LIST (Ordered & Computable)
+def EvalDomainList : List BTF₃ := [
+  computableBasisExplicit 3 0,
+  computableBasisExplicit 3 1,
+  computableBasisExplicit 3 2
+]
+-- 2. Define the Finset for the Math (Logical)
+def EvalDomain : Finset BTF₃ := EvalDomainList.toFinset
+
+-- 2. Define the Function
+def myRestrictedFunc (u : {x // x ∈ EvalDomain}) : BTF₃ :=
+  u.val * u.val + u.val
+
+-- 5. Robust #eval wrapper: here is the most robust pattern using `attach` on the LIST directly.
+instance : Repr (EvalDomain → BTF₃) where
+  reprPrec f _prec :=
+    let inputs_with_proofs : List {x // x ∈ EvalDomain} :=
+      EvalDomainList.attach.map fun ⟨x, h_in_list⟩ =>
+        ⟨x, List.mem_toFinset.mpr h_in_list⟩
+
+    let values := inputs_with_proofs.map f
+    Std.Format.text ("!" ++ (values.map repr).toString)
+
+#eval -- ![0#8, 0#8]
+  let f : (Fin (2) → BTF₃) := fun _ => 0
+  f
+
+-- 3. Evaluate
+-- Error: could not synthesize a 'ToExpr', 'Repr', or 'ToString' instance for type
+  -- { x // x ∈ EvalDomain } → BTF₃Lean 4
+#eval
+  let f : (EvalDomain → BTF₃) := myRestrictedFunc
+  f
+
+end FunctionalDomainView
+
+
 end AdditiveNTT

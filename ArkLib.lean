@@ -118,6 +118,7 @@ import ArkLib.Data.Vector.Basic
 import ArkLib.OracleReduction.BCS.Basic
 import ArkLib.OracleReduction.Basic
 import ArkLib.OracleReduction.Cast
+import ArkLib.OracleReduction.Completeness
 import ArkLib.OracleReduction.Composition.Parallel.Basic
 import ArkLib.OracleReduction.Composition.Sequential.Append
 import ArkLib.OracleReduction.Composition.Sequential.General
@@ -154,10 +155,12 @@ import ArkLib.OracleReduction.VectorIOR
 import ArkLib.ProofSystem.BatchedFri.Spec.General
 import ArkLib.ProofSystem.BatchedFri.Spec.SingleRound
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Basic
+import ArkLib.ProofSystem.Binius.BinaryBasefold.Code
 import ArkLib.ProofSystem.Binius.BinaryBasefold.CoreInteractionPhase
 import ArkLib.ProofSystem.Binius.BinaryBasefold.General
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Prelude
 import ArkLib.ProofSystem.Binius.BinaryBasefold.QueryPhase
+import ArkLib.ProofSystem.Binius.BinaryBasefold.ReductionLogic
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Spec
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps
 import ArkLib.ProofSystem.Binius.FRIBinius.CoreInteractionPhase
@@ -214,6 +217,8 @@ import ArkLib.ToMathlib.MvPolynomial.Equiv
 import ArkLib.ToMathlib.NumberTheory.PrattCertificate
 import ArkLib.ToMathlib.UInt.Equiv
 import ArkLib.ToVCVio.DistEq
+import ArkLib.ToVCVio.Execution
 import ArkLib.ToVCVio.Lemmas
 import ArkLib.ToVCVio.Oracle
 import ArkLib.ToVCVio.SimOracle
+import ArkLib.ToVCVio.StateTLemmas
