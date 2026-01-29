@@ -153,7 +153,6 @@ lemma polyToOracleFunc_eq_getFirstOracle
     Uses loose indexing with `Fin r`. -/
 def decomposeChallenge (v : sDomain 𝔽q β h_ℓ_add_R_rate ⟨0, by omega⟩)
     (i : Fin r) {destIdx : Fin r} (steps : ℕ)
-    (h_destIdx : destIdx = i.val + steps)
     (h_destIdx_le : destIdx ≤ ℓ) :
     Fin (2^steps) × sDomain 𝔽q β h_ℓ_add_R_rate destIdx :=
   (extractMiddleFinMask 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (v:=v) (i:=i) (steps:=steps),
@@ -168,6 +167,12 @@ def decomposeChallenge (v : sDomain 𝔽q β h_ℓ_add_R_rate ⟨0, by omega⟩)
 --       sDomainToFin (extractSuffixFromChallenge ... ) := by sorry
 
 -- TODO: Lemma connecting queryFiberPoints to extractMiddleFinMask
+
+-- TODO: KEY LEMMA for connecting fiber queries to challenge decomposition
+-- This lemma would show that joinBits (extractMiddleFinMask v i steps) (sDomainToFin suffix)
+-- reconstructs the original point. However, it causes timeout issues due to complex type unification.
+-- For now, we'll prove h_point_eq directly using the definitions.
+
 -- lemma queryFiberPoints_at_extractMiddleFinMask ...
 
 /-- This proposition declaratively captures the iterative logic of the verifier. For each repetition
@@ -691,7 +696,7 @@ lemma query_phase_consistency_guard_safe
   conv_rhs => rw [h_fiber_val]
 
   dsimp only [strictFinalSumcheckRelOut, strictFinalSumcheckRelOutProp,
-    strictFinalFoldingStateProp] at h_relIn
+    strictfinalSumcheckStepFoldingStateProp] at h_relIn
   simp only [Fin.val_last, exists_and_right, Subtype.exists] at h_relIn
   rcases h_relIn with ⟨exists_t_MLP, _⟩
   rcases exists_t_MLP with ⟨t, h_t_mem_support, h_strictOracleFoldingConsistency⟩
@@ -704,7 +709,23 @@ lemma query_phase_consistency_guard_safe
   conv_rhs => rw [h_oStmtIn_k_eq]
   simp only
 
-  have h_point_eq : extractSuffixFromChallenge 𝔽q β v ⟨↑k * ϑ, by omega⟩ (by simp only; omega) = getFiberPoint 𝔽q β k v (extractMiddleFinMask 𝔽q β v ⟨↑k * ϑ, by omega⟩ ϑ) := by
+  have h_point_eq : extractSuffixFromChallenge 𝔽q β v ⟨↑k * ϑ, by omega⟩ (by simp only; omega) =
+      getFiberPoint 𝔽q β k v (extractMiddleFinMask 𝔽q β v ⟨↑k * ϑ, by omega⟩ ϑ) := by
+    -- The key insight: getFiberPoint reconstructs a point in S^i by:
+    -- 1. Taking the suffix at i+ϑ
+    -- 2. Joining it with the fiber index u (the middle ϑ bits)
+    -- 3. Converting back to sDomain
+    -- When u = extractMiddleFinMask v i ϑ, this reconstructs exactly the suffix at i
+
+    -- Unfold definitions
+    dsimp only [getFiberPoint, getChallengeSuffix, challengeSuffixToFin, extractSuffixFromChallenge]
+
+    -- Both sides use iteratedQuotientMap, so we need to show they're applied to the same element
+    -- This requires showing that finToSDomain (joinBits u suffix_fin) = iteratedQuotientMap v
+    -- where u = extractMiddleFinMask and suffix_fin comes from the suffix at i+ϑ
+
+    -- For now, we leave this as sorry since it requires deep reasoning about
+    -- the relationship between joinBits, sDomainToFin, finToSDomain, and iteratedQuotientMap
     sorry
 
   rw [h_point_eq]
@@ -855,7 +876,7 @@ lemma query_phase_step_preserves_fold
     -- Now rw the oStmtIn k_oracle_idx into the iterated_fold of f⁽⁰⁾ form
     -- Extract t and strictOracleFoldingConsistencyProp from h_relIn
     dsimp only [strictFinalSumcheckRelOut, strictFinalSumcheckRelOutProp,
-      strictFinalFoldingStateProp] at h_relIn
+      strictfinalSumcheckStepFoldingStateProp] at h_relIn
     simp only [Fin.val_last, exists_and_right, Subtype.exists] at h_relIn
     rcases h_relIn with ⟨exists_t_MLP, _⟩
     rcases exists_t_MLP with ⟨t, h_t_mem_support, h_strictOracleFoldingConsistency⟩
@@ -1058,7 +1079,7 @@ lemma query_phase_final_fold_eq_constant
     ) :
     x = stmtIn.final_constant := by
   dsimp only [strictFinalSumcheckRelOut, strictFinalSumcheckRelOutProp,
-    strictFinalFoldingStateProp] at h_relIn
+    strictfinalSumcheckStepFoldingStateProp] at h_relIn
   simp only [Fin.val_last, exists_and_right, Subtype.exists] at h_relIn
 
   -- 2. Extract the existential witnesses
@@ -1742,35 +1763,23 @@ noncomputable def queryRbrExtractor :
   extractMid := fun _ _ _ witMidSucc => witMidSucc
   extractOut := fun _ _ _ => ()
 
-def queryKStateProp {m : Fin (1 + 1)}
+def queryKStateProp (m : Fin (1 + 1))
   (tr : ProtocolSpec.Transcript m
     (pSpecQuery 𝔽q β γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate)))
   (stmt : FinalSumcheckStatementOut (L := L) (ℓ := ℓ))
   (witMid : Unit)
   (oStmt : ∀ j, OracleStatement 𝔽q β (ϑ := ϑ)
     (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (Fin.last ℓ) j) : Prop :=
-if h0 : m.val = 0 then
-  -- Same as last Kstate of finalSumcheck reduction
-  Binius.BinaryBasefold.finalSumcheckRelOutProp 𝔽q β
-    (input:=⟨⟨stmt, oStmt⟩, witMid⟩)
-else
-    let r := stmt.ctx.t_eval_point
-    let s := stmt.ctx.original_claim
-    let challenges : Fin ℓ → L := stmt.challenges
-    let tr_so_far := (pSpecQuery 𝔽q β γ_repetitions
-      (h_ℓ_add_R_rate := h_ℓ_add_R_rate)).take m m.is_le
-    let chalIdx : tr_so_far.ChallengeIdx := ⟨⟨0,
-      Nat.lt_of_succ_le (by omega)⟩, by simp only [Nat.reduceAdd]; rfl⟩
-    let γ_challenges : Fin γ_repetitions → sDomain 𝔽q
-      β h_ℓ_add_R_rate ⟨0, by omega⟩ := ((ProtocolSpec.Transcript.equivMessagesChallenges (k:=m)
-        (pSpec:=pSpecQuery 𝔽q β γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
-        tr).2 chalIdx)
+  match m with
+  | ⟨0, _⟩ => -- Same as last KState of finalSumcheck reduction (= relIn)
+    Binius.BinaryBasefold.finalSumcheckRelOutProp 𝔽q β
+      (input := ⟨⟨stmt, oStmt⟩, witMid⟩)
+  | ⟨1, _⟩ => -- After V sends γ challenges: proximity tests must pass
+    let γ_challenges : Fin γ_repetitions → sDomain 𝔽q β h_ℓ_add_R_rate ⟨0, by omega⟩ :=
+      tr.challenges ⟨0, rfl⟩
     let fold_challenges := stmt.challenges
-    -- Checks available after message 1 (V -> P: γ challenges)
-    let proximityTestsCheck : Prop :=
-      proximityChecksSpec 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
-      (ϑ:=ϑ) γ_repetitions γ_challenges oStmt fold_challenges stmt.final_constant
-    proximityTestsCheck
+    proximityChecksSpec 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
+      (ϑ := ϑ) γ_repetitions γ_challenges oStmt fold_challenges stmt.final_constant
 
 /-- The knowledge state function for the query phase -/
 noncomputable def queryKnowledgeStateFunction {σ : Type} (init : ProbComp σ)
@@ -1778,7 +1787,8 @@ noncomputable def queryKnowledgeStateFunction {σ : Type} (init : ProbComp σ)
   (queryOracleVerifier 𝔽q β (ϑ:=ϑ) γ_repetitions).KnowledgeStateFunction init impl
   (relIn := finalSumcheckRelOut 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) )
   (relOut := acceptRejectOracleRel)
-  (extractor := queryRbrExtractor 𝔽q β (ϑ:=ϑ) γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate)) where
+  (extractor := queryRbrExtractor 𝔽q β (ϑ:=ϑ)
+    γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate)) where
   toFun := fun m ⟨stmt, oStmt⟩ tr witMid =>
     queryKStateProp 𝔽q β (ϑ:=ϑ) (γ_repetitions:=γ_repetitions)
       (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
@@ -1789,7 +1799,28 @@ noncomputable def queryKnowledgeStateFunction {σ : Type} (init : ProbComp σ)
   toFun_full := fun stmt tr witOut h => by
     sorry
 
-/-- Round-by-round knowledge soundness for the oracle verifier (query phase) -/
+/-- Round-by-round knowledge soundness for the oracle verifier (query phase).
+
+**Proof Strategy (RBR Extraction Failure Event):**
+
+The RBR extraction failure event is: `¬ KState(0) ∧ KState(1)`, i.e.,
+  - `¬ finalSumcheckRelOutProp` (KState 0 = FALSE), AND
+  - `proximityChecksSpec` (KState 1 = TRUE)
+
+By De Morgan's law:
+  `¬ finalSumcheckRelOutProp = ¬ (oracleFoldingConsistency ∨ badEvent)`
+                             `= ¬ oracleFoldingConsistency ∧ ¬ badEvent`
+
+This means:
+  - `¬ oracleFoldingConsistency`: Some oracle is NOT compliant (not close to correct folding)
+  - `¬ badEvent`: No bad events detected
+
+**Proposition 4.23 (DG25 - Assuming no bad events):**
+If any of the adversary's oracles is not compliant (not close to RS codeword),
+then the verifier accepts with at most negligible probability:
+  `Pr[V accepts] ≤ ((1/2) + 1/(2 * 2^𝓡))^γ_repetitions`
+
+This is exactly `queryRbrKnowledgeError`. -/
 theorem queryOracleVerifier_rbrKnowledgeSoundness [Fintype L] {σ : Type} (init : ProbComp σ)
     (impl : QueryImpl []ₒ (StateT σ ProbComp)) :
     (queryOracleVerifier 𝔽q β (ϑ:=ϑ) γ_repetitions).rbrKnowledgeSoundness init impl
@@ -1801,6 +1832,8 @@ theorem queryOracleVerifier_rbrKnowledgeSoundness [Fintype L] {σ : Type} (init 
   use queryRbrExtractor 𝔽q β (ϑ:=ϑ) γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
   use queryKnowledgeStateFunction 𝔽q β (ϑ:=ϑ) γ_repetitions init impl
   intro stmtIn witIn prover j
+  -- Apply Proposition 4.23: if no bad events and some oracle is not compliant,
+  -- then V accepts with probability ≤ queryRbrKnowledgeError
   sorry
 
 end FinalQueryRoundIOR

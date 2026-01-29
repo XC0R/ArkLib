@@ -161,6 +161,7 @@ import ArkLib.ProofSystem.Binius.BinaryBasefold.General
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Prelude
 import ArkLib.ProofSystem.Binius.BinaryBasefold.QueryPhase
 import ArkLib.ProofSystem.Binius.BinaryBasefold.ReductionLogic
+import ArkLib.ProofSystem.Binius.BinaryBasefold.SoundnessFoundations
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Spec
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps
 import ArkLib.ProofSystem.Binius.FRIBinius.CoreInteractionPhase
@@ -213,6 +214,7 @@ import ArkLib.ToMathlib.Data.IndexedBinaryTree.Equiv
 import ArkLib.ToMathlib.Data.IndexedBinaryTree.Lemmas
 import ArkLib.ToMathlib.Finset.Basic
 import ArkLib.ToMathlib.Finsupp.Fin
+import ArkLib.ToMathlib.MvPolynomial.Conversions
 import ArkLib.ToMathlib.MvPolynomial.Equiv
 import ArkLib.ToMathlib.NumberTheory.PrattCertificate
 import ArkLib.ToMathlib.UInt.Equiv

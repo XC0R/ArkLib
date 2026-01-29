@@ -558,7 +558,7 @@ def finalSumcheckKStateProp {m : Fin (1 + 1)} (tr : Transcript m (pSpecFinalSumc
     let sumcheckFinalCheck : Prop := stmt.sumcheck_target = compute_final_eq_value κ L K
       (β := booleanHypercubeBasis κ L K β) ℓ ℓ' h_l
       stmt.ctx.t_eval_point stmt.challenges stmt.ctx.r_batching * s'
-    let finalFoldingProp := finalFoldingStateProp K β (ϑ := ϑ)
+    let finalFoldingProp := finalSumcheckStepFoldingStateProp K β (ϑ := ϑ)
       (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (h_le := by
         apply Nat.le_of_dvd;
         · exact Nat.pos_of_neZero ℓ'
