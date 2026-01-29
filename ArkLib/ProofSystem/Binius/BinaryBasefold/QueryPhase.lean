@@ -153,7 +153,6 @@ lemma polyToOracleFunc_eq_getFirstOracle
     Uses loose indexing with `Fin r`. -/
 def decomposeChallenge (v : sDomain 𝔽q β h_ℓ_add_R_rate ⟨0, by omega⟩)
     (i : Fin r) {destIdx : Fin r} (steps : ℕ)
-    (h_destIdx : destIdx = i.val + steps)
     (h_destIdx_le : destIdx ≤ ℓ) :
     Fin (2^steps) × sDomain 𝔽q β h_ℓ_add_R_rate destIdx :=
   (extractMiddleFinMask 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (v:=v) (i:=i) (steps:=steps),
@@ -168,6 +167,12 @@ def decomposeChallenge (v : sDomain 𝔽q β h_ℓ_add_R_rate ⟨0, by omega⟩)
 --       sDomainToFin (extractSuffixFromChallenge ... ) := by sorry
 
 -- TODO: Lemma connecting queryFiberPoints to extractMiddleFinMask
+
+-- TODO: KEY LEMMA for connecting fiber queries to challenge decomposition
+-- This lemma would show that joinBits (extractMiddleFinMask v i steps) (sDomainToFin suffix)
+-- reconstructs the original point. However, it causes timeout issues due to complex type unification.
+-- For now, we'll prove h_point_eq directly using the definitions.
+
 -- lemma queryFiberPoints_at_extractMiddleFinMask ...
 
 /-- This proposition declaratively captures the iterative logic of the verifier. For each repetition
@@ -704,7 +709,23 @@ lemma query_phase_consistency_guard_safe
   conv_rhs => rw [h_oStmtIn_k_eq]
   simp only
 
-  have h_point_eq : extractSuffixFromChallenge 𝔽q β v ⟨↑k * ϑ, by omega⟩ (by simp only; omega) = getFiberPoint 𝔽q β k v (extractMiddleFinMask 𝔽q β v ⟨↑k * ϑ, by omega⟩ ϑ) := by
+  have h_point_eq : extractSuffixFromChallenge 𝔽q β v ⟨↑k * ϑ, by omega⟩ (by simp only; omega) =
+      getFiberPoint 𝔽q β k v (extractMiddleFinMask 𝔽q β v ⟨↑k * ϑ, by omega⟩ ϑ) := by
+    -- The key insight: getFiberPoint reconstructs a point in S^i by:
+    -- 1. Taking the suffix at i+ϑ
+    -- 2. Joining it with the fiber index u (the middle ϑ bits)
+    -- 3. Converting back to sDomain
+    -- When u = extractMiddleFinMask v i ϑ, this reconstructs exactly the suffix at i
+
+    -- Unfold definitions
+    dsimp only [getFiberPoint, getChallengeSuffix, challengeSuffixToFin, extractSuffixFromChallenge]
+
+    -- Both sides use iteratedQuotientMap, so we need to show they're applied to the same element
+    -- This requires showing that finToSDomain (joinBits u suffix_fin) = iteratedQuotientMap v
+    -- where u = extractMiddleFinMask and suffix_fin comes from the suffix at i+ϑ
+
+    -- For now, we leave this as sorry since it requires deep reasoning about
+    -- the relationship between joinBits, sDomainToFin, finToSDomain, and iteratedQuotientMap
     sorry
 
   rw [h_point_eq]

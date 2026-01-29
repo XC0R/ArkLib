@@ -13,6 +13,7 @@ import VCVio.OracleComp.SimSemantics.SimulateQ
 import Mathlib.Data.ENNReal.Basic
 import VCVio.OracleComp.DistSemantics.EvalDist
 import ArkLib.OracleReduction.OracleInterface
+import ArkLib.Data.Probability.Instances
 
 /-!
 ## Monad-to-Logic Bridge Lemmas
@@ -1269,3 +1270,125 @@ lemma mem_support_vector_mapM_pure {α β : Type} {n : ℕ} {ι : Type} {spec : 
     simp only [Fin.getElem_fin, support_pure, Vector.getElem_map, Set.mem_singleton_iff]
 
 end ForInLemmas
+
+/-!
+## Probability Notation Bridge Lemmas
+
+This section contains lemmas to bridge between VCVio's `probEvent` notation `[p | oa]`
+and ArkLib's `Pr_{...}[...]` PMF-based notation, enabling the use of probability
+tools from `Instances.lean` (like Schwartz-Zippel) in security proofs.
+
+### Key Strategy
+
+Use `OracleComp.probEvent_bind_eq_tsum` to factor complex probability statements:
+```lean
+[q | oa >>= ob] = ∑' x : α, [= x | oa] * [q | ob x]
+```
+-/
+
+section ProbabilityNotationBridge
+
+variable {ι : Type*} {spec : OracleSpec ι} {α β σ : Type} [spec.FiniteRange]
+
+/-- **Key factorization lemma**: breaks down `probEvent` on bind into a tsum.
+This is the main tool for analyzing complex security bounds. -/
+lemma probEvent_bind_factor {α β : Type}
+    (oa : OracleComp spec α) (ob : α → OracleComp spec β)
+    (q : β → Prop) [DecidablePred q] :
+    [q | oa >>= ob] = ∑' x : α, [= x | oa] * [q | ob x] :=
+  OracleComp.probEvent_bind_eq_tsum oa ob q
+
+/-- Factor `probEvent` on a `StateT` computation after `.run'`.
+Useful pattern in security definitions with stateful simulations. -/
+lemma probEvent_StateT_run'_factor {σ α : Type} (init : ProbComp σ)
+    (comp : StateT σ ProbComp α) (p : α → Prop) [DecidablePred p] :
+    [p | do let s ← init; Prod.fst <$> comp.run s] =
+    ∑' s : σ, [= s | init] * [p | Prod.fst <$> comp.run s] := by
+  rw [OracleComp.probEvent_bind_eq_tsum]
+
+/-- Simplification when initial state is deterministic. -/
+lemma probEvent_StateT_run'_pure {σ α : Type}
+    (s : σ) (comp : StateT σ ProbComp α) (p : α → Prop) [DecidablePred p] :
+    [p | comp.run' s] = [p | Prod.fst <$> comp.run s] := by
+  simp only [StateT.run'_eq, OracleComp.probEvent_pure,
+    ite_mul, one_mul, zero_mul, tsum_ite_eq]
+
+end ProbabilityNotationBridge
+
+section NestedSimulateQSupport
+open OracleComp OracleSpec OracleQuery SimOracle
+
+variable {ι : Type} {oSpec oSpec' : OracleSpec ι}
+  [oSpec.FiniteRange] [oSpec'.FiniteRange]
+
+omit [oSpec.FiniteRange] in
+/-- **Support of simulateQ through bind with StateT**
+
+For stateful oracle implementations, the support of `(simulateQ impl oa >>= f).run s` can be
+related to the spec support by unfolding through the monadic structure.
+
+This handles the case where we have a bind after simulateQ, which is common in verifier
+executions that continue with additional stateful computations. -/
+lemma support_simulateQ_bind_run_eq
+    {σ α β : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp))
+    (oa : OracleComp oSpec α) (f : α → StateT σ ProbComp β) (s : σ) :
+    ((simulateQ impl oa >>= f).run s).support =
+    (do let ⟨x, s'⟩ ← (simulateQ impl oa).run s; (f x).run s').support := by
+  simp only [StateT.run]; rfl
+/-- Merge nested stateless simulations. -/
+@[simp]
+lemma simulateQ_simulateQ {ι₁ ι₂ ι₃ : Type}
+    {α : Type}
+    {spec₁ : OracleSpec ι₁} {spec₂ : OracleSpec ι₂} {spec₃ : OracleSpec ι₃}
+    (so₁ : SimOracle.Stateless spec₁ spec₂) (so₂ : SimOracle.Stateless spec₂ spec₃)
+    (oa : OracleComp spec₁ α) :
+    simulateQ so₂ (simulateQ so₁ oa) =
+    simulateQ (⟨fun q => simulateQ so₂ (so₁.impl q)⟩ : SimOracle.Stateless spec₁ spec₃) oa := by
+  induction oa using OracleComp.inductionOn with
+  | pure x => simp [simulateQ_pure]
+  | query_bind i t oa ih =>
+    simp only [simulateQ_query_bind, simulateQ_bind, Function.comp_def, QueryImpl.impl]
+    sorry
+  | failure => simp [simulateQ_failure]
+
+/-- Handle the guard pattern inside support reasoning. -/
+@[simp]
+lemma support_guard_bind {ι : Type} {spec : OracleSpec ι} [spec.FiniteRange]
+    {α : Type} (p : Prop) [Decidable p]
+    (f : PUnit → OracleComp spec α) :
+    (guard p >>= f).support = if p then (f ()).support else ∅ :=
+by split_ifs with h <;> simp [h, guard]
+
+/-- Specifically targets the `let x ← liftM (query ...)` pattern inside simulateQ. -/
+@[simp]
+lemma simulateQ_simOracle2_query_bind
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ι₁ : Type w} {T₁ : ι₁ → Type w} [∀ i, OracleInterface (T₁ i)]
+    {ι₂ : Type w} {T₂ : ι₂ → Type w} [∀ i, OracleInterface (T₂ i)]
+    {β : Type}
+    (t₁ : ∀ i, T₁ i) (t₂ : ∀ i, T₂ i) (j : ι₁) (pt : [T₁]ₒ.domain j)
+    (f : _ → OracleComp (oSpec ++ₒ ([T₁]ₒ ++ₒ [T₂]ₒ)) β) :
+    simulateQ (OracleInterface.simOracle2 oSpec t₁ t₂) (do let x ← liftM (query j pt); f x) =
+    simulateQ (OracleInterface.simOracle2 oSpec t₁ t₂) (f (OracleInterface.answer (t₁ j) pt)) :=
+by simp; sorry
+
+end NestedSimulateQSupport
+
+section MapLemmas
+
+variable {ι : Type} {spec : OracleSpec ι} {α β : Type}
+
+/-- Map over pure reduces to pure of the mapped value. -/
+@[simp]
+lemma map_pure (f : α → β) (a : α) :
+    (f <$> pure a : OracleComp spec β) = pure (f a) := rfl
+
+/-- Map over failure is failure. -/
+@[simp]
+lemma map_failure (f : α → β) :
+    (f <$> (failure : OracleComp spec α) : OracleComp spec β) = failure := by
+  rw [map_eq_pure_bind]
+  rfl
+
+end MapLemmas

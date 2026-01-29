@@ -1489,6 +1489,29 @@ variable {Context : Type} {mp : SumcheckMultiplierParam L ℓ Context}
 
 end FoldStepPreservationLemmas
 
+/-- badEventExistsProp is preserved under relay step oracle remapping.
+    Key insight: hNCR means no new oracle block is completed, so bad events are the same. -/
+lemma badEventExistsProp_relay_preserved (i : Fin ℓ) (hNCR : ¬ isCommitmentRound ℓ ϑ i)
+    (oStmt : ∀ j, OracleStatement 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ i.castSucc j)
+    (challenges : Fin i.succ → L) :
+    badEventExistsProp 𝔽q β i.succ (OracleFrontierIndex.mkFromStmtIdxCastSuccOfSucc i)
+      oStmt challenges ↔
+    badEventExistsProp 𝔽q β i.succ (OracleFrontierIndex.mkFromStmtIdx i.succ)
+      (mapOStmtOutRelayStep 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i hNCR oStmt) challenges := by
+  sorry
+
+/-- oracleWitnessConsistency is preserved under relay step oracle remapping. -/
+lemma oracleWitnessConsistency_relay_preserved' (i : Fin ℓ) (hNCR : ¬ isCommitmentRound ℓ ϑ i)
+    (stmt : Statement (L := L) Context i.succ)
+    (wit : Witness (L := L) 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i.succ)
+    (oStmt : ∀ j, OracleStatement 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ i.castSucc j) :
+    oracleWitnessConsistency 𝔽q β (mp := mp) i.succ
+      (oracleIdx := OracleFrontierIndex.mkFromStmtIdxCastSuccOfSucc i) stmt wit oStmt ↔
+    oracleWitnessConsistency 𝔽q β (mp := mp) i.succ
+      (oracleIdx := OracleFrontierIndex.mkFromStmtIdx i.succ) stmt wit
+      (mapOStmtOutRelayStep 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i hNCR oStmt) := by
+  sorry
+
 lemma oracleWitnessConsistency_relay_preserved
     (i : Fin ℓ) (hNCR : ¬ isCommitmentRound ℓ ϑ i)
     (stmt : Statement (L := L) Context i.succ)
@@ -1499,14 +1522,9 @@ lemma oracleWitnessConsistency_relay_preserved
     oracleWitnessConsistency 𝔽q β (mp := mp) i.succ
       (oracleIdx := OracleFrontierIndex.mkFromStmtIdx i.succ) stmt wit
       (mapOStmtOutRelayStep 𝔽q β i hNCR oStmt) := by
-  unfold oracleWitnessConsistency
-  -- All four components (witnessStructuralInvariant, sumCheckConsistency,
-  -- firstOracleConsistency, oracleFoldingConsistency) are preserved during relay
-  have h_oracle_size_eq: toOutCodewordsCount ℓ ϑ i.castSucc = toOutCodewordsCount ℓ ϑ i.succ := by
-    simp only [toOutCodewordsCount_succ_eq ℓ ϑ i, hNCR, ↓reduceIte]
-
-  congr 1
-  sorry
+  apply propext
+  exact oracleWitnessConsistency_relay_preserved' 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
+    (mp := mp) i hNCR stmt wit oStmt
   -- -- firstOracleConsistency: getFirstOracle is preserved
   -- · unfold getFirstOracle
   --   simp only [mapOStmtOutRelayStep, h_oracle_size_eq]

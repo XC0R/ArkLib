@@ -9,10 +9,12 @@ import ArkLib.Data.Probability.Notation
 import ArkLib.Data.Fin.BigOperators
 import ArkLib.Data.Nat.Bitwise
 import Mathlib.Algebra.MvPolynomial.SchwartzZippel
+import ArkLib.Data.MvPolynomial.Notation
+import ArkLib.ToMathlib.MvPolynomial.Equiv
 
 open ProbabilityTheory Filter
 open NNReal Finset Function
-open scoped BigOperators ProbabilityTheory
+open scoped BigOperators ProbabilityTheory Polynomial
 open Real
 
 section
@@ -492,5 +494,51 @@ lemma prob_schwartz_zippel_mv_polynomial {R : Type} [CommRing R] [IsDomain R] [F
   simp only [Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, Nat.cast_pow, ge_iff_le]
   rw [Nat.cast_pow] at sz_bound_ENNReal
   exact sz_bound_ENNReal
+
+/-- **Schwartz-Zippel for degree-1 univariate polynomials**.
+For two distinct degree-1 univariate polynomials over a commutative ring, the probability
+that they agree at a random point is at most `1 / |R|`. -/
+lemma prob_poly_agreement_degree_one {R : Type} [CommRing R] [IsDomain R] [Fintype R]
+    [DecidableEq R]
+    (p q : R⦃≤ 1⦄[X])
+    (h_ne : p ≠ q) :
+    Pr_{ let r ←$ᵖ R }[ p.val.eval r = q.val.eval r ] ≤
+      (1 : ℝ≥0) / (Fintype.card R : ℝ≥0) := by
+  -- 1. Setup the multivariate polynomial P = p - q
+  let P := (p.val - q.val).toMvPolynomial (σ := Fin 1) 0
+  -- 2. Prove P is non-zero (immediate from p ≠ q)
+  have h_nz : P ≠ 0 := by
+    rw [Polynomial.toMvPolynomial_ne_zero_iff, sub_ne_zero]
+    exact fun h => h_ne (Subtype.eq h)
+  have h_p_deg : p.val.degree ≤ 1 :=
+    Polynomial.mem_degreeLE (f := p.val) (n := 1).mp (by simp only [SetLike.coe_mem])
+  have h_q_deg : q.val.degree ≤ 1 :=
+    Polynomial.mem_degreeLE (f := q.val) (n := 1).mp (by simp only [SetLike.coe_mem])
+  -- 3. Prove totalDegree P ≤ 1
+  have h_deg : P.totalDegree ≤ 1 := by
+    apply (Polynomial.toMvPolynomial_totalDegree_le _ _).trans
+    apply (Polynomial.natDegree_sub_le _ _).trans
+    -- Use the fact that p, q are in R{≤1}[X] directly
+    simp only [max_le_iff]
+    constructor <;> apply Polynomial.natDegree_le_of_degree_le <;>
+      first | exact h_p_deg | exact h_q_deg
+  -- 4. Apply Schwartz-Zippel
+  calc Pr_{ let r ←$ᵖ R }[ p.val.eval r = q.val.eval r ]
+    _ = Pr_{ let r ←$ᵖ R }[ (p.val - q.val).eval r = 0 ] := by
+      apply Pr_congr; simp [sub_eq_zero]
+    _ = Pr_{ let r ←$ᵖ R }[ MvPolynomial.eval (fun _ ↦ r) P = 0 ] := by
+      apply Pr_congr; intro; simp [P, MvPolynomial.eval_toMvPolynomial]
+    _ = Pr_{ let f ←$ᵖ (Fin 1 → R) }[ MvPolynomial.eval f P = 0 ] := by
+      -- Move to function space (Fin 1 → R)
+      rw [← prob_uniform_singleton_finFun_eq]
+      congr; funext f
+      -- Collapse: eval f (toMv p) = eval (f 0) p
+      simp [P, MvPolynomial.eval_toMvPolynomial]
+    _ ≤ _ := by
+      have h := prob_schwartz_zippel_mv_polynomial P h_nz h_deg
+      simp only [Nat.cast_one] at h
+      exact h
+
+alias prob_schwartz_zippel_univariate_poly := prob_poly_agreement_degree_one
 
 end ProbabilityTools

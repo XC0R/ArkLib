@@ -274,6 +274,9 @@ instance : ∀ j, OracleInterface ((pSpecFold (L:=L)).Message j) -- this cover .
   | ⟨0, h⟩ => by exact OracleInterface.instDefault -- h_i(X) polynomial
   | ⟨1, _⟩ => by exact OracleInterface.instDefault -- challenge r'_i
 
+instance : ∀ j, OracleInterface ((pSpecFold (L:=L)).Challenge j) :=
+  fun _ => OracleInterface.instDefault
+
 instance : ∀ j, OracleInterface ((pSpecRelay).Message j)
   | ⟨x, h⟩ => by exact x.elim0
 
@@ -437,6 +440,7 @@ instance : ∀ i, ∀ j, Inhabited ((pSpecCommit 𝔽q β (h_ℓ_add_R_rate := h
     both of which use `OracleInterface.instDefault` (Query = Unit, Response = Message type).
     The response types are the polynomial and field element themselves, both finite and inhabited. -/
 instance : ([(pSpecFold (L:=L)).Message]ₒ).FiniteRange := by sorry
+instance : ([(pSpecFold (L:=L)).Challenge]ₒ).FiniteRange := by sorry
 
 instance instOracleStatementFiniteRange {i : Fin (ℓ + 1)} :
   [OracleStatement 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i]ₒ.FiniteRange := by sorry
