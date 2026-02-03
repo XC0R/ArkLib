@@ -144,12 +144,6 @@ def rootMultiplicity.{u} {F : Type u} [CommSemiring F] [DecidableEq F]
   let X := (Polynomial.X : Polynomial F)
   rootMultiplicity₀ (F := F) ((f.comp (Y + (C (C y)))).map (Polynomial.compRingHom (X + C x)))
 
-/-- If the multiplicity of a pair `(x,y)` is non-negative, then the pair is a root of `f`. -/
-lemma rootMultiplicity_some_implies_root {F : Type} [CommSemiring F] [DecidableEq F]
-  {x y : F} {f : F[X][Y]} (h : some 0 < (rootMultiplicity (f := f) x y))
-  : (f.eval 0).eval 0 = 0 := by
-  sorry
-
 open Univariate in
 /-- In the case of a bivariate polynomial we cannot easily use `discriminant`.
    We are using the fact that the resultant in question is always
@@ -460,3 +454,12 @@ def weightedDegreeMonomialXY {n m : ℕ} (a b t : ℕ) : ℕ :=
 
 end
 end Polynomial.Bivariate
+
+
+open Polynomial
+open Polynomial.Bivariate
+
+theorem rootMultiplicity_some_implies_root {F : Type} [CommRing F] [DecidableEq F]
+  {x y : F} {f : F[X][Y]} (h : 0 < ((f.eval (C y)).rootMultiplicity x))
+  : (f.eval (C y)).eval x = 0 := by
+  simp_all only [rootMultiplicity_pos', ne_eq, IsRoot.def]
