@@ -270,9 +270,12 @@ def fullPSpec := (pSpecCoreInteraction 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_
 
 /-! ## Oracle Interface instances for Messages-/
 
-instance : ∀ j, OracleInterface ((pSpecFold (L:=L)).Message j) -- this cover .Message and .Challenge
-  | ⟨0, h⟩ => by exact OracleInterface.instDefault -- h_i(X) polynomial
-  | ⟨1, _⟩ => by exact OracleInterface.instDefault -- challenge r'_i
+instance instOracleInterfaceMessagePSpecFold :
+  ∀ j, OracleInterface ((pSpecFold (L:=L)).Message j) :=
+  fun _ => OracleInterface.instDefault
+
+instance : ∀ j, OracleInterface ((pSpecFold (L:=L)).Challenge j) :=
+  fun _ => OracleInterface.instDefault
 
 instance : ∀ j, OracleInterface ((pSpecRelay).Message j)
   | ⟨x, h⟩ => by exact x.elim0
@@ -417,6 +420,11 @@ instance : ∀ i, SelectableType ((pSpecQuery 𝔽q β γ_repetitions
 instance : ∀ j, SelectableType ((fullPSpec 𝔽q β γ_repetitions (ϑ:=ϑ)
   (h_ℓ_add_R_rate := h_ℓ_add_R_rate)).Challenge j) := instSelectableTypeChallengeAppend
 
+instance : SelectableType (Fin γ_repetitions → ↥(sDomain 𝔽q β h_ℓ_add_R_rate 0)) := by
+  let res := instSDomain 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (i := 0) (h_i := by
+    apply Nat.lt_add_of_pos_right_of_le; simp only [Fin.coe_ofNat_eq_mod, Nat.zero_mod, zero_le])
+  exact instSelectableTypeFinFunc
+
 /-! ## Additional OracleInterface and FiniteRange instances -/
 
 /-- OracleInterface instance for the matrix-indexed message type family using instDefault. -/
@@ -437,12 +445,16 @@ instance : ∀ i, ∀ j, Inhabited ((pSpecCommit 𝔽q β (h_ℓ_add_R_rate := h
     both of which use `OracleInterface.instDefault` (Query = Unit, Response = Message type).
     The response types are the polynomial and field element themselves, both finite and inhabited. -/
 instance : ([(pSpecFold (L:=L)).Message]ₒ).FiniteRange := by sorry
+instance : ([(pSpecFold (L:=L)).Challenge]ₒ).FiniteRange := by sorry
 
 instance instOracleStatementFiniteRange {i : Fin (ℓ + 1)} :
   [OracleStatement 𝔽q β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i]ₒ.FiniteRange := by sorry
 
 instance : ∀ i, Fintype ((pSpecFinalSumcheckStep (L:=L)).Challenge i) := by sorry
   -- (i : pSpecFinalSumcheckStep.ChallengeIdx) → Fintype (pSpecFinalSumcheckStep.Challenge i)
+
+instance : Fintype (Fin γ_repetitions → ↥(sDomain 𝔽q β h_ℓ_add_R_rate 0)) := by
+  infer_instance
 
 instance instFiniteRangePSpecFinalSumcheckStepChallenge : [pSpecFinalSumcheckStep (L := L).Challenge]ₒ.FiniteRange := by sorry
 

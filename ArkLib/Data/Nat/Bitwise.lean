@@ -80,6 +80,10 @@ lemma ENNReal.coe_le_of_NNRat {a b : ℚ≥0} : ((a : ENNReal)) ≤ (b) ↔ a �
 lemma ENNReal.coe_NNRat_coe_NNReal (x : ℚ≥0) : (x : ENNReal) = ((x : ℝ≥0) : ENNReal) := by rfl
 -- We can use `NNRat.cast_div` or so after `ENNReal.coe_NNRat_coe_NNReal`
 
+lemma ENNReal.coe_div_of_NNReal {a b : NNReal} :
+  ((a : ENNReal) / (b : ENNReal)) = (((a / b) : NNReal): ENNReal) := by
+  sorry
+
 lemma ENNReal.coe_div_of_NNRat {a b : ℚ≥0} (hb : b ≠ 0) :
   ((a : ENNReal) / (b : ENNReal)) = (((a / b) : ℚ≥0) : ENNReal) := by
   rw [ENNReal.coe_NNRat_coe_NNReal, ENNReal.coe_NNRat_coe_NNReal]

@@ -12,7 +12,7 @@ import ArkLib.Data.Misc.Basic
 set_option maxHeartbeats 400000  -- Increase if needed
 set_option profiler true
 -- set_option profiler.threshold 50  -- Show anything taking over 10ms
-namespace Binius.BinaryBasefold.CoreInteraction
+namespace Binius.BinaryBasefold
 /-!
 ## Binary Basefold single steps
 - **Fold step** :
@@ -58,6 +58,25 @@ def hEq {ιₒᵢ ιₒₒ : Type} {OracleIn : ιₒᵢ → Type}
     match embed i with
     | Sum.inl j => OracleIn j
     | Sum.inr j => pSpec.Message j
+
+/-- **RBR Extraction Failure Event**: Generic predicate for round-by-round knowledge soundness.
+
+This captures when the RBR extractor fails to produce a valid witness at round `i.1.castSucc`,
+but a valid witness exists at round `i.1.succ`. This is the fundamental "bad event" that must
+be bounded in all RBR knowledge soundness proofs.
+
+**Usage:** Instantiate with protocol-specific `kSF`, `extractor`, and transcript to get the -/
+@[reducible]
+def rbrExtractionFailureEvent {ι : Type} {oSpec : OracleSpec ι} {StmtIn WitIn WitOut : Type} {n : ℕ}
+  {pSpec : ProtocolSpec n} {WitMid : Fin (n + 1) → Type}
+  (kSF : (m : Fin (n + 1)) → StmtIn → Transcript m pSpec → WitMid m → Prop)
+  (extractor : Extractor.RoundByRound oSpec StmtIn WitIn WitOut pSpec WitMid)
+  (i : pSpec.ChallengeIdx) (stmtIn : StmtIn)
+  (transcript : Transcript i.1.castSucc pSpec) (challenge : pSpec.Challenge i) : Prop :=
+  ∃ witMid : WitMid i.1.succ,
+    ¬ kSF i.1.castSucc stmtIn transcript
+      (extractor.extractMid i.1 stmtIn (transcript.concat challenge) witMid) ∧
+    kSF i.1.succ stmtIn (transcript.concat challenge) witMid
 
 /-- The Pure Logic of an interactive reduction step.
 Parametrized by a 'Challenges' type that aggregates all verifier randomness. -/
@@ -467,13 +486,6 @@ Fin (toOutCodewordsCount ℓ ϑ i.succ) ↪ Fin (toOutCodewordsCount ℓ ϑ i.ca
   , commitStepLogic_embed_inj 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (ϑ := ϑ) i hCR
   ⟩
 
--- ⊢ ∀ (i_1 : Fin (toOutCodewordsCount ℓ ϑ i.succ)),
---   OracleStatement 𝔽q β ϑ i.succ i_1 =
---     match (commitStepLogic_embed 𝔽q β i hCR) i_1 with
---     match (commitStepLogic_embed 𝔽q β ϑ i hCR) i_1 with
---     | Sum.inl j => OracleStatement 𝔽q β ϑ i.castSucc j
---     | Sum.inr j => (pSpecCommit 𝔽q β i).Message j
-
 def commitStepHEq (i : Fin ℓ) (hCR : isCommitmentRound ℓ ϑ i) :
   hEq (OracleIn := OracleStatement 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ i.castSucc)
     (OracleOut := OracleStatement 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ i.succ)
@@ -560,7 +572,8 @@ lemma snoc_oracle_eq_mkVerifierOStmtOut_commitStep
       OracleStatement 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) ϑ i.castSucc j)
     (newOracle : OracleFunction 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (domainIdx := ⟨i.val + 1, by omega⟩))
     (transcript : FullTranscript (pSpecCommit 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) i))
-    (h_transcript_eq : transcript.messages ⟨0, rfl⟩ = newOracle) :
+    (h_transcript_eq : transcript.messages ⟨0, rfl⟩ = newOracle)
+    :
     snoc_oracle 𝔽q β (ϑ := ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (destIdx := ⟨i.val + 1, by omega⟩) (h_destIdx := by rfl) oStmtIn newOracle =
     OracleVerifier.mkVerifierOStmtOut (commitStepLogic (mp := mp) 𝔽q β (ϑ := ϑ)
       (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (𝓑 := 𝓑) i hCR).embed
@@ -900,11 +913,6 @@ The step consists of :
 - And `s_ℓ = ∑_{w ∈ B_0} t(r'_0, ..., r'_{ℓ-1}) = t(r'_0, ..., r'_{ℓ-1})`
 -/
 
-/-- Oracle interface instance for the final sumcheck step message -/
-instance : ∀ j, OracleInterface ((pSpecFinalSumcheckStep (L := L)).Message j) := fun j =>
-  match j with
-  | ⟨0, _⟩ => OracleInterface.instDefault
-
 /-- The Logic Instance for the final sumcheck step.
 This is a 1-message protocol where the prover sends the final constant c. -/
 def finalSumcheckStepLogic :
@@ -1034,14 +1042,14 @@ lemma iterated_fold_to_const_strict
   let P₀: L[X]_(2 ^ ℓ) := polynomialFromNovelCoeffsF₂ 𝔽q β ℓ (by omega)
     (fun ω => witIn.t.val.eval (bitsOfIndex ω))
   let f₀ := polyToOracleFunc 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (domainIdx := 0) (P := P₀)
-  -- From strictOracleWitnessConsistency, we can construct strictFinalFoldingStateProp
+  -- From strictOracleWitnessConsistency, we can construct strictfinalSumcheckStepFoldingStateProp
   -- which contains strictFinalConstantConsistency, giving us the desired equality
   -- Extract components from h_strictOracleWitConsistency_In
   have h_wit_struct := h_strictOracleWitConsistency_In.1
   have h_strict_oracle_folding := h_strictOracleWitConsistency_In.2
   dsimp only [Fin.val_last, OracleFrontierIndex.val_mkFromStmtIdx,
     strictOracleFoldingConsistencyProp] at h_strict_oracle_folding
-  -- Construct the input for strictFinalFoldingStateProp
+  -- Construct the input for strictfinalSumcheckStepFoldingStateProp
   let stmtOut : FinalSumcheckStatementOut (L := L) (ℓ := ℓ) := {
     ctx := stmtIn.ctx,
     sumcheck_target := stmtIn.sumcheck_target,
@@ -1355,7 +1363,7 @@ lemma finalSumcheckStep_verifierCheck_passed
    - Need to connect these properties to show the verifier check passes
 
 2. **Relation Out**: Show that the output satisfies `finalSumcheckRelOut`
-   - This involves showing `finalFoldingStateProp` holds for the output
+   - This involves showing `finalSumcheckStepFoldingStateProp` holds for the output
 -/
 lemma finalSumcheckStep_is_logic_complete :
     (finalSumcheckStepLogic 𝔽q β (ϑ := ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate)
@@ -1402,7 +1410,7 @@ lemma finalSumcheckStep_is_logic_complete :
     -- Fact 2: Output relation holds (foldStepRelOut)
     simp only [finalSumcheckStepLogic, strictRoundRelation, strictRoundRelationProp, Fin.val_last,
       Prod.mk.eta, Set.mem_setOf_eq, strictFinalSumcheckRelOut, strictFinalSumcheckRelOutProp,
-      strictFinalFoldingStateProp, exists_and_right, Subtype.exists, Fin.isValue, MessageIdx,
+      strictfinalSumcheckStepFoldingStateProp, exists_and_right, Subtype.exists, Fin.isValue, MessageIdx,
       Fin.eta, step]
     -- let r_i' := challenges ⟨1, rfl⟩
     -- rw [h_verifierOStmtOut_eq];
@@ -1435,4 +1443,4 @@ lemma finalSumcheckStep_is_logic_complete :
 end FinalSumcheckStep
 end SingleIteratedSteps
 end
-end Binius.BinaryBasefold.CoreInteraction
+end Binius.BinaryBasefold
