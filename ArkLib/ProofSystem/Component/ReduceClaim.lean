@@ -196,6 +196,7 @@ def oracleKnowledgeStateFunction (hRel : ∀ stmtIn oStmtIn witOut,
   toFun_next := fun m => Fin.elim0 m
   toFun_full := fun ⟨stmtIn, oStmtIn⟩ _ witOut => by
     intro h
+    simp_all [Verifier.run, oracleVerifier, OracleVerifier.toVerifier]
     sorry
 
 /-- The `ReduceClaim` oracle reduction satisfies perfect round-by-round knowledge soundness.
