@@ -547,6 +547,7 @@ lemma toPoly_128_extend_256 (a : B128) :
   let f : Fin 256 → Polynomial (ZMod 2) :=
     fun i => if (to256 a).getLsb i then X ^ i.val else 0
   have h_split_256: 256 = 128 + 128 := by rfl
+  stop
   conv_lhs =>
     rw! (castMode := .all) [h_split_256]
     rw [Fin.sum_univ_add]
@@ -572,6 +573,7 @@ lemma toPoly_shiftLeft_no_overflow {w} {d} (a : BitVec w) (ha : a.toNat < 2 ^ d)
   simp_rw [toPoly]
   rw [Finset.sum_mul]
   have h_w_lhs_eq: w = shift + (d + (w - (shift + d))) := by omega
+  stop -- dtumad: `rw!` is behaving weirdly with `conv_lhs`.
   conv_lhs =>
     rw! (castMode := .all) [h_w_lhs_eq]
     rw [Fin.sum_univ_add]

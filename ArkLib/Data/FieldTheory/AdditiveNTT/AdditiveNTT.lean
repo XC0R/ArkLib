@@ -822,7 +822,7 @@ noncomputable def sDomainFinEquiv (i : Fin r) (h_i : i < ℓ + R_rate)
       by_cases h_k : k < ℓ + R_rate - ↑i
       · simp only [h_k, ↓reduceDIte]
         simp only [finToSDomain, Basis.repr_symm_apply, Basis.repr_linearCombination,
-          Finsupp.equivFunOnFinite_symm_apply_toFun]
+          Finsupp.equivFunOnFinite_symm_apply_apply]
         simp only [finToBinaryCoeffs, ite_eq_right_iff, one_ne_zero, imp_false, ite_not]
         rw  [Nat.getBit_of_lt_two_pow (k:=k) (a:=y)]
         simp only [h_k, ↓reduceIte]
@@ -1192,7 +1192,7 @@ lemma getSDomainBasisCoeff_of_sum_repr [NeZero R_rate] (i : Fin (ℓ + 1))
   -- Applying `j` to both sides of the `Finsupp` equality gives the goal.
   rw [h_coeffs_eq]
   -- ⊢ (Finsupp.equivFunOnFinite.symm x_coeffs) j = x_coeffs j
-  simp only [Finsupp.equivFunOnFinite_symm_apply_toFun]
+  simp only [Finsupp.equivFunOnFinite_symm_apply_apply]
 
 omit [DecidableEq 𝔽q] hF₂ in
 lemma getSDomainBasisCoeff_of_iteratedQuotientMap
@@ -1276,6 +1276,7 @@ lemma getSDomainBasisCoeff_of_iteratedQuotientMap
       rw [h_interW_comp]
       have h_index: 0 + i.val = i.val := by omega
       rw! (castMode:=.all) [h_index]
+      rfl
     rw [get_sDomain_basis, ←Polynomial.eval_comp, h_comp_eq]
   -- Using this, we rewrite `hy_sum_from_x`.
   simp_rw [h_eval_basis_i] at hy_sum_from_x
@@ -1317,11 +1318,11 @@ lemma getSDomainBasisCoeff_of_iteratedQuotientMap
     have h3: (Fin.natAdd a j2) = ⟨↑j2 + k, by omega⟩ := by
       simp only [Fin.natAdd, Fin.mk.injEq, a]
       rw [add_comm]
-    simp only
     congr 1
     simp only [final_y_coeffs]
     rw [h3]
     rw! (castMode:=.all) [←h_index_add];
+    rfl
 
   rw [getSDomainBasisCoeff_of_sum_repr 𝔽q β h_ℓ_add_R_rate
     (i := ⟨i.val, by omega⟩) (x:=x) (hx:=by exact hx_sum)]
@@ -1357,7 +1358,7 @@ theorem basis_repr_of_sDomain_lift (i j : Fin r) (h_j : j < ℓ + R_rate) (h_le 
   simp only;
   intro k
   simp only [sDomain.lift, Basis.repr_symm_apply, Basis.repr_linearCombination,
-    Finsupp.equivFunOnFinite_symm_apply_toFun]
+    Finsupp.equivFunOnFinite_symm_apply_apply]
 
 omit [DecidableEq L] [DecidableEq 𝔽q] h_Fq_char_prime hF₂ hβ_lin_indep h_β₀_eq_1 in
 -- A helper derivation for intermediateNormVpoly_comp_qmap

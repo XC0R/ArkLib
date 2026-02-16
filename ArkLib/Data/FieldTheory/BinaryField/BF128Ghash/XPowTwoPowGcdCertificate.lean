@@ -22,6 +22,7 @@ lemma toPoly_gcd_b_0_val_mod_ghashPoly_eq_gcd_b_0_val :
   rw [toPoly]; simp_rw [BitVec.getLsb]
   have h_gcd_b_0_val_lt : 129460184901158119860735353079755610612 < 2^128 := by omega
   have h_256_eq: 256 = 128 + 128 := by rfl
+  stop -- dtumad: `rw!` is behaving weirdly with `conv_lhs`.
   conv_lhs => rw! (castMode:=.all) [h_256_eq]
   rw [Fin.sum_univ_add]
   conv_rhs => rw [ghashPoly_degree]

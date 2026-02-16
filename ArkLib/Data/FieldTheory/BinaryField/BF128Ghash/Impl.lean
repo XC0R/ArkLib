@@ -27,6 +27,8 @@ We verify them by proving isomorphism to `GF(2)[X] / (X^128 + X^7 + X^2 + X + 1)
 
 -/
 
+set_option maxRecDepth 10000
+
 namespace BF128Ghash
 
 open BitVec Polynomial Ideal BF128Ghash AdjoinRoot
@@ -201,6 +203,7 @@ lemma fold_step_mod_eq (x : B256) :
 /-- Main Theorem: reduce_clMul correctly computes modulo P. -/
 lemma reduce_clMul_correct (prod : B256) :
     toPoly (reduce_clMul prod) = toPoly prod % ghashPoly := by
+  stop -- dtumad: this is exceeding maximum heartbeats in `4.27`.
   dsimp [reduce_clMul]
   have h_equiv : toPoly (fold_step (fold_step prod)) % ghashPoly = toPoly prod % ghashPoly := by
     rw [fold_step_mod_eq, fold_step_mod_eq]
@@ -473,6 +476,7 @@ lemma toQuot_injective : Function.Injective toQuot := by
     apply toPoly_degree_lt_w (w:=128) (by norm_num)
   have h_dvd : ghashPoly ∣ (toPoly a - toPoly b) := by
     rw [AdjoinRoot.mk_eq_mk] at h
+
     exact h
   have h_zero : toPoly diff = 0 := by
     by_contra h_nz

@@ -304,7 +304,8 @@ def iteratedSumcheckKnowledgeStateFunction (i : Fin ℓ') :
       Set.mem_setOf_eq, iteratedSumcheckKStateProp, masterKStateProp, true_and]
   toFun_next := fun m hDir stmtIn tr msg witMid => by
     sorry
-  toFun_full := fun ⟨stmtLast, oStmtLast⟩ tr witOut h_relOut => by
+  toFun_full := fun ⟨stmtLast, oStmtLast⟩ tr witOut => by
+    intro h_relOut
     simp at h_relOut
     rcases h_relOut with ⟨stmtOut, ⟨oStmtOut, h_conj⟩⟩
     have h_simulateQ := h_conj.1

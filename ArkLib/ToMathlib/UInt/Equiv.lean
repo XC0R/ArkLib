@@ -5,6 +5,7 @@ Authors: Quang Dao
 -/
 
 import Mathlib.Logic.Equiv.Defs
+import Mathlib.Data.Nat.Basic
 
 def finUInt8Equiv : Fin (2 ^ 8) ≃ UInt8 where
   toFun := fun i => UInt8.ofFin i

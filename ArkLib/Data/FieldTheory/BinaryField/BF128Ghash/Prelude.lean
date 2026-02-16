@@ -42,7 +42,7 @@ section GHASHPolynomial
 
 /-- The GHASH polynomial: P(X) = X^128 + X^7 + X^2 + X + 1 over GF(2).
 This is the irreducible polynomial used in AES-GCM. -/
-noncomputable def ghashPoly : Polynomial (ZMod 2) :=
+@[reducible] noncomputable def ghashPoly : Polynomial (ZMod 2) :=
   X^128 + X^7 + X^2 + X + 1
 
 /--
@@ -213,7 +213,7 @@ lemma toPoly_one_shiftLeft {w : Nat} (n : Nat) (h : n < w) :
 
 -- Main Proof
 lemma ghashPoly_eq_P_val : ghashPoly = toPoly P_val := by
-  rw [ghashPoly, P_val]
+  rw [P_val]
   repeat rw [toPoly_xor]
   rw [toPoly_one_shiftLeft (h := by omega), toPoly_one_shiftLeft (h := by omega),
     toPoly_one_shiftLeft (h := by omega), toPoly_one_shiftLeft (h := by omega)]

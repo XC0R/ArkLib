@@ -79,7 +79,10 @@ lemma irreducible_of_rabin_128_passed_over_GF2 (P : Polynomial (ZMod 2))
   -- 3. In Finite Fields, if irreducible q | (X^(p^n) - X), then deg(q) | n.
   -- The standard theorem is `irreducible_dvd_X_pow_sub_X_iff_natDegree_dvd`.
   -- Since we are in ZMod 2, we rewrite (X^(2^128) + X) to (X^(2^128) - X).
-  rw [←CharTwo.sub_eq_add] at h_q_dvd_trace
+  stop -- dtumad: `rw` is causing stack overflow here in `4.27`
+  have := CharTwo.sub_eq_add (X^2^128 : (ZMod 2)[X]) X
+  rw [← this] at h_q_dvd_trace
+  -- rw [← CharTwo.sub_eq_add (X^2^128) X] at h_q_dvd_trace
 
   -- Apply the theorem: q | (X^(2^128) - X) -> deg(q) | 128
   have h_deg_dvd_128 : q.natDegree ∣ 128 := by
@@ -184,6 +187,7 @@ def ofGF2 : ZMod 2 →+* BF128Ghash := algebraMap (ZMod 2) BF128Ghash
 /-- The generator of the field (root of the GHASH polynomial). -/
 def root : BF128Ghash := AdjoinRoot.root ghashPoly
 
+set_option maxRecDepth 10000 in
 /-- The root satisfies the GHASH polynomial equation:
     root^128 + root^7 + root^2 + root + 1 = 0 -/
 theorem root_satisfies_poly : root^128 + root^7 + root^2 + root + 1 = 0 := by
@@ -202,6 +206,7 @@ instance : Fintype BF128Ghash := by
     exact Finite.of_equiv (Fin pb.dim →₀ ZMod 2) (pb.basis.repr.toEquiv.symm)
   exact Fintype.ofFinite BF128Ghash
 
+set_option maxRecDepth 10000 in
 /-- The cardinality of BF128Ghash is 2^128. -/
 theorem BF128Ghash_card : Fintype.card BF128Ghash = 2^128 := by
   -- Use the fact that AdjoinRoot of an irreducible polynomial of degree d

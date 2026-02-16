@@ -129,6 +129,7 @@ private lemma sum_add_one {i : Fin (k + 1)} :
                 (by
                   rw [Nat.lt_min]
                   simp
+                  fin_omega
                 )
               rw [List.getElem_drop]
               simp

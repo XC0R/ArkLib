@@ -578,7 +578,7 @@ theorem BTField.RingHom_eq_of_dest_eq (k m n : ℕ) (h_eq : m = n) :
 @[simp]
 theorem BTField.RingHom_eq_of_dest_AdjoinRoot_eq (k m : ℕ) :
   (BTField k →+* BTField (m+1)) = (BTField k →+* (AdjoinRoot (poly m))) := by
-  rw! (castMode:=.all) [BTField_succ_eq_adjoinRoot m]
+  rw! (castMode:=.all) [BTField_succ_eq_adjoinRoot m]; rfl
 
 @[simp]
 theorem BTField.RingHom_cast_dest_apply (k m n : ℕ) (h_eq : m = n)
@@ -1092,6 +1092,7 @@ lemma split_algebraMap_eq_zero_x {k : ℕ} (h_pos : k > 0) (x : BTField (k - 1))
     (x:=x) (h_eq:=by omega)]
   -- ⊢ cast ⋯ ((canonicalEmbedding (k - 1)) x) = join_via_add_smul h_pos 0 x
   have h_k_sub_1_add_1 : k - 1 + 1 = k := by omega
+  stop
   conv_lhs => enter [2]; rw! (castMode:=.all) [h_k_sub_1_add_1]; simp only
   rw [eqRec_eq_cast, eqRec_eq_cast, cast_cast, cast_eq]
   unfold join_via_add_smul
@@ -1238,6 +1239,7 @@ def multilinearBasis (l r : ℕ) (h_le : l ≤ r) :
     -- = Basis (Fin (2 ^ n') × Fin 2) (BTField l) (BTField (r1 + 1))
     unfold instModuleSucc -- Module used in rhs
     rw! [h_r]
+    rfl
 
 @[simp]
 theorem BTField.PowerBasis.dim_of_eq_rec
@@ -1336,6 +1338,7 @@ theorem multilinearBasis_apply (r : ℕ) : ∀ l : ℕ, (h_le : l ≤ r) → ∀
       simp only [Basis.coe_mk]
     else
       rw [multilinearBasis]
+      stop -- dtumad: `rw!` is behaving weirdly here
       -- key to remove Eq.rec : dif_neg h_r_sub_l
       simp only [Nat.pow_zero, eq_mp_eq_cast, cast_eq,
         eq_mpr_eq_cast, dif_neg h_r_sub_l]

@@ -31,30 +31,30 @@ theorem append_getLast_dropLast {α : Type u} (l : List α) (h : l ≠ []) :
       apply ih
 
 theorem foldl_split_outer {α : Type u} {β : Type v} (f : α → β → α) (init : α)
-    (l : List β) (h : l ≠ []): foldl (f:=f) (init:=init) (l)
+    (l : List β) (h : l ≠ []) : foldl (f:=f) (init:=init) (l)
     = f (foldl (f:=f) (init:=init) (l.dropLast)) (l.getLast (by omega)) := by
   conv_lhs => rw [← append_getLast_dropLast l h]
   rw [foldl_append]
   rfl
 
 theorem foldl_split_inner {α : Type u} {β : Type v} (f : α → β → α) (init : α)
-    (l : List β) (h : l ≠ []): foldl (f:=f) (init:=init) (l)
+    (l : List β) (h : l ≠ []) : foldl (f:=f) (init:=init) (l)
     = foldl (f:=f) (init:=f (init) (l.head (by omega))) (l.tail) := by
   have h_l_eq: l = cons (l.head (by omega)) (l.tail) := by
-    exact Eq.symm (head_cons_tail l h)
+    exact Eq.symm (cons_head_tail h)
   conv_lhs => enter [3]; rw [h_l_eq]
   rw [foldl_cons]
 
 theorem foldr_split_outer {α : Type u} {β : Type v} (f : α → β → β) (init : β)
-    (l : List α) (h : l ≠ []): foldr (f:=f) (init:=init) (l)
+    (l : List α) (h : l ≠ []) : foldr (f:=f) (init:=init) (l)
     = f (l.head (by omega)) (foldr (f:=f) (init:=init) (l.tail)) := by
   have h_l_eq: l = cons (l.head (by omega)) (l.tail) := by
-    exact Eq.symm (head_cons_tail l h)
+    exact Eq.symm (cons_head_tail h)
   conv_lhs => enter [3]; rw [h_l_eq]
   rw [foldr_cons]
 
 theorem foldr_split_inner {α : Type u} {β : Type v} (f : α → β → β) (init : β)
-    (l : List α) (h : l ≠ []): foldr (f:=f) (init:=init) (l)
+    (l : List α) (h : l ≠ []) : foldr (f:=f) (init:=init) (l)
     = foldr (f:=f) (init:=f (l.getLast (by omega)) (init)) (l.dropLast) := by
   conv_lhs => rw [← append_getLast_dropLast l h]
   rw [foldr_append]
@@ -69,7 +69,7 @@ theorem mapM_single (f : α → m β) (a : α) : List.mapM f [a] = return [← f
 
 @[simp]
 theorem getLastI_append_single [Inhabited α] (x : α) : (l ++ [x]).getLastI = x := by
-  simp only [List.getLastI_eq_getLast?, List.getLast?_append, List.getLast?_singleton,
+  simp [List.getLastI_eq_getLast?_getD, List.getLast?_append, List.getLast?_singleton,
     Option.some_or]
 
 variable {α : Type*} {unit : α}
@@ -117,7 +117,8 @@ theorem rightpad_eq_if_rightpad_eq_of_ge (l l' : List α) (m n n' : Nat) (h : n 
 @[simp] theorem rightpad_twice_eq_rightpad_max (m n : Nat) (unit : α) (l : List α) :
     rightpad n unit (rightpad m unit l) = rightpad (max m n) unit l := by
   rw (config := { occs := .neg [0] }) [rightpad, rightpad_length]
-  simp [rightpad]
+  simp only [rightpad, append_assoc, replicate_append_replicate, append_cancel_left_eq,
+    replicate_inj, Nat.add_eq_zero_iff, or_true, and_true]
   by_cases h : m.max n ≤ l.length
   · simp [Nat.max_le.mp h]
   · refine Nat.eq_sub_of_add_eq ?_

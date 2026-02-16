@@ -137,8 +137,9 @@ theorem not_exists_of_decoder_eq_none {e k : ℕ} [NeZero n] {ωs f : Fin n → 
   (h_inj : Function.Injective ωs)
   (h_none : decoder e k ωs f = none)
   : ¬∃p : F[X], Δ₀(f, p.eval ∘ ωs) ≤ e ∧ p.natDegree < k := by
-  intro contr
-  aesop (add safe forward (decoder_eq_some))
+  rintro ⟨p, hp, hpk⟩
+  have := decoder_eq_some he hn h_inj hpk hp
+  aesop
 
 end
 

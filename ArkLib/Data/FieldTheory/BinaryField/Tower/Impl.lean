@@ -1774,6 +1774,7 @@ lemma norm_of_ne_zero_is_ne_zero {k : ℕ}
       have h_a_is_zero : a = 0 := by
         rw [ha, h_a₁_zero, h_a₀_zero]
         rw! [←zero_is_0, ←zero_is_0, join_zero_zero]
+        rfl
       exact h_a_ne_zero h_a_is_zero
     have h_Na_eq_a₀_sq : Na = a₀ * a₀ := by
       simp only [Na, Z, h_a₁_zero, mul_zero, add_zero, zero_mul]
@@ -2034,7 +2035,7 @@ def concreteCanonicalEmbedding (k : ℕ)
       -- ⊢ join ⋯ zero (x + y) = join ⋯ zero x + join ⋯ zero y
       simp only [join_add_join, Nat.add_one_sub_one]
       rw [zero_is_0, zero_add]
-    map_zero' := by rw! [←zero_is_0, join_zero_zero, zero_is_0]
+    map_zero' := by rw! [←zero_is_0, join_zero_zero, zero_is_0]; rfl
   }
 
 instance instAlgebraLiftConcreteBTField (k : ℕ)
@@ -2554,6 +2555,7 @@ lemma split_algebraMap_eq_zero_x {k : ℕ} (h_pos : k > 0) (x : ConcreteBTField 
   rw [ConcreteBTField.RingHom_cast_dest_apply (f:=canonicalAlgMap (k - 1))
     (x:=x) (h_eq:=by omega)]
   have h_k_sub_1_add_1 : k - 1 + 1 = k := by omega
+  stop
   conv_lhs => enter [2]; rw! (castMode:=.all) [h_k_sub_1_add_1]; simp only
   rw [eqRec_eq_cast, eqRec_eq_cast, cast_cast, cast_eq]
   rw [ConcreteBTField.RingHom_cast_dest_apply (k:=k - 1) (m:=k - 1 + 1) (n:=k)
@@ -3000,7 +3002,7 @@ theorem minPoly_of_powerBasisSucc_generator (k : ℕ) :
         by_contra h_join_eq_zero
         conv_rhs at h_join_eq_zero =>
           rw [←zero_is_0];
-          rw! [←join_zero_zero (k:=k+1) (h_k:=by omega)]
+          rw [←join_zero_zero (k:=k+1) (h_k:=by omega)]
         rw [join_eq_join_iff] at h_join_eq_zero
         have h_c_eq_zero := h_join_eq_zero.1
         contradiction
@@ -3247,8 +3249,8 @@ theorem multilinearBasis_apply (r : ℕ) : ∀ l : ℕ, (h_le : l ≤ r) → ∀
         ConcreteBTFieldAlgebra (l:=r1) (r:=r) (h_le:=by omega)
       set b := (powerBasisSucc r1) with hb
       rw! (castMode:=.all) [←hb]
-      simp_rw [eqRec_eq_cast]
-      rw [cast_eq]
+      -- simp_rw [eqRec_eq_cast]
+      -- rw [cast_eq]
       have h : (2 ^ (r1 - l)) = (2 ^ (r - l - 1)) := by
         rw [h_r]
         rw [Nat.sub_right_comm, Nat.add_sub_cancel r1 1]
@@ -3266,7 +3268,9 @@ theorem multilinearBasis_apply (r : ℕ) : ∀ l : ℕ, (h_le : l ≤ r) → ∀
       -- unfold indexLeft
       -- All casts eliminated, now we prove equality on revFinProdFinEquiv and bit stuff
       have h: b.basis indexLeft = b.gen ^ (indexLeft.val) := coe_basis_apply (pb:=b) (i:=indexLeft)
-      conv_lhs =>
+      stop -- dtumad: seems `rw!` is behaving weirdly with `conv_lhs`.
+      conv =>
+        left
         enter [2];
         -- @DFunLike.coe (Basis (Fin 2) ...
         change b.basis indexLeft;
@@ -3606,6 +3610,7 @@ lemma towerRingHomForwardMap_split_eq (k : ℕ) (h_pos : k > 0) (x : ConcreteBTF
   set lo := (split (k:=k) (h:=h_pos) x).2 with hlo
   simp only [h_k_ne_0, ↓reduceDIte]
   rw! [←hhi]
+  rfl
 
 lemma towerRingHomForwardMap_join {k : ℕ} (h_pos : k > 0) (hi lo : ConcreteBTField (k - 1)) :
   towerRingHomForwardMap (k:=k) (《 hi, lo 》) =
@@ -3697,6 +3702,7 @@ lemma towerEquiv_commutes_left_diff (i d : ℕ) : ∀ r : ConcreteBTField i,
     have h_abstract_algMap_eq_zero_x := BinaryTower.algebraMap_eq_zero_x (i:=i) (j:=i+d'+1)
       (h_le:=by omega) ((towerEquiv i).ringEquiv r)
     simp only [Nat.add_one_sub_one] at h_abstract_algMap_eq_zero_x
+    stop -- dtumad: `rw!` is behaving weirdly with `conv_lhs`.
     conv_lhs =>
       rw! [h_abstract_algMap_eq_zero_x]
     conv_rhs =>

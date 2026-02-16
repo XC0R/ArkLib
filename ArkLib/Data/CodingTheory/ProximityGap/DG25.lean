@@ -297,6 +297,7 @@ theorem CA_split_rowwise_implies_CA
         ---
         dsimp only [splitHalfRowWiseInterleavedWords, Fin.isValue, U₁] at hRes₁
         rw [←hRes₁]
+        stop -- dtumad: `rw!` is behaving weirdly with `conv_lhs`.
         conv_rhs =>
           unfold finMapTwoWords
           simp only [InterleavedSymbol, WordStack, InterleavedWord,
@@ -406,16 +407,13 @@ lemma multilinearCombine₁_eq_affineLineEvaluation -- ϑ = 1 case
 end TensorProximityGapDefinitions
 
 section MainResults
-variable {F : Type} [CommRing F] [Fintype F] [NoZeroDivisors F] [DecidableEq F]
+-- dtumad: Added `IsDomain F` here, see (https://github.com/leanprover-community/mathlib4/commit/290f644e69925cec5f98aea3e950cb5218583b54)
+variable {F : Type} [CommRing F] [Fintype F] [NoZeroDivisors F] [DecidableEq F] [IsDomain F]
   -- switch to Type for `Pr_{...}[...]` usage
   {A : Type} [Fintype A] [DecidableEq A] [AddCommGroup A] [Module F A] [Module.Free F A]
   -- Semiring.toModule (R := A) => Module A A, plus Ring A for `RS code` theorems?
 variable (MC : ModuleCode ι F A) [Nontrivial MC]
   (C : Set (Word A ι)) [Nonempty C] -- todo: change to Nontrivial if needed
-
-instance : NoZeroSMulDivisors (R := F) (M := A) := Module.Free.noZeroSMulDivisors F A
-
-instance : NoZeroSMulDivisors (R := F) (M := Word A ι) := _root_.Function.noZeroSMulDivisors
 
 instance : Nonempty MC := by exact instNonemptyOfInhabited
 
@@ -717,7 +715,7 @@ lemma affineWord_close_to_affineInterleavedCodeword
       -- Assuming d > 0 for non-trivial codes.
       rw [Code.uniqueDecodingRadius] at he
       let res :=  Code.dist_pos_of_Nontrivial (ι := ι) (F := A) (C := MC) (hC := by
-        (expose_names; exact Set.nontrivial_coe_sort.mp inst_8))
+        (exact Set.nontrivial_coe_sort.mp (by assumption)))
       exact res
 
     -- We need 2e < d

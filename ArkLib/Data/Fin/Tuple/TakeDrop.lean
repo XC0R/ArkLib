@@ -69,8 +69,9 @@ theorem rtake_zero (v : (i : Fin n) → α i) :
 theorem rtake_self (v : (i : Fin n) → α i) :
     rtake n (by omega) v = fun i : Fin n => dcast (by simp [Fin.cast]) (v i) := by
   ext i
-  simp [rtake, Fin.natAdd, dcast, cast]
+  simp only [natAdd, cast_mk, rtake, dcast, cast]
   rw! [Nat.sub_self, Nat.zero_add]
+  grind
 
 @[simp]
 theorem rtake_self' {α : Sort*} (v : Fin n → α) : rtake n (by omega) v = v :=
@@ -117,7 +118,7 @@ theorem ofFn_rtake_eq_rtake_ofFn {α : Type*} {m : ℕ} (h : m ≤ n) (v : Fin n
     List.ofFn (rtake m h v) = (List.ofFn v).rtake m := by
   ext i a
   simp [List.rtake, natAdd, Fin.cast]
-  constructor <;> intro ⟨hi, ha⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [ha]
+  constructor <;> intro ⟨hi, ha⟩ <;> refine ⟨by omega, ?_⟩ <;> aesop
 
 /-- Alternative version of `ofFn_rtake_eq_rtake_ofFn` with `l : List α` instead of `v : Fin n → α`.
 -/
@@ -125,7 +126,7 @@ theorem ofFn_rtake_get {α : Type*} {m : ℕ} (l : List α) (h : m ≤ l.length)
     List.ofFn (rtake m h l.get) = l.rtake m := by
   ext i a
   simp [List.rtake, natAdd, Fin.cast, List.getElem?_eq_some_iff]
-  constructor <;> intro ⟨hi, ha⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [ha]
+  constructor <;> intro ⟨hi, ha⟩ <;> refine ⟨by omega, ?_⟩ <;> aesop
 
 /-- `Fin.rtake` intertwines with `List.rtake` via `List.get`. -/
 theorem get_rtake_eq_rtake_get_comp_cast {α : Type*} {m : ℕ} (l : List α) (h : m ≤ l.length) :
@@ -286,14 +287,14 @@ theorem ofFn_drop_eq_drop_ofFn {α : Type*} {m : ℕ} (h : m ≤ n) (v : Fin n �
     List.ofFn (drop m h v) = (List.ofFn v).drop m := by
   ext i a
   simp
-  constructor <;> intro ⟨h, h'⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [add_comm, h']
+  constructor <;> intro ⟨h, h'⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [add_comm, h'] <;> rfl
 
 /-- Alternative version of `ofFn_drop_eq_drop_ofFn` with `l : List α` instead of `v : Fin n → α`. -/
 theorem ofFn_drop_get {α : Type*} {m : ℕ} (l : List α) (h : m ≤ l.length) :
     List.ofFn (drop m h l.get) = l.drop m := by
   ext i a
   simp [List.getElem?_eq_some_iff]
-  constructor <;> intro ⟨h, h'⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [add_comm, h']
+  constructor <;> intro ⟨h, h'⟩ <;> refine ⟨by omega, ?_⟩ <;> rw! [add_comm, h'] <;> rfl
 
 /-- `Fin.drop` intertwines with `List.drop` via `List.get`. -/
 theorem get_drop_eq_drop_get_comp_cast {α : Type*} {m : ℕ} (l : List α) (h : m ≤ l.length) :
@@ -316,6 +317,7 @@ theorem drop_eq_rtake (m : ℕ) (h : m ≤ n) (v : (i : Fin n) → α i) :
   simp only [Fin.cast, coe_addNat, drop, dcast, cast, coe_natAdd, rtake]
   have : n - (n - m) + i.val = i.val + m := by omega
   rw! [this]
+  aesop
 
 /-- Version of `drop_eq_rtake` for uniform tuples `v : Fin n → α` -/
 theorem drop_eq_rtake' {α : Sort*} (m : ℕ) (h : m ≤ n) (v : Fin n → α) :
@@ -329,7 +331,7 @@ same as the original tuple. -/
 theorem take_drop_addCases' (m : ℕ) (h : m ≤ n) (v : (i : Fin n) → α i) :
     Fin.addCases' (take m h v) (drop m h v) =
       fun i =>
-        cast (by simp [append, addCases, castLE, Fin.cast]; intro hi; rw! [Nat.sub_add_cancel hi])
+        cast (by simp [append, addCases, castLE, Fin.cast]; intro hi; rw! [Nat.sub_add_cancel hi]; rfl)
           (v (i.cast (by omega))) := by
   ext i
   simp [addCases', addCases, Fin.cast, castLE, cast]
