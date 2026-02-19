@@ -321,4 +321,19 @@ instance instSelectableTypeFinFunc {n : ℕ} {α : Type} [SelectableType α] [De
         simp only [Vector.get, Vector.ofFn, Fin.coe_cast, Array.getElem_ofFn, Fin.eta] }
   exact SelectableType.ofEquiv (instVectorFinFuncEquiv)
 
+/-- Nonempty `ZMod p` types can be selected from, using implicit casting of `ZMod (p - 1 + 1)`. -/
+instance instSelectableTypeZMod' (p : ℕ) : SelectableType (ZMod (p + 1)) where
+  selectElem := $[0..p]
+  mem_support_selectElem := by simp
+  probOutput_selectElem_eq x y := by
+    simp [uniformFin, probOutput_query (spec := unifSpec), OracleSpec.range]
+  probFailure_selectElem := by simp
+
+/-- `ZMod p` is selectable when `p > 0`, by rewriting as `ZMod ((p - 1) + 1)`. -/
+instance instSelectableTypeZMod (p : ℕ) [Fact (0 < p)] : SelectableType (ZMod p) := by
+  have hp : p = (p - 1) + 1 :=
+    (Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.mpr
+      (Nat.pos_iff_ne_zero.mp (Fact.out)))).symm
+  exact hp ▸ inferInstance
+
 end SelectableTypeInstances

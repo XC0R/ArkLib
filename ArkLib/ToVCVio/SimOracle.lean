@@ -8,7 +8,6 @@ TODO: figure out a better organization / naming scheme for this
 
 -/
 
-
 universe u v
 
 open OracleComp OracleSpec
@@ -100,7 +99,7 @@ theorem simulateQ'_eq_simulateQ [AlternativeMonad m] [LawfulMonad m]
   | failure => simp [neverFails] at h
 
 @[reducible]
-def SimOracle.Stateful (spec : OracleSpec ι) (specₜ : OracleSpec ιₜ) (σ : Type) :=
+def SimOracle.Stateful (spec : OracleSpec ι) (specₜ : OracleSpec ιₜ) (σ : Type u) :=
   QueryImpl spec (StateT σ (OracleComp specₜ))
 
 @[reducible]
@@ -116,9 +115,9 @@ def SimOracle.Impl (spec : OracleSpec ι) := SimOracle.Stateless spec []ₒ
 
 namespace SimOracle
 
-variable {ι₁ ι₂ ιₜ₁ ιₜ₂ : Type} {spec : OracleSpec ι} {spec₁ : OracleSpec ι₁}
+variable {ι₁ ι₂ ιₜ₁ ιₜ₂ : Type*} {spec : OracleSpec ι} {spec₁ : OracleSpec ι₁}
   {spec₂ : OracleSpec ι₂} {specₜ : OracleSpec ιₜ} {specₜ₁ : OracleSpec ιₜ₁}
-  {specₜ₂ : OracleSpec ιₜ₂} {σ τ α β : Type}
+  {specₜ₂ : OracleSpec ιₜ₂} {σ τ α β : Type u}
 
 variable [DecidableEq ι]
 
@@ -180,5 +179,53 @@ def liftLeftNil {ι : Type} {σ : Type} (oSpec : OracleSpec ι) :
 def liftRightNil {ι : Type} {σ : Type} (oSpec : OracleSpec ι) :
     SimOracle.Stateful (oSpec ++ₒ []ₒ) oSpec σ where impl
   | query (.inl i) q => fun s ↦ do return ⟨← query i q, s⟩
+
+variable {α : Type u}
+
+lemma simulateQ2_append_id_oracle
+    (so : QueryImpl spec₁ (OracleComp spec₁)) (so' : QueryImpl spec₂ (OracleComp spec₁))
+    (oa : OracleComp (spec₁ ++ₒ spec₂) α)
+    (hso' : ∀ {β} (q : OracleQuery spec₂ β), simulateQ so (so'.impl q) = so'.impl q) :
+  simulateQ so (simulateQ (idOracle ++ₛₒ so') oa) =
+    simulateQ (so ++ₛₒ so' : QueryImpl _ (OracleComp spec₁)) oa := by
+    rw [← QueryImpl.simulateQ_compose]
+    suffices h : so ∘ₛ (idOracle ++ₛₒ so') =
+        (so ++ₛₒ so' : QueryImpl _ (OracleComp spec₁)) by rw [h]
+    apply QueryImpl.ext'
+    intro β q
+    simp only [QueryImpl.apply_compose]
+    cases q with
+    | query i t =>
+      cases i with
+      | inl i =>
+        change simulateQ so (idOracle.impl (query i t)) = so.impl (query i t)
+        simp
+      | inr i =>
+        change simulateQ so (so'.impl (query i t)) = so'.impl (query i t)
+        exact hso' (query i t)
+
+lemma simulateQ2_append_id_oracle' {σ : Type u}
+    (so : QueryImpl spec₁ (StateT σ (OracleComp spec₁)))
+    (so' : QueryImpl spec₂ (OracleComp spec₁))
+    (oa : OracleComp (spec₁ ++ₒ spec₂) α)
+    (hso' : ∀ {β} (q : OracleQuery spec₂ β),
+      simulateQ so (so'.impl q) = MonadLift.monadLift (so'.impl q)) :
+  simulateQ so (simulateQ (idOracle ++ₛₒ so') oa) =
+    simulateQ (so ++ₛₒ so' : QueryImpl _ (StateT σ (OracleComp spec₁))) oa := by
+    rw [← QueryImpl.simulateQ_compose]
+    suffices h : so ∘ₛ (idOracle ++ₛₒ so') =
+        (so ++ₛₒ so' : QueryImpl _ (StateT σ (OracleComp spec₁))) by rw [h]
+    apply QueryImpl.ext'
+    intro β q
+    simp only [QueryImpl.apply_compose]
+    cases q with
+    | query i t =>
+      cases i with
+      | inl i =>
+        change simulateQ so (idOracle.impl (query i t)) = so.impl (query i t)
+        simp
+      | inr i =>
+        change simulateQ so (so'.impl (query i t)) = MonadLift.monadLift (so'.impl (query i t))
+        exact hso' (query i t)
 
 end SimOracle

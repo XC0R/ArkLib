@@ -12,6 +12,7 @@ import Mathlib.Algebra.Field.ZMod
 import Mathlib.Algebra.Order.Star.Basic
 import Mathlib.Algebra.Polynomial.FieldDivision
 import Mathlib.LinearAlgebra.Lagrange
+import ArkLib.ToVCVio.Oracle
 
 /-
   # Hardness Assumptions
@@ -20,18 +21,17 @@ import Mathlib.LinearAlgebra.Lagrange
   These Hardness Assumptions are used to prove the security of commitment schemes.
 -/
 
-variable {ι : Type} (oSpec : OracleSpec ι)
+variable {ι η : Type} (oSpec : OracleSpec ι) (advSpec : OracleSpec η)
 
-open OracleComp OracleSpec
+open OracleSpec OracleComp SubSpec SimOracle
 open scoped NNReal ENNReal
 
 namespace Groups
 
 section PrimeOrder
 
-variable {G : Type} [Group G] {p : outParam ℕ} [hp : Fact (Nat.Prime p)] [PrimeOrderWith G p]
-  {g : G}
-
+variable {G : Type} [Group G] {p : outParam ℕ} [hp : Fact (Nat.Prime p)] [Fact (0 < p)]
+  [PrimeOrderWith G p] {g : G}
 
 section Pairings
 
@@ -40,9 +40,6 @@ variable {G₁ : Type} [Group G₁] [PrimeOrderWith G₁ p] {g₁ : G₁}
   {Gₜ : Type} [Group Gₜ] [PrimeOrderWith Gₜ p] [DecidableEq Gₜ]
   [Module (ZMod p) (Additive G₁)] [Module (ZMod p) (Additive G₂)] [Module (ZMod p) (Additive Gₜ)]
   (pairing : (Additive G₁) →ₗ[ZMod p] (Additive G₂) →ₗ[ZMod p] (Additive Gₜ))
-
--- TODO this should be a fact in VCV-io I think..
-variable [OracleComp.SelectableType (ZMod p)]
 
 /-- The vector of length `n + 1` that consists of powers:
   `#v[1, g, g ^ a.val, g ^ (a.val ^ 2), ..., g ^ (a.val ^ n)` -/
@@ -57,21 +54,46 @@ def generateSrs (n : ℕ) (a : ZMod p) : Vector G₁ (n + 1) × Vector G₂ 2 :=
 /-- The ARSDH adversary returns a set of size D+1 and two group elements h₁ and h₂ upon receiving
 the srs. -/
 def ARSDHAdversary (D : ℕ) :=
-  Vector G₁ (D + 1) × Vector G₂ 2 → ProbComp (Finset (ZMod p) × G₁ × G₁)
+  Vector G₁ (D + 1) × Vector G₂ 2 →
+    StateT unifSpec.QueryCache ProbComp (Finset (ZMod p) × G₁ × G₁)
 
 /-- The probabillity of breaking ARSDH for a specific adversary. -/
-noncomputable def ARSDH_Experiment (D : ℕ)
+noncomputable def ARSDH_Experiment [∀ i, SelectableType (unifSpec.range i)] (D : ℕ)
     (adversary : ARSDHAdversary D (G₁ := G₁) (G₂ := G₂) (p := p))
     : ℝ≥0∞ :=
   [fun (τ,S,h₁,h₂) =>
     letI Zₛ := ∏ s ∈ S, (UniPoly.X - UniPoly.C s)
     S.card = D + 1 ∧ h₁ ≠ 1 ∧ h₂ = h₁ ^ (1 / Zₛ.eval τ).val
-  | do
-    let τ ←$ᵗ (ZMod p)
+  | (do
+    let τ ← simulateQ randomOracle ($ᵗ(ZMod p))
     let srs := generateSrs (g₁ := g₁) (g₂ := g₂) D τ
     let (S, h₁, h₂) ← adversary srs
-    return (τ, S, h₁, h₂)
+    return (τ, S, h₁, h₂)).run' (∅) -- TODO this empty state could be an arbitrary init?
   ]
+
+/- a note on why simulateQ is only applied to the τ sampling:
+We can think of three alternatives (none of which we got to work so far):
+1. leave out the simulateQ completely
+2. apply simulateQ randomOracle to the whole game/monad
+3. apply simulateQ (impl), where impl is a QueryImpl that both the τ sampling, and the adversary
+call can be lifted to.
+
+Ultimately we test this definition in our KZG function binding proof.
+We ran in the following issues for each approach:
+1. the function binding game simulates it's whole monad with "impl" which for unifSpec is
+randomOracle (stateful), so not collecting the oracle entry for τ fundamentally changes the
+structure of ARSDH+reduction vs a function binding game.
+Note, unifOracle, a stateless version of randomOracle exists, but does not satisfy the type
+constraints of function binding (StateT σ ProbComp). One could build a wrapper around this though
+which might be sensible. Through out the repo StateT σ ProbComp is frequently used.
+
+2. double simulation of randomOracle with idOracle didn't work.
+
+3. conflcit of lifiting to slef (no reflexivity for liftComp)
+
+Thus for now it seems sensible to simulate the sampling of τ separatly and pass the resulting state
+of this simulation to the adversary (to use in it's own simulation).
+-/
 
 /-- The adaptive rational strong Diffie–Hellman (ARSDH) assumption.
 Taken from Def. 9.6 in "On the Fiat–Shamir Security of Succinct Arguments from Functional
