@@ -32,7 +32,8 @@ def closeCodewords (C : Code ι F) (y : ι → F) (r : ℕ) : Set (ι → F) :=
   {c | c ∈ C ∧ c ∈ hammingBall y r}
 
 /-- The set of `r`-close codewords to a given word `y` with respect to the relative Hamming
-distance. -/
+distance.
+Note that this is exactly `Λ (C, y, r)` from [ACFY24] and ` List (C, y, r)` from [ACFY24stir]. -/
 def closeCodewordsRel (C : Code ι F) (y : ι → F) (r : ℝ) : Set (ι → F) :=
   {c | c ∈ C ∧ c ∈ relHammingBall y r}
 
