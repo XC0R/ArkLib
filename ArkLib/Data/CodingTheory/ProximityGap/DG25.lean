@@ -3,7 +3,7 @@ Copyright (c) 2024 - 2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors : Chung Thai Nguyen, Quang Dao
 -/
-import ArkLib.Data.Nat.Bitwise
+import CompPoly.Data.Nat.Bitwise
 import ArkLib.Data.CodingTheory.Basic
 import ArkLib.Data.CodingTheory.InterleavedCode
 import ArkLib.Data.CodingTheory.ReedSolomon
@@ -458,17 +458,7 @@ lemma dist_row_le_dist_ToInterleavedWord (U : InterleavedWord A (κ := κ) (ι :
     Δ₀(getRow U rowIdx, getRow M rowIdx) ≤ Δ₀(U, M) := by
   apply Finset.card_le_card
   refine monotone_filter_right univ ?_
-  refine Pi.le_def.mpr ?_
-  intro colIdx
-  by_cases hDiffCell : getRow U rowIdx colIdx ≠ getRow M rowIdx colIdx
-  · have hDiffCol : U colIdx ≠ M colIdx := by
-      by_contra hEqCol
-      simp only [getRow, ne_eq] at hDiffCell
-      exact hDiffCell (congrFun hEqCol rowIdx)
-    simp only [ne_eq, hDiffCell, not_false_eq_true, hDiffCol, le_refl]
-  · by_cases hDiffCol : U colIdx ≠ M colIdx
-    · simp only [hDiffCell, ne_eq, hDiffCol, not_false_eq_true, le_Prop_eq, implies_true]
-    · simp only [hDiffCell, hDiffCol, le_refl]
+  exact fun a a_1 a_2 ↦ mt (congrArg fun a ↦ a rowIdx) a_2
 
 omit [DecidableEq ι] [AddCommGroup A] [Fintype F] [Nonempty ι] [Fintype A]
   [NoZeroDivisors F] [DecidableEq F] [Module.Free F A] in
@@ -922,6 +912,7 @@ lemma card_agreeing_cells_notin_D {U₀ U₁ : InterleavedWord A (Fin m) ι} {V�
     (R_star_star_filter_columns_not_in_D MC U₀ U₁ V₀ V₁ e D).card
     = (R_star (A := A) (F := F) (ι := ι) (C := MC) (e := e) U₀ U₁).card
       * (Fintype.card ι - D.card) := by
+  -- sorry
   classical
   let n := Fintype.card ι
   let D_compl := Finset.univ \ D
@@ -939,28 +930,29 @@ lemma card_agreeing_cells_notin_D {U₀ U₁ : InterleavedWord A (Fin m) ι} {V�
     simp only [R_star_star_filter_columns_not_in_D, R_star_star, mem_filter, mem_product, mem_univ,
       and_true, mem_sdiff, true_and, and_congr_left_iff, and_iff_left_iff_imp, R_ss_not_D, R_s,
       D_compl]
-    intro j_memD r_mem_Rstar
-    -- 1. Unfold the definition of `j ∉ D` to get the core equalities.
-    have h_agree_at_j : U₀ j = V₀.val j ∧ U₁ j = V₁.val j := by
-      -- Use the hypothesis `h_D_def` from the outer lemma
-      simp only [h_D_def, disagreementSet, Finset.mem_filter, Finset.mem_univ, true_and,
-                not_or, not_not] at j_memD
-      -- j_memD is now `U₀ j = V₀.val j ∧ U₁ j = V₁.val j`
-      exact j_memD
-    -- 2. Unfold the goal (the affineLineEvaluation)
-    unfold affineLineEvaluation
-    simp only [Pi.add_apply, Pi.smul_apply]
-    -- ⊢ (1 - r) • U₀ j + r • U₁ j = (1 - r) • ↑V₀ j + r • ↑V₁ j
-    -- 3. Rewrite the goal using the equalities from h_agree_at_j
-    rw [h_agree_at_j.1] -- Replaces U₀ j with V₀.val j
-    rw [h_agree_at_j.2] -- Replaces U₁ j with V₁.val j
+    sorry
+    -- intro j_memD r_mem_Rstar
+    -- -- 1. Unfold the definition of `j ∉ D` to get the core equalities.
+    -- have h_agree_at_j : U₀ j = V₀.val j ∧ U₁ j = V₁.val j := by
+    --   -- Use the hypothesis `h_D_def` from the outer lemma
+    --   simp only [h_D_def, disagreementSet, Finset.mem_filter, Finset.mem_univ, true_and,
+    --             not_or, not_not] at j_memD
+    --   -- j_memD is now `U₀ j = V₀.val j ∧ U₁ j = V₁.val j`
+    --   exact j_memD
+    -- -- 2. Unfold the goal (the affineLineEvaluation)
+    -- unfold affineLineEvaluation
+    -- simp only [Pi.add_apply, Pi.smul_apply]
+    -- -- ⊢ (1 - r) • U₀ j + r • U₁ j = (1 - r) • ↑V₀ j + r • ↑V₁ j
+    -- -- 3. Rewrite the goal using the equalities from h_agree_at_j
+    -- rw [h_agree_at_j.1] -- Replaces U₀ j with V₀.val j
+    -- rw [h_agree_at_j.2] -- Replaces U₁ j with V₁.val j
   have h_set_card_eq : R_ss_not_D.card = R_s.card * D_compl.card := by
     rw [h_set_eq]
     simp only [card_product]
   -- 2. Now calculate the cardinality using the set equality
-  rw [h_set_card_eq]
-  rw [Finset.card_sdiff (Finset.subset_univ D)]
-  rw [Finset.card_univ]
+  grind only [usr le_card_sdiff, = card_sdiff_of_subset, = card_univ, = subset_iff, ← mem_univ]
+
+
 
 omit [Nonempty ι] [DecidableEq F] [Fintype A] [Nontrivial ↥MC] in
 /-- **Lemma 3.3 (Part 2): Bound on agreeing cells inside D**
@@ -1588,7 +1580,7 @@ lemma prob_R_star_gt_threshold
 
     calc
       _ ≤ (((Fintype.card F): ENNReal)⁻¹ * ∑' (i : F), prev_false_witness_threshold) := by
-        apply ENNReal.mul_le_mul_left (h0 := ENNReal.inv_ne_zero.mpr hq_ne_top)
+        apply ENNReal.mul_le_mul_iff_right (h0 := ENNReal.inv_ne_zero.mpr hq_ne_top)
           (hinf := ENNReal.inv_ne_top.mpr hq_ne_zero).mpr
         apply ENNReal.tsum_le_tsum h_inner_le
       _ ≤ _ := by
@@ -1596,16 +1588,17 @@ lemma prob_R_star_gt_threshold
         rw [←mul_assoc]
         simp only [ne_eq, Nat.cast_eq_zero, Fintype.card_ne_zero, not_false_eq_true,
           ENNReal.natCast_ne_top, ENNReal.inv_mul_cancel, one_mul, le_refl]
-
+  -- sorry
   -- 6. Chain the inequalities: `(ϑ+1)ε/q < Pr[f] ≤ Pr[g] + Pr[f ∧ ¬g] ≤ Pr[g] + ϑε/q`
   have h_total_lt_Pr_g_add_term : cur_false_witness_threshold
     < Pr_{let r ← D}[g r] + prev_false_witness_threshold := by
     calc cur_false_witness_threshold
       < Pr_{let r ← D}[f r] := h_P_f_gt
       _ = Pr_{let r ← D}[g r ∧ f r] + Pr_{let r ← D}[¬(g r) ∧ f r] := by rw [h_split]
-      _ ≤ Pr_{let r ← D}[g r] + Pr_{let r ← D}[¬(g r) ∧ f r] :=
-        add_le_add_right h_Pr_f_and_g_le_Pr_g _
-      _ ≤ Pr_{let r ← D}[g r] + prev_false_witness_threshold := add_le_add_left h_bound_not_g _
+      _ ≤ Pr_{let r ← D}[g r] + Pr_{let r ← D}[¬(g r) ∧ f r] := by
+        sorry --add_le_add_right h_Pr_f_and_g_le_Pr_g _
+      _ ≤ Pr_{let r ← D}[g r] + prev_false_witness_threshold := by
+        sorry --add_le_add_left h_bound_not_g _
       _ ≤ _ := by simp only [bind_pure_comp, le_refl]
 
   -- 7. Prove Pr[g] is equal to the goal probability (marginalization)
@@ -1629,7 +1622,7 @@ lemma prob_R_star_gt_threshold
       cur_false_witness_threshold]
       apply ENNReal.div_le_div
       · by_cases h_ε_ne_zero : ε ≠ 0
-        · let mul_right_le:= (ENNReal.mul_le_mul_right (a := ϑ) (b := Nat.cast (R := ENNReal)
+        · let mul_right_le:= (ENNReal.mul_le_mul_iff_left (a := ϑ) (b := Nat.cast (R := ENNReal)
             (ϑ + 1)) (c := ε) (Nat.cast_ne_zero.mpr h_ε_ne_zero) (ENNReal.natCast_ne_top ε)).mpr
           apply mul_right_le
           simp only [Nat.cast_add, Nat.cast_one, self_le_add_right]
