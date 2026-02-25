@@ -528,17 +528,27 @@ theorem range_vappend {α : Type*} (u : Fin m → α) (v : Fin n → α) :
   induction n with
   | zero => simp
   | succ n ih =>
-    simp [vappend_succ, ih, range_vconcat]
+    simp only [vappend_succ, range_vconcat, ih]
     ext i
-    simp
-    sorry
+    simp only [Set.mem_insert_iff, Set.mem_union, Set.mem_range, Function.comp_apply]
+    constructor
+    · rintro (rfl | h | ⟨y, rfl⟩)
+      · exact Or.inr ⟨_, rfl⟩
+      · exact Or.inl h
+      · exact Or.inr ⟨_, rfl⟩
+    · rintro (h | ⟨y, rfl⟩)
+      · exact Or.inr (Or.inl h)
+      · by_cases hy : y = Fin.last n
+        · exact Or.inl (by rw [hy])
+        · exact Or.inr (Or.inr ⟨y.castPred hy, by simp⟩)
 
 -- Extensionality for append
 theorem vappend_ext (u₁ u₂ : Fin m → α) (v₁ v₂ : Fin n → α) :
     vappend u₁ v₁ = vappend u₂ v₂ ↔ u₁ = u₂ ∧ v₁ = v₂ := by
   simp only [vappend_eq_append]
   constructor <;> intro h
-  · sorry
+  · exact ⟨by ext i; have := congr_fun h (Fin.castAdd n i); simp at this; exact this,
+          by ext i; have := congr_fun h (Fin.natAdd m i); simp at this; exact this⟩
   · simp [h]
 
 -- Additional useful extensionality lemmas
@@ -566,14 +576,9 @@ theorem vappend_singleton (u : Fin m → α) (a : α) :
 
 theorem singleton_append (a : α) (v : Fin n → α) :
     vappend !v[a] v = vcons a v ∘ Fin.cast (Nat.add_comm _ n) := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    simp [vappend_succ]
-    ext i
-    induction i using induction with
-    | zero => unfold vappend vconcat dappend dconcat; sorry
-    | succ i ih => simp [ih]; sorry
+  simp only [vappend_eq_append, vcons_eq_cons]
+  convert append_left_eq_cons !v[a] v using 2
+  ext i; fin_cases i; simp
 
 -- Empty cases
 theorem empty_unique (v : Fin 0 → α) : v = !v[] :=
@@ -967,8 +972,12 @@ theorem hconcat_eq_snoc {α : Fin n → Sort u} {β : Sort u} (v : (i : Fin n) �
   induction n with
   | zero => ext; simp [hconcat, snoc, fconcat]; split; simp
   | succ n ih =>
-    ext i; sorry
-    -- split <;> simp [snoc]
+    ext i
+    by_cases hi : i.val < n + 1
+    · have : i = castSucc ⟨i.val, hi⟩ := by ext; simp
+      rw [this, hconcat_castSucc, snoc_castSucc]
+    · have : i = last (n + 1) := by ext; simp; omega
+      rw [this, hconcat_last, snoc_last]
 
 -- Injectivity properties for cons (from functorial versions)
 theorem hcons_right_injective {β : Fin n → Sort u} (a : α) :
@@ -1051,11 +1060,14 @@ theorem dempty_happend {α : Fin 0 → Sort u} {β : Fin n → Sort u} (v : (i :
     · have : i = Fin.castSucc (⟨i.val, by simp [h]⟩) := by ext; simp
       rw [this, fconcat_castSucc]
       simp [Fin.cast]
-      sorry
+      have key := congr_fun (ih (β := fun j => β j.castSucc) (fun j => v j.castSucc))
+        ⟨i.val, by omega⟩
+      simp [happend] at key
+      rw [key]; simp
     · have : i = Fin.last (0 + n) := by ext; simp; omega
       rw! [this, fconcat_last]
       simp only [Fin.last, Fin.cast_mk]
-      sorry
+      grind only
 
 -- Index access for append
 @[simp]
