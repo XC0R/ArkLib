@@ -1,0 +1,449 @@
+\section{Security Definitions and Composition (List-Based IOP Refactor)}
+\label{sec:iop_refactor_security_composition}
+
+\providecommand{\defeq}{\mathrel{:=}}
+\providecommand{\pSpec}{\mathsf{pSpec}}
+\providecommand{\PtoV}{\mathsf{P\_to\_V}}
+\providecommand{\VtoP}{\mathsf{V\_to\_P}}
+\providecommand{\Transcript}{\mathsf{Transcript}}
+\providecommand{\Option}{\mathsf{Option}}
+\providecommand{\StmtIn}{\mathsf{StmtIn}}
+\providecommand{\StmtOut}{\mathsf{StmtOut}}
+\providecommand{\StmtMid}{\mathsf{StmtMid}}
+\providecommand{\WitIn}{\mathsf{WitIn}}
+\providecommand{\WitOut}{\mathsf{WitOut}}
+\providecommand{\WitMid}{\mathsf{WitMid}}
+
+This section gives a self-contained, paper-style development of the security notions used in the
+list-based IOP refactor (protocol specifications as lists, transcripts as heterogeneous vectors, and
+\emph{outside} challenge sampling), and proves the core composition theorems used in the refactor:
+completeness composition, and the implications from round-by-round (RBR) notions to their global
+counterparts via a union bound.  We also record the standard $n$-fold corollaries for replicated
+protocols.
+
+\subsection{Protocol skeleton and transcripts}
+
+\begin{definition}[Rounds and protocol specifications]
+A \emph{round} is one of the following two forms:
+\begin{enumerate}
+  \item a prover-to-verifier message round $(\PtoV, T)$, where $T$ is the message type;
+  \item a verifier-to-prover challenge round $(\VtoP, T)$, where $T$ is the challenge type.
+\end{enumerate}
+A \emph{protocol specification} is a finite list
+\[
+  \pSpec = [r_0, r_1, \dots, r_{L-1}],
+\]
+where each $r_k$ is a round. We write $L \defeq |\pSpec|$ for its length.
+\end{definition}
+
+\begin{definition}[Transcripts and partial transcripts]
+For a protocol specification $\pSpec = [r_0,\dots,r_{L-1}]$, a \emph{full transcript} is a tuple
+\[
+  \tau = (\tau_0,\dots,\tau_{L-1}),
+\]
+where $\tau_k$ has the type specified by $r_k$ (message type if $r_k$ is a message round, challenge
+type if $r_k$ is a challenge round). For $0 \le k \le L$, we write $\tau_{\le k}$ for the length-$k$
+prefix $(\tau_0,\dots,\tau_{k-1})$, called a \emph{partial transcript}.
+\end{definition}
+
+\begin{definition}[Challenge positions]
+Let $\mathcal{I}(\pSpec) \subseteq \{0,1,\dots,L-1\}$ denote the set of indices $i$ such that $r_i$ is
+a challenge round. We call $\mathcal{I}(\pSpec)$ the set of \emph{challenge positions}.
+\end{definition}
+
+\subsection{Outside challenge sampling and the joint experiment}
+
+\begin{definition}[Outside challenge sampling]
+Fix a protocol specification $\pSpec$.  A \emph{challenge sampler} for $\pSpec$ is a randomized
+procedure that samples a value $c_i$ of the appropriate challenge type for each challenge round
+index $i \in \mathcal{I}(\pSpec)$, and returns the collection
+\[
+  \mathbf{c} = (c_i)_{i \in \mathcal{I}(\pSpec)}.
+\]
+We write $\mathbf{c} \gets \mathsf{Chal}(\pSpec)$ for this sampling step.
+\end{definition}
+
+\begin{remark}[Single probability space]
+All security notions below are expressed as a \emph{single} probability $\Pr[\cdot]$ over the joint
+randomness of:
+\begin{enumerate}
+  \item outside-sampled challenges $\mathbf{c} \gets \mathsf{Chal}(\pSpec)$, and
+  \item any additional randomness of the ambient oracle computation (shared-oracle randomness).
+\end{enumerate}
+This is strictly weaker (and the intended notion) than a pointwise guarantee ``for all fixed
+challenge strings~$\mathbf{c}$''.
+\end{remark}
+
+\subsection{Reductions, verifiers, and execution}
+
+\begin{definition}[Plain verifier]
+Fix types $\StmtIn,\StmtOut$ and a protocol specification $\pSpec$. A \emph{verifier} is a (possibly
+probabilistic) algorithm
+\[
+  V : \StmtIn \times \Transcript(\pSpec) \to \Option(\StmtOut),
+\]
+where returning $\mathsf{none}$ means \emph{reject} and returning $\mathsf{some}(s)$ means
+\emph{accept} with output statement $s \in \StmtOut$.
+\end{definition}
+
+\begin{definition}[Plain prover and reduction]
+Fix types $\StmtIn,\WitIn,\StmtOut,\WitOut$ and $\pSpec$. A \emph{prover} is an algorithm that, given
+an input pair $(x,w) \in \StmtIn \times \WitIn$ and outside-sampled challenges $\mathbf{c}$, produces
+a transcript $\tau$ and an output pair $(x^P_{\mathsf{out}}, w_{\mathsf{out}}) \in \StmtOut \times
+\WitOut$. A \emph{reduction} is a pair $R = (P,V)$ of a prover and verifier sharing the same
+specification~$\pSpec$.
+\end{definition}
+
+\begin{definition}[Execution of a reduction]
+Fix a reduction $R=(P,V)$ over $\pSpec$. On input $(x,w) \in \StmtIn\times\WitIn$, the execution
+experiment samples $\mathbf{c} \gets \mathsf{Chal}(\pSpec)$, runs
+\[
+  (\tau, x^P_{\mathsf{out}}, w_{\mathsf{out}}) \gets P(x,w;\mathbf{c}),
+\]
+then computes
+\[
+  x^V_{\mathsf{out}} \gets V(x,\tau) \in \Option(\StmtOut).
+\]
+The output of the experiment is the triple
+\[
+  \Bigl(x^V_{\mathsf{out}},\, x^P_{\mathsf{out}},\, w_{\mathsf{out}}\Bigr).
+\]
+\end{definition}
+
+\subsection{Security notions}
+
+\begin{definition}[Completeness]
+Let $rel_{\mathsf{in}} \subseteq \StmtIn\times\WitIn$ and $rel_{\mathsf{out}} \subseteq
+\StmtOut\times\WitOut$ be relations. A reduction $R=(P,V)$ over $\pSpec$ is \emph{complete with error
+$\varepsilon \in \mathbb{R}_{\ge 0}$} from $rel_{\mathsf{in}}$ to $rel_{\mathsf{out}}$ if for all
+$(x,w) \in rel_{\mathsf{in}}$,
+\[
+  \Pr\Bigl[
+    x^V_{\mathsf{out}} = \mathsf{some}(x^P_{\mathsf{out}})
+    \ \wedge\ (x^P_{\mathsf{out}}, w_{\mathsf{out}}) \in rel_{\mathsf{out}}
+  \Bigr] \ \ge\ 1-\varepsilon,
+\]
+where the probability is over the joint experiment of outside challenge sampling and any shared
+oracle randomness used by $P$ and $V$.
+\end{definition}
+
+\begin{definition}[Perfect completeness]
+A reduction is \emph{perfectly complete} if it is complete with error $\varepsilon = 0$.
+\end{definition}
+
+\begin{definition}[Soundness]
+Let $L_{\mathsf{in}} \subseteq \StmtIn$ and $L_{\mathsf{out}} \subseteq \StmtOut$ be languages. A
+verifier $V$ over $\pSpec$ is \emph{sound with error $\varepsilon$} if for every prover $P$ (with
+arbitrary auxiliary output type) and every input $x \notin L_{\mathsf{in}}$,
+\[
+  \Pr\bigl[\exists s \in L_{\mathsf{out}},\ V(x,\tau) = \mathsf{some}(s)\bigr] \ \le\ \varepsilon,
+\]
+where $\tau$ is the transcript generated by $P$ in the joint experiment.
+\end{definition}
+
+\subsection{Round-by-round soundness}
+
+\begin{definition}[State function]
+Fix $V$, $L_{\mathsf{in}} \subseteq \StmtIn$, and $L_{\mathsf{out}} \subseteq \StmtOut$. A
+\emph{(deterministic) state function} is a predicate
+\[
+  \mathsf{SF}(k,x,\tau_{\le k}) \in \{\mathsf{true},\mathsf{false}\}
+\]
+defined for all $0 \le k \le L$, all $x \in \StmtIn$, and all partial transcripts $\tau_{\le k}$,
+such that:
+\begin{enumerate}
+  \item (\textbf{Initialization}) For all $x$, we have
+  \[
+    x \in L_{\mathsf{in}} \iff \mathsf{SF}(0,x,\langle\rangle)=\mathsf{true}.
+  \]
+  \item (\textbf{Message-round monotonicity}) For each $k < L$ such that $r_k$ is a \emph{message}
+  round, for all $x$ and all $\tau_{\le k}$,
+  \[
+    \mathsf{SF}(k,x,\tau_{\le k})=\mathsf{false}
+    \implies
+    \forall m,\ \mathsf{SF}(k+1,x,\tau_{\le k}\mathbin{\|}m)=\mathsf{false},
+  \]
+  where $m$ ranges over messages of the appropriate type and $\tau_{\le k}\mathbin{\|}m$ denotes
+  transcript concatenation.
+  \item (\textbf{Terminal soundness}) For all $x$ and full transcripts $\tau$, if
+  $\mathsf{SF}(L,x,\tau)=\mathsf{false}$ then
+  \[
+    \Pr\bigl[V(x,\tau)\in L_{\mathsf{out}}\bigr]=0.
+  \]
+\end{enumerate}
+\end{definition}
+
+\begin{definition}[RBR soundness]
+Let $\delta : \mathcal{I}(\pSpec) \to \mathbb{R}_{\ge 0}$ be an error function on challenge
+positions. We say $V$ is \emph{round-by-round sound} with error function $\delta$ if there exists a
+state function $\mathsf{SF}$ such that for every $x \notin L_{\mathsf{in}}$, every prover $P$, and
+every challenge position $i \in \mathcal{I}(\pSpec)$,
+\[
+  \Pr\Bigl[
+    \mathsf{SF}(i,x,\tau_{\le i})=\mathsf{false}
+    \ \wedge\
+    \mathsf{SF}(i+1,x,\tau_{\le i+1})=\mathsf{true}
+  \Bigr]
+  \ \le\ \delta(i),
+\]
+where $\tau$ is the transcript produced by $P$ in the joint experiment.
+\end{definition}
+
+\begin{theorem}[RBR soundness implies soundness via a union bound]
+\label{thm:rbr_soundness_implies_soundness_list}
+If $V$ is RBR-sound for $(L_{\mathsf{in}},L_{\mathsf{out}})$ with error function
+$\delta : \mathcal{I}(\pSpec) \to \mathbb{R}_{\ge 0}$, then $V$ is sound for
+$(L_{\mathsf{in}},L_{\mathsf{out}})$ with error
+\[
+  \varepsilon \defeq \sum_{i \in \mathcal{I}(\pSpec)} \delta(i).
+\]
+\end{theorem}
+
+\begin{proof}
+Fix any $x \notin L_{\mathsf{in}}$ and any prover $P$, and let $\tau$ be the resulting transcript in
+the joint experiment. Consider the acceptance event
+\[
+  A \defeq [\,\exists s \in L_{\mathsf{out}},\ V(x,\tau)=\mathsf{some}(s)\,].
+\]
+By initialization, $\mathsf{SF}(0,x,\langle\rangle)=\mathsf{false}$. By terminal soundness, we have
+the set inclusion
+\[
+  A \subseteq [\,\mathsf{SF}(L,x,\tau)=\mathsf{true}\,].
+\]
+Moreover, by message-round monotonicity, the predicate $\mathsf{SF}$ cannot change from
+$\mathsf{false}$ to $\mathsf{true}$ across message rounds; hence if $\mathsf{SF}(0,\dots)$ is false
+and $\mathsf{SF}(L,\dots)$ is true, there must exist a challenge position $i \in \mathcal{I}(\pSpec)$
+at which a flip occurs:
+\[
+  [\,\mathsf{SF}(L,x,\tau)=\mathsf{true}\,]
+  \subseteq
+  \bigcup_{i \in \mathcal{I}(\pSpec)}
+  \Bigl[\mathsf{SF}(i,x,\tau_{\le i})=\mathsf{false}\ \wedge\ \mathsf{SF}(i+1,x,\tau_{\le i+1})=\mathsf{true}\Bigr].
+\]
+Taking probabilities and applying the union bound yields
+\[
+  \Pr[A]
+  \le
+  \sum_{i \in \mathcal{I}(\pSpec)}
+  \Pr\Bigl[\mathsf{SF}(i,x,\tau_{\le i})=\mathsf{false}\ \wedge\ \mathsf{SF}(i+1,x,\tau_{\le i+1})=\mathsf{true}\Bigr]
+  \le
+  \sum_{i \in \mathcal{I}(\pSpec)} \delta(i),
+\]
+as required.
+\end{proof}
+
+\subsection{Round-by-round knowledge soundness}
+
+\begin{definition}[Straightline knowledge soundness]
+Let $rel_{\mathsf{in}} \subseteq \StmtIn\times\WitIn$ and $rel_{\mathsf{out}} \subseteq
+\StmtOut\times\WitOut$. A verifier $V$ is \emph{(straightline) knowledge sound} with error
+$\varepsilon$ if there exists an extractor
+\[
+  E : \StmtIn \times \WitOut \times \Transcript(\pSpec) \to \WitIn
+\]
+such that for every prover $P$ and every input statement $x$, in the joint experiment we have
+\[
+  \Pr\Bigl[
+    \bigl(\exists s,\ V(x,\tau)=\mathsf{some}(s)\ \wedge\ (s,w_{\mathsf{out}})\in rel_{\mathsf{out}}\bigr)
+    \ \wedge\
+    (x,E(x,w_{\mathsf{out}},\tau)) \notin rel_{\mathsf{in}}
+  \Bigr]
+  \ \le\ \varepsilon.
+\]
+\end{definition}
+
+\begin{definition}[RBR extractor and intermediate witnesses]
+Fix $\pSpec$ with $L=|\pSpec|$. Let $(W_k)_{k=0}^{L}$ be a family of \emph{intermediate witness}
+types such that $W_0 = \WitIn$. An \emph{RBR extractor} is a pair of deterministic maps:
+\begin{enumerate}
+  \item (\textbf{Backward step}) For each $k \in \{0,\dots,L-1\}$, a function
+  \[
+    \mathsf{extMid}_k : \StmtIn \times \Transcript(\pSpec)_{\le k+1} \times W_{k+1} \to W_k.
+  \]
+  \item (\textbf{Finalization}) A function
+  \[
+    \mathsf{extOut} : \StmtIn \times \Transcript(\pSpec) \times \WitOut \to W_L.
+  \]
+\end{enumerate}
+\end{definition}
+
+\begin{definition}[Knowledge state function]
+Fix relations $rel_{\mathsf{in}} \subseteq \StmtIn\times\WitIn$ and $rel_{\mathsf{out}} \subseteq
+\StmtOut\times\WitOut$, a verifier $V$, intermediate witness types $(W_k)_{k=0}^L$ with $W_0=\WitIn$,
+and an RBR extractor $(\mathsf{extMid}_k,\mathsf{extOut})$. A \emph{knowledge state function} is a
+predicate
+\[
+  \mathsf{KSF}(k,x,\tau_{\le k},w_k) \in \{\mathsf{true},\mathsf{false}\}
+\]
+defined for $0 \le k \le L$, $x\in\StmtIn$, partial transcripts $\tau_{\le k}$, and
+$w_k \in W_k$, such that:
+\begin{enumerate}
+  \item (\textbf{Initialization}) For all $x$ and $w_0 \in W_0=\WitIn$,
+  \[
+    (x,w_0) \in rel_{\mathsf{in}} \iff \mathsf{KSF}(0,x,\langle\rangle,w_0)=\mathsf{true}.
+  \]
+  \item (\textbf{Backward propagation on message rounds}) If $r_k$ is a message round, then for all
+  $x$, all $\tau_{\le k}$, all messages $m$, and all $w_{k+1}\in W_{k+1}$,
+  \[
+    \mathsf{KSF}(k+1,x,\tau_{\le k}\mathbin{\|}m,w_{k+1})=\mathsf{true}
+    \implies
+    \mathsf{KSF}(k,x,\tau_{\le k},\mathsf{extMid}_k(x,\tau_{\le k}\mathbin{\|}m,w_{k+1}))=\mathsf{true}.
+  \]
+  \item (\textbf{Finalization}) For all $x$, full transcripts $\tau$, and output witnesses
+  $w_{\mathsf{out}}\in\WitOut$, if
+  \[
+    \Pr\bigl[(V(x,\tau), w_{\mathsf{out}})\in rel_{\mathsf{out}}\bigr] > 0,
+  \]
+  then
+  \[
+    \mathsf{KSF}(L,x,\tau,\mathsf{extOut}(x,\tau,w_{\mathsf{out}}))=\mathsf{true}.
+  \]
+\end{enumerate}
+\end{definition}
+
+\begin{definition}[RBR knowledge soundness]
+Let $\kappa : \mathcal{I}(\pSpec)\to \mathbb{R}_{\ge 0}$ be an error function. We say that $(V,
+\mathsf{KSF})$ satisfies \emph{RBR knowledge soundness} with error function $\kappa$ if for every
+statement $x$, every prover $P$, and every challenge position $i \in \mathcal{I}(\pSpec)$,
+\[
+  \Pr\Bigl[
+    \exists w_{i+1}\in W_{i+1},\
+    \mathsf{KSF}(i+1,x,\tau_{\le i+1},w_{i+1})=\mathsf{true}
+    \ \wedge\
+    \mathsf{KSF}(i,x,\tau_{\le i},\mathsf{extMid}_i(x,\tau_{\le i+1},w_{i+1}))=\mathsf{false}
+  \Bigr]
+  \ \le\ \kappa(i),
+\]
+where $\tau$ is the transcript produced by $P$ in the joint experiment.
+\end{definition}
+
+\begin{theorem}[RBR knowledge soundness implies knowledge soundness]
+\label{thm:rbr_ks_implies_ks_list}
+Assume there exist intermediate witness types $(W_k)_{k=0}^L$ with $W_0=\WitIn$, an RBR extractor
+$(\mathsf{extMid}_k,\mathsf{extOut})$, and a knowledge state function $\mathsf{KSF}$ such that $(V,
+\mathsf{KSF})$ satisfies RBR knowledge soundness with error function
+$\kappa:\mathcal{I}(\pSpec)\to\mathbb{R}_{\ge 0}$. Define the straightline extractor $E$ by:
+\begin{align*}
+  w_L &\defeq \mathsf{extOut}(x,\tau,w_{\mathsf{out}}),\\
+  w_k &\defeq \mathsf{extMid}_k(x,\tau_{\le k+1},w_{k+1}) \qquad (k=L-1,\dots,0),\\
+  E(x,w_{\mathsf{out}},\tau) &\defeq w_0 \in \WitIn.
+\end{align*}
+Then $V$ is knowledge sound for $(rel_{\mathsf{in}},rel_{\mathsf{out}})$ with error
+\[
+  \varepsilon \defeq \sum_{i\in \mathcal{I}(\pSpec)} \kappa(i).
+\]
+\end{theorem}
+
+\begin{proof}
+Fix any statement $x$ and any prover $P$, and let $(\tau, w_{\mathsf{out}})$ be the transcript and
+output witness produced by $P$ in the joint experiment. Consider the ``bad'' event
+\[
+  B \defeq
+  \Bigl[
+    \bigl(\exists s,\ V(x,\tau)=\mathsf{some}(s)\ \wedge\ (s,w_{\mathsf{out}})\in rel_{\mathsf{out}}\bigr)
+    \ \wedge\
+    (x,E(x,w_{\mathsf{out}},\tau)) \notin rel_{\mathsf{in}}
+  \Bigr].
+\]
+Unfolding $E$, the second conjunct is $(x,w_0)\notin rel_{\mathsf{in}}$. By initialization of
+$\mathsf{KSF}$, this implies $\mathsf{KSF}(0,x,\langle\rangle,w_0)=\mathsf{false}$.
+
+On the other hand, if $V$ accepts with an output witness in $rel_{\mathsf{out}}$ with nonzero
+probability (which is the case on the event $B$), then by the finalization property we have
+$\mathsf{KSF}(L,x,\tau,w_L)=\mathsf{true}$ where $w_L=\mathsf{extOut}(x,\tau,w_{\mathsf{out}})$.
+
+Now consider the backward-propagated witnesses $(w_k)_{k=0}^L$ induced by the RBR extractor along the
+prefixes $\tau_{\le k}$. By backward propagation on message rounds, whenever $r_k$ is a message
+round, truth of $\mathsf{KSF}(k+1,x,\tau_{\le k+1},w_{k+1})$ implies truth of
+$\mathsf{KSF}(k,x,\tau_{\le k},w_k)$. Therefore, the predicate $\mathsf{KSF}$ can only change from
+false to true (when moving forward in $k$) across \emph{challenge} positions.
+
+Since $\mathsf{KSF}(0,\dots)=\mathsf{false}$ but $\mathsf{KSF}(L,\dots)=\mathsf{true}$ on $B$, there
+must exist $i\in\mathcal{I}(\pSpec)$ such that
+\[
+  \mathsf{KSF}(i+1,x,\tau_{\le i+1},w_{i+1})=\mathsf{true}
+  \quad\text{and}\quad
+  \mathsf{KSF}(i,x,\tau_{\le i},w_i)=\mathsf{false}.
+\]
+By definition of $w_i$, this is precisely the RBR-KS ``flip'' event at~$i$ witnessed by
+$w_{i+1}$. Hence we have the inclusion
+\[
+  B \subseteq \bigcup_{i\in\mathcal{I}(\pSpec)} F_i,
+\]
+where each $F_i$ is the existential flip event in the RBR knowledge soundness definition. Applying
+the union bound and the assumed per-round bounds gives
+\[
+  \Pr[B] \le \sum_{i\in\mathcal{I}(\pSpec)} \Pr[F_i] \le \sum_{i\in\mathcal{I}(\pSpec)} \kappa(i),
+\]
+as desired.
+\end{proof}
+
+\subsection{Completeness under sequential composition}
+
+\begin{definition}[Sequential composition of reductions]
+Let $R_1=(P_1,V_1)$ be a reduction over $\pSpec_1$ from $(\StmtIn_1,\WitIn_1)$ to $(\StmtMid,\WitMid)$,
+and let $R_2=(P_2,V_2)$ be a reduction over $\pSpec_2$ from $(\StmtMid,\WitMid)$ to $(\StmtOut,\WitOut)$.
+Their \emph{sequential composition} $R = R_2 \circ R_1$ is the reduction over $\pSpec_1 \mathbin{++}
+\pSpec_2$ defined by: on input $(x,w)$, run $P_1$ to obtain an intermediate output $(y,u)$ and prefix
+transcript $\tau^{(1)}$, then run $P_2$ on $(y,u)$ to obtain $(z,v)$ and transcript $\tau^{(2)}$;
+output transcript $\tau \defeq \tau^{(1)} \mathbin{\|} \tau^{(2)}$, prover output $(z,v)$, and accept
+only if both verifiers accept in sequence (equivalently, run $V_1$ on $\tau^{(1)}$ to obtain $y$ and
+then run $V_2$ on $\tau^{(2)}$ with input $y$).
+\end{definition}
+
+\begin{theorem}[Completeness composes with additive error]
+\label{thm:completeness_comp_add}
+Let $rel_{\mathsf{in}} \subseteq \StmtIn_1\times\WitIn_1$, $rel_{\mathsf{mid}} \subseteq
+\StmtMid\times\WitMid$, and $rel_{\mathsf{out}} \subseteq \StmtOut\times\WitOut$. If $R_1$ is
+complete from $rel_{\mathsf{in}}$ to $rel_{\mathsf{mid}}$ with error $\varepsilon_1$ and $R_2$ is
+complete from $rel_{\mathsf{mid}}$ to $rel_{\mathsf{out}}$ with error $\varepsilon_2$, then the
+composition $R_2\circ R_1$ is complete from $rel_{\mathsf{in}}$ to $rel_{\mathsf{out}}$ with error
+$\varepsilon_1+\varepsilon_2$.
+\end{theorem}
+
+\begin{proof}
+Fix any $(x,w)\in rel_{\mathsf{in}}$. Let $G_1$ be the event that $R_1$'s verifier accepts with
+output equal to $R_1$'s prover statement and $(y,u)\in rel_{\mathsf{mid}}$; by completeness of $R_1$,
+$\Pr[\neg G_1]\le \varepsilon_1$.  Conditional on $G_1$ (and thus on $(y,u)\in rel_{\mathsf{mid}}$),
+let $G_2$ be the analogous ``good'' event for $R_2$ with respect to $rel_{\mathsf{out}}$; by
+completeness of $R_2$ applied to the specific valid intermediate pair, we have
+\[
+  \Pr[\neg G_2 \mid G_1] \le \varepsilon_2.
+\]
+The composed reduction succeeds exactly on $G_1 \wedge G_2$, hence
+\[
+  \Pr[G_1 \wedge G_2]
+  \ge 1 - \Pr[\neg G_1] - \Pr[\neg G_2 \wedge G_1]
+  \ge 1 - \varepsilon_1 - \varepsilon_2,
+\]
+where the last inequality uses $\Pr[\neg G_2 \wedge G_1] = \Pr[G_1]\Pr[\neg G_2\mid G_1] \le
+\varepsilon_2$. This is completeness with error $\varepsilon_1+\varepsilon_2$.
+\end{proof}
+
+\begin{corollary}[$n$-fold completeness]
+\label{cor:completeness_comp_n}
+If a reduction is complete from $rel$ to $rel$ with error $\varepsilon$, then the $n$-fold sequential
+composition of the reduction with itself is complete from $rel$ to $rel$ with error $n\varepsilon$.
+\end{corollary}
+
+\begin{proof}
+By induction on $n$, applying \Cref{thm:completeness_comp_add} at each step.
+\end{proof}
+
+\begin{corollary}[$n$-fold soundness bounds from RBR bounds]
+\label{cor:rbr_soundness_comp_n}
+Let $\pSpec^{\mathsf{rep}(n)}$ denote the replicated protocol that concatenates $n$ copies of
+$\pSpec$. If each copy admits an RBR bound $\delta:\mathcal{I}(\pSpec)\to\mathbb{R}_{\ge0}$, then the
+replicated verifier is sound with error at most
+\[
+  n \cdot \sum_{i\in\mathcal{I}(\pSpec)} \delta(i).
+\]
+An analogous statement holds for knowledge soundness with $\kappa$ in place of $\delta$.
+\end{corollary}
+
+\begin{proof}
+The replicated protocol has $n$ disjoint blocks of challenge positions, each block contributing a
+union-bound term $\sum_i \delta(i)$ (resp.\ $\sum_i \kappa(i)$). Summing over blocks gives the stated
+bound.
+\end{proof}
+
