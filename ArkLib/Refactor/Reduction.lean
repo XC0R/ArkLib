@@ -133,12 +133,15 @@ def compNth
     OracleReduction oSpec S OStmt W S OStmt W (pSpec.replicate n)
   | 0, _ => { prover := fun sw => pure sw,
               verifier := { verify := fun stmt _ => pure stmt,
-                            simulate := sorry,
+                            simulate := fun q =>
+                              liftM (query (spec := [OStmt]ₒ + oracleSpecOfMessages
+                                (pSpec.replicate 0)) (Sum.inl q)),
                             reify := fun oStmtData _ => some oStmtData } }
   | n + 1, r => comp r (compNth n r)
 
 /-- Convert an oracle reduction to a plain reduction by providing oracle statement
-data and simulating oracle access via `OracleVerifier.toVerifier`. -/
+data and simulating oracle access via `OracleVerifier.toVerifier`.
+The prover projects away the output oracle data; the verifier uses `toVerifier`. -/
 def toReduction
     {ι : Type} {oSpec : OracleSpec ι}
     {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} {WitIn : Type}
@@ -148,8 +151,11 @@ def toReduction
     [∀ i, OracleInterface (OStmtOut i)]
     (red : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec)
     (oStmtData : ∀ i, OStmtIn i) :
-    Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec :=
-  sorry
+    Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec where
+  prover := fun (stmt, wit) => do
+    let p ← red.prover ((stmt, oStmtData), wit)
+    return Prover.mapOutput (fun ((sout, _), wout) => (sout, wout)) pSpec p
+  verifier := red.verifier.toVerifier oStmtData
 
 end OracleReduction
 

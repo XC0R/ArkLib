@@ -93,6 +93,13 @@ def runToRound {m : Type → Type} [Monad m] {Output : Type} :
     return (challenges.head ::ₕ ptr, rem)
   | [], _ + 1, prover, _ => pure (HVector.nil, prover)
 
+/-- Map the output type of a prover, preserving message structure. -/
+def mapOutput {m : Type → Type} [Functor m] {A B : Type} (f : A → B) :
+    (pSpec : ProtocolSpec) → Prover m A pSpec → Prover m B pSpec
+  | [], a => f a
+  | (.P_to_V _ _) :: tl, (msg, cont) => (msg, (mapOutput f tl) <$> cont)
+  | (.V_to_P _) :: tl, recv => fun ch => (mapOutput f tl) <$> recv ch
+
 end Prover
 
 /-- An honest prover: takes a statement/witness pair and monadically produces

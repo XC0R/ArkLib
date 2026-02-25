@@ -95,11 +95,78 @@ structure OracleVerifier {ι : Type} (oSpec : OracleSpec ι)
   Used in completeness proofs and execution. -/
   reify : (∀ i, OStmtIn i) → Messages pSpec → Option (∀ i, OStmtOut i)
 
+/-! ## SubSpec instances for message oracle spec over append
+
+When composing two protocols, `oracleSpecOfMessages pSpec₁` (resp. `pSpec₂`)
+embeds into `oracleSpecOfMessages (pSpec₁ ++ pSpec₂)` via left/right injection
+of indices. The range types match definitionally at each recursive step. -/
+
+/-- `SubSpec`: left message oracle spec embeds into the concatenated spec. -/
+def subSpec_oracleSpecOfMessages_left :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    oracleSpecOfMessages pSpec₁ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+  | [], _ => { toMonadLift := { monadLift := fun q => PEmpty.elim q.input } }
+  | (.P_to_V _ _) :: tl, pSpec₂ =>
+    let ih := subSpec_oracleSpecOfMessages_left tl pSpec₂
+    { toMonadLift := { monadLift := fun q => match q with
+      | ⟨Sum.inl t, f⟩ => ⟨Sum.inl t, f⟩
+      | ⟨Sum.inr t, f⟩ =>
+        let q' := ih.monadLift ⟨t, f⟩
+        ⟨Sum.inr q'.1, q'.2⟩ } }
+  | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_left tl pSpec₂
+
+/-- `SubSpec`: right message oracle spec embeds into the concatenated spec. -/
+def subSpec_oracleSpecOfMessages_right :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    oracleSpecOfMessages pSpec₂ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+  | [], _ => { toMonadLift := { monadLift := fun q => q } }
+  | (.P_to_V _ _) :: tl, pSpec₂ =>
+    let ih := subSpec_oracleSpecOfMessages_right tl pSpec₂
+    { toMonadLift := { monadLift := fun q =>
+      let q' := ih.monadLift q
+      ⟨Sum.inr q'.1, q'.2⟩ } }
+  | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_right tl pSpec₂
+
 namespace OracleVerifier
 
+/-- Answer a message oracle query directly from a transcript, walking the protocol
+spec to find the relevant round's data and `OracleInterface.answer`. -/
+def answerMsgQuery :
+    (pSpec : ProtocolSpec) → Transcript pSpec →
+    (q : MessageOracleIdx pSpec) → oracleSpecOfMessages pSpec q
+  | (.P_to_V _ oi) :: _, tr, .inl q => @OracleInterface.answer _ oi tr.head q
+  | (.P_to_V _ _) :: tl, tr, .inr q => answerMsgQuery tl tr.tail q
+  | (.V_to_P _) :: tl, tr, q => answerMsgQuery tl tr.tail q
+
+/-- Convert an oracle verifier to a plain verifier by simulating all oracle queries
+with actual data. Extracts challenges and messages from the transcript, builds
+pure oracle implementations, and runs the oracle verifier via `simulateQ`. -/
+def toVerifier
+    {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
+    {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmtIn i)]
+    [∀ i, OracleInterface (OStmtOut i)]
+    (ov : OracleVerifier oSpec StmtIn OStmtIn StmtOut OStmtOut pSpec)
+    (oStmtData : ∀ i, OStmtIn i) :
+    Verifier (OracleComp oSpec) StmtIn StmtOut pSpec :=
+  fun stmt tr =>
+    let impl : QueryImpl (oSpec + [OStmtIn]ₒ + oracleSpecOfMessages pSpec)
+                         (OracleComp oSpec) := fun
+      | Sum.inl (Sum.inl i) => liftM (query i)
+      | Sum.inl (Sum.inr ⟨i, q⟩) => pure (OracleInterface.answer (oStmtData i) q)
+      | Sum.inr q => pure (answerMsgQuery pSpec tr q)
+    (simulateQ impl (ov.verify stmt (Transcript.toChallenges pSpec tr)) :
+      OracleComp oSpec (Option StmtOut))
+
 /-- Compose two oracle verifiers sequentially.
-The `verify` and `simulate` fields require oracle routing between the composed
-message specs; these use `sorry` pending VCVio SubSpec infrastructure.
+
+The `verify` and `simulate` fields require routing oracle queries between the
+composed message specs via `SubSpec` coercions (left/right message spec
+embeddings). The routing for `verify` composes `ov₁.simulate` to answer
+intermediate `[OStmt₂]ₒ` queries from `ov₂`, while routing `pSpec₁`/`pSpec₂`
+message queries to the appropriate half of the combined spec.
 The `reify` field is fully implemented. -/
 def comp
     {ι : Type} {oSpec : OracleSpec ι}
@@ -128,28 +195,13 @@ def compNth
     [∀ i, OracleInterface (OStmt i)] : (n : Nat) →
     OracleVerifier oSpec S OStmt S OStmt pSpec →
     OracleVerifier oSpec S OStmt S OStmt (pSpec.replicate n)
-  | 0, _ => { verify := fun stmt _ => pure stmt,
-              simulate := sorry,
-              reify := fun oStmtData _ => some oStmtData }
+  | 0, _ =>
+    { verify := fun stmt _ => pure stmt,
+      simulate := fun q =>
+        liftM (query (spec := [OStmt]ₒ + oracleSpecOfMessages (pSpec.replicate 0))
+          (Sum.inl q)),
+      reify := fun oStmtData _ => some oStmtData }
   | n + 1, ov => comp ov (compNth n ov)
-
-/-- Convert an oracle verifier to a plain verifier by simulating all oracle queries
-with actual data. Takes explicit oracle statement data as input.
-
-The implementation extracts challenges and messages from the transcript, builds
-oracle implementations from the data, and runs the oracle verifier in a
-simulated context. -/
-def toVerifier
-    {ι : Type} {oSpec : OracleSpec ι}
-    {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
-    {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type}
-    {pSpec : ProtocolSpec}
-    [∀ i, OracleInterface (OStmtIn i)]
-    [∀ i, OracleInterface (OStmtOut i)]
-    (ov : OracleVerifier oSpec StmtIn OStmtIn StmtOut OStmtOut pSpec)
-    (oStmtData : ∀ i, OStmtIn i) :
-    Verifier (OracleComp oSpec) StmtIn StmtOut pSpec :=
-  fun stmt tr => sorry
 
 end OracleVerifier
 
