@@ -23,8 +23,6 @@ at construction time.
 
 universe u
 
-open Direction
-
 namespace ProtocolSpec
 
 /-- A single round in a protocol specification. -/
@@ -41,15 +39,6 @@ def type : Round → Type
   | .P_to_V T _ => T
   | .V_to_P T => T
 
-/-- The direction of a round. -/
-def dir : Round → Direction
-  | .P_to_V _ _ => .P_to_V
-  | .V_to_P _ => .V_to_P
-
-/-- Extract the oracle interface from a P_to_V round. -/
-def getOracleInterface : (r : Round) → r.dir = .P_to_V → OracleInterface r.type
-  | .P_to_V _ oi, _ => oi
-
 end Round
 
 end ProtocolSpec
@@ -61,6 +50,8 @@ prover sends a message or the verifier sends a challenge, along with the type an
 def ProtocolSpec := List ProtocolSpec.Round
 
 namespace ProtocolSpec
+
+open Round
 
 /-!
 ## Smart constructors
@@ -93,30 +84,30 @@ def challengeTypes : ProtocolSpec → List Type
 -/
 
 @[simp]
-theorem messageTypes_nil : ([] : ProtocolSpec).messageTypes = [] := rfl
+theorem messageTypes_nil : messageTypes ([] : ProtocolSpec) = [] := rfl
 
 @[simp]
 theorem messageTypes_cons_P_to_V {T : Type} {oi : OracleInterface T} {tl : ProtocolSpec} :
-    ((.P_to_V T oi) :: tl).messageTypes = T :: tl.messageTypes := rfl
+    messageTypes ((.P_to_V T oi) :: tl) = T :: messageTypes tl := rfl
 
 @[simp]
 theorem messageTypes_cons_V_to_P {T : Type} {tl : ProtocolSpec} :
-    ((.V_to_P T) :: tl).messageTypes = tl.messageTypes := rfl
+    messageTypes ((.V_to_P T) :: tl) = messageTypes tl := rfl
 
 @[simp]
-theorem challengeTypes_nil : ([] : ProtocolSpec).challengeTypes = [] := rfl
+theorem challengeTypes_nil : challengeTypes ([] : ProtocolSpec) = [] := rfl
 
 @[simp]
 theorem challengeTypes_cons_P_to_V {T : Type} {oi : OracleInterface T} {tl : ProtocolSpec} :
-    ((.P_to_V T oi) :: tl).challengeTypes = tl.challengeTypes := rfl
+    challengeTypes ((.P_to_V T oi) :: tl) = challengeTypes tl := rfl
 
 @[simp]
 theorem challengeTypes_cons_V_to_P {T : Type} {tl : ProtocolSpec} :
-    ((.V_to_P T) :: tl).challengeTypes = T :: tl.challengeTypes := rfl
+    challengeTypes ((.V_to_P T) :: tl) = T :: challengeTypes tl := rfl
 
 @[simp]
 theorem messageTypes_append (p₁ p₂ : ProtocolSpec) :
-    (p₁ ++ p₂).messageTypes = p₁.messageTypes ++ p₂.messageTypes := by
+    messageTypes (p₁ ++ p₂) = messageTypes p₁ ++ messageTypes p₂ := by
   induction p₁ with
   | nil => simp [messageTypes]
   | cons hd tl ih =>
@@ -126,7 +117,7 @@ theorem messageTypes_append (p₁ p₂ : ProtocolSpec) :
 
 @[simp]
 theorem challengeTypes_append (p₁ p₂ : ProtocolSpec) :
-    (p₁ ++ p₂).challengeTypes = p₁.challengeTypes ++ p₂.challengeTypes := by
+    challengeTypes (p₁ ++ p₂) = challengeTypes p₁ ++ challengeTypes p₂ := by
   induction p₁ with
   | nil => simp [challengeTypes]
   | cons hd tl ih =>
@@ -139,52 +130,42 @@ theorem challengeTypes_append (p₁ p₂ : ProtocolSpec) :
 -/
 
 @[simp]
-theorem messageTypes_take_zero : (pSpec : ProtocolSpec) →
-    (pSpec.take 0).messageTypes = [] := by
-  intro pSpec; simp [List.take]
+theorem messageTypes_take_zero (pSpec : ProtocolSpec) :
+    messageTypes (pSpec.take 0) = [] := rfl
 
 @[simp]
-theorem challengeTypes_take_zero : (pSpec : ProtocolSpec) →
-    (pSpec.take 0).challengeTypes = [] := by
-  intro pSpec; simp [List.take]
+theorem challengeTypes_take_zero (pSpec : ProtocolSpec) :
+    challengeTypes (pSpec.take 0) = [] := rfl
 
-theorem messageTypes_take_succ :
-    ∀ (pSpec : ProtocolSpec) (n : Nat),
-      (pSpec.take (n + 1)).messageTypes =
-        match pSpec with
-        | [] => []
-        | (.P_to_V T _) :: tl => T :: (tl.take n).messageTypes
-        | (.V_to_P _) :: tl => (tl.take n).messageTypes := by
-  intro pSpec n
+theorem messageTypes_take_succ (pSpec : ProtocolSpec) (n : Nat) :
+    messageTypes (pSpec.take (n + 1)) =
+      match pSpec with
+      | [] => []
+      | (.P_to_V T _) :: tl => T :: messageTypes (tl.take n)
+      | (.V_to_P _) :: tl => messageTypes (tl.take n) := by
   cases pSpec with
-  | nil => simp [List.take, messageTypes]
+  | nil => rfl
   | cons hd tl =>
     match hd with
-    | .P_to_V T oi => simp [List.take, messageTypes]
-    | .V_to_P T => simp [List.take, messageTypes]
+    | .P_to_V T oi => rfl
+    | .V_to_P T => rfl
 
-theorem challengeTypes_take_succ :
-    ∀ (pSpec : ProtocolSpec) (n : Nat),
-      (pSpec.take (n + 1)).challengeTypes =
-        match pSpec with
-        | [] => []
-        | (.P_to_V _ _) :: tl => (tl.take n).challengeTypes
-        | (.V_to_P T) :: tl => T :: (tl.take n).challengeTypes := by
-  intro pSpec n
+theorem challengeTypes_take_succ (pSpec : ProtocolSpec) (n : Nat) :
+    challengeTypes (pSpec.take (n + 1)) =
+      match pSpec with
+      | [] => []
+      | (.P_to_V _ _) :: tl => challengeTypes (tl.take n)
+      | (.V_to_P T) :: tl => T :: challengeTypes (tl.take n) := by
   cases pSpec with
-  | nil => simp [List.take, challengeTypes]
+  | nil => rfl
   | cons hd tl =>
     match hd with
-    | .P_to_V T oi => simp [List.take, challengeTypes]
-    | .V_to_P T => simp [List.take, challengeTypes]
+    | .P_to_V T oi => rfl
+    | .V_to_P T => rfl
 
 /-!
 ## Getters
 -/
-
-/-- Get the direction at index `i`. -/
-def getDir (pSpec : ProtocolSpec) (i : Fin pSpec.length) : Direction :=
-  (pSpec.get i).dir
 
 /-- Get the type at index `i`. -/
 def getType (pSpec : ProtocolSpec) (i : Fin pSpec.length) : Type :=
@@ -197,18 +178,18 @@ def getType (pSpec : ProtocolSpec) (i : Fin pSpec.length) : Type :=
 /-- Count the number of prover messages in a protocol spec. -/
 def messageCount : ProtocolSpec → Nat
   | [] => 0
-  | (.P_to_V _ _) :: tl => 1 + messageCount tl
+  | (.P_to_V _ _) :: tl => messageCount tl + 1
   | (.V_to_P _) :: tl => messageCount tl
 
 /-- Count the number of verifier challenges in a protocol spec. -/
 def challengeCount : ProtocolSpec → Nat
   | [] => 0
   | (.P_to_V _ _) :: tl => challengeCount tl
-  | (.V_to_P _) :: tl => 1 + challengeCount tl
+  | (.V_to_P _) :: tl => challengeCount tl + 1
 
 @[simp]
 theorem length_messageTypes (pSpec : ProtocolSpec) :
-    pSpec.messageTypes.length = pSpec.messageCount := by
+    (messageTypes pSpec).length = messageCount pSpec := by
   induction pSpec with
   | nil => rfl
   | cons hd tl ih =>
@@ -218,7 +199,7 @@ theorem length_messageTypes (pSpec : ProtocolSpec) :
 
 @[simp]
 theorem length_challengeTypes (pSpec : ProtocolSpec) :
-    pSpec.challengeTypes.length = pSpec.challengeCount := by
+    (challengeTypes pSpec).length = challengeCount pSpec := by
   induction pSpec with
   | nil => rfl
   | cons hd tl ih =>

@@ -35,35 +35,50 @@ def Prover (m : Type → Type) (Output : Type) : ProtocolSpec → Type
 
 namespace Prover
 
-/-- Run a prover with pre-sampled challenges, producing a transcript and output.
-
-Uses outside challenge sampling: challenges are drawn independently and passed in,
-rather than being queried as oracles inside the computation. -/
-def run [Monad m] {Output : Type} :
-    {pSpec : ProtocolSpec} → Prover m Output pSpec → Challenges pSpec →
+/-- Run a prover with pre-sampled challenges, producing a transcript and output. -/
+def run {m : Type → Type} [Monad m] {Output : Type} :
+    (pSpec : ProtocolSpec) → Prover m Output pSpec → Challenges pSpec →
     m (Transcript pSpec × Output)
-  | [], output, _ => pure (.nil, output)
-  | (.P_to_V _ _) :: _, prover, challenges => do
-    let next ← prover.2
-    let (tr, out) ← next.run challenges
-    return (.cons prover.1 tr, out)
-  | (.V_to_P _) :: _, prover, challenges => do
+  | [], output, _ => pure (HVector.nil, output)
+  | (.P_to_V _ _) :: tl, prover, challenges => do
+    let (msg, cont) := prover
+    let next ← cont
+    let (tr, out) ← run tl next challenges
+    return (msg ::ₕ tr, out)
+  | (.V_to_P _) :: tl, prover, challenges => do
     let next ← prover challenges.head
-    let (tr, out) ← next.run challenges.tail
-    return (.cons challenges.head tr, out)
+    let (tr, out) ← run tl next challenges.tail
+    return (challenges.head ::ₕ tr, out)
 
-/-- Compose two provers sequentially. The first prover runs for `pSpec₁`, producing
-intermediate output, which is fed to produce the second prover for `pSpec₂`.
-The result runs for `pSpec₁ ++ pSpec₂`. -/
-def comp [Monad m] {Mid Output : Type} :
-    {pSpec₁ pSpec₂ : ProtocolSpec} →
+/-- Compose two provers sequentially. -/
+def comp {m : Type → Type} [Monad m] {Mid Output : Type} {pSpec₂ : ProtocolSpec} :
+    (pSpec₁ : ProtocolSpec) →
     Prover m Mid pSpec₁ → (Mid → m (Prover m Output pSpec₂)) →
     m (Prover m Output (pSpec₁ ++ pSpec₂))
-  | [], p, f => f p
-  | (.P_to_V _ _) :: _, p, f =>
-    return (p.1, do let rest ← p.2; comp rest f)
-  | (.V_to_P _) :: _, p, f =>
-    return fun chal => do let rest ← p chal; comp rest f
+  | [], output, f => f output
+  | (.P_to_V _ _) :: tl, prover, f =>
+    let (msg, cont) := prover
+    pure (msg, do let next ← cont; comp tl next f)
+  | (.V_to_P _) :: tl, prover, f =>
+    pure fun chal => do let next ← prover chal; comp tl next f
+
+/-- Run a prover to an intermediate round `n`, producing a partial transcript and the
+remaining prover for rounds `n`..end. Required for round-by-round soundness. -/
+def runToRound {m : Type → Type} [Monad m] {Output : Type} :
+    (pSpec : ProtocolSpec) → (n : Nat) →
+    Prover m Output pSpec → Challenges (pSpec.take n) →
+    m (PartialTranscript pSpec n × Prover m Output (pSpec.drop n))
+  | _, 0, prover, _ => pure (HVector.nil, prover)
+  | (.P_to_V _ _) :: tl, n + 1, prover, challenges => do
+    let (msg, cont) := prover
+    let next ← cont
+    let (ptr, rem) ← runToRound tl n next challenges
+    return (msg ::ₕ ptr, rem)
+  | (.V_to_P _) :: tl, n + 1, prover, challenges => do
+    let next ← prover challenges.head
+    let (ptr, rem) ← runToRound tl n next challenges.tail
+    return (challenges.head ::ₕ ptr, rem)
+  | [], _ + 1, prover, _ => pure (HVector.nil, prover)
 
 end Prover
 
@@ -76,13 +91,14 @@ def HonestProver (m : Type → Type) (StmtIn WitIn StmtOut WitOut : Type)
 namespace HonestProver
 
 /-- Compose two honest provers sequentially. -/
-def comp [Monad m] {S₁ W₁ S₂ W₂ S₃ W₃ : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
+def comp {m : Type → Type} [Monad m] {S₁ W₁ S₂ W₂ S₃ W₃ : Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
     (p₁ : HonestProver m S₁ W₁ S₂ W₂ pSpec₁)
     (p₂ : HonestProver m S₂ W₂ S₃ W₃ pSpec₂)
     : HonestProver m S₁ W₁ S₃ W₃ (pSpec₁ ++ pSpec₂) :=
   fun ⟨stmt, wit⟩ => do
     let prover₁ ← p₁ (stmt, wit)
-    Prover.comp prover₁ (fun ⟨midStmt, midWit⟩ => p₂ (midStmt, midWit))
+    Prover.comp pSpec₁ prover₁ (fun ⟨midStmt, midWit⟩ => p₂ (midStmt, midWit))
 
 end HonestProver
 

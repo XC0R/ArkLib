@@ -63,12 +63,12 @@ def oracleSpecOfMessages : (pSpec : ProtocolSpec) → OracleSpec (MessageOracleI
 Each `P_to_V` query is answered using `OracleInterface.answer` on the corresponding
 message. -/
 def oracleImplOfMessages :
-    {pSpec : ProtocolSpec} → Messages pSpec → QueryImpl (oracleSpecOfMessages pSpec) Id
-  | [], .nil => fun q => PEmpty.elim q
-  | (.P_to_V _ oi) :: _, .cons msg msgs => fun
-    | .inl q => @OracleInterface.answer _ oi msg q
-    | .inr q => oracleImplOfMessages msgs q
-  | (.V_to_P _) :: _, msgs => oracleImplOfMessages msgs
+    (pSpec : ProtocolSpec) → Messages pSpec → QueryImpl (oracleSpecOfMessages pSpec) Id
+  | [], _ => fun q => PEmpty.elim q
+  | (.P_to_V _ oi) :: tl, msgs => fun
+    | .inl q => @OracleInterface.answer _ oi msgs.head q
+    | .inr q => oracleImplOfMessages tl msgs.tail q
+  | (.V_to_P _) :: tl, msgs => oracleImplOfMessages tl msgs
 
 /-- Oracle verifier with oracle access to input statements and prover messages.
 

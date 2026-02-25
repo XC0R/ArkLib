@@ -32,7 +32,8 @@ namespace Verifier
 
 /-- Compose two verifiers sequentially. The transcript is split at the boundary,
 and the output of the first verifier becomes the input of the second. -/
-def comp [Monad m] {S₁ S₂ S₃ : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
+def comp {m : Type → Type} [Monad m] {S₁ S₂ S₃ : Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
     (v₁ : Verifier m S₁ S₂ pSpec₁) (v₂ : Verifier m S₂ S₃ pSpec₂)
     : Verifier m S₁ S₃ (pSpec₁ ++ pSpec₂) :=
   fun stmt tr => do

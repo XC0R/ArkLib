@@ -66,12 +66,13 @@ namespace Reduction
 /-- Run a reduction: execute the prover with pre-sampled challenges, then run the
 verifier on the resulting transcript. Returns the verifier's decision (as `Option`)
 and the prover's output statement/witness. -/
-def run [Monad m]
+def run {m : Type → Type} [Monad m]
+    {StmtIn WitIn StmtOut WitOut : Type} {pSpec : ProtocolSpec}
     (red : Reduction m StmtIn WitIn StmtOut WitOut pSpec)
     (stmt : StmtIn) (wit : WitIn) (challenges : Challenges pSpec)
     : m (Option StmtOut × (StmtOut × WitOut)) := do
   let prover ← red.prover (stmt, wit)
-  let (tr, proverOut) ← prover.run challenges
+  let (tr, proverOut) ← Prover.run pSpec prover challenges
   let verResult ← red.verifier stmt tr
   return (verResult, proverOut)
 
@@ -82,6 +83,10 @@ namespace OracleReduction
 /-- Convert an oracle reduction to a plain reduction by providing oracle statement
 data and simulating oracle access via `OracleVerifier.toVerifier`. -/
 def toReduction
+    {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} {WitIn : Type}
+    {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type} {WitOut : Type}
+    {pSpec : ProtocolSpec}
     [∀ i, OracleInterface (OStmtIn i)]
     [∀ i, OracleInterface (OStmtOut i)]
     (red : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec)
