@@ -377,7 +377,7 @@ private lemma almost_johnson_lhs_div_B_card [Zero F]
     rw [←this]
     field_simp
   rw [←eqrhs] --, show E = 1 - (e B 0) / n by field_simp [E]]
-  have : E = 1 - (e B 0) / n := by sorry
+  have : E = 1 - (e B 0) / n := by simp only [E]; field_simp
   grind only
 
 private lemma johnson_unrefined [Zero F]
@@ -565,8 +565,13 @@ protected lemma abs_one_sub_div_le_one {v a : Fin n → F}
   have : a₁⁻¹ ≤ 1 := by aesop (add simp [inv_le_one_iff₀, le_sub_iff_add_le])
                               (add safe (by norm_cast))
   suffices (1 + a₁⁻¹) * a₃ ≤ 2 * a₃ ∧ 2 * a₃ ≤ 2 by simp [← mul_div]; grind only
-  have h_ineq1 : (1 + a₁⁻¹) * a₃ ≤ 2 * a₃ := by sorry
-  have h_ineq2 : 2 * a₃ ≤ 2 := by sorry
+  have h_ineq1 : (1 + a₁⁻¹) * a₃ ≤ 2 * a₃ := by
+    have ha3_nn : 0 ≤ a₃ := div_nonneg (by positivity) (by positivity)
+    nlinarith
+  have h_ineq2 : 2 * a₃ ≤ 2 := by
+    have : a₃ ≤ 1 := by
+      rw [div_le_one (by positivity)]; exact ha₂
+    linarith
   exact ⟨h_ineq1, h_ineq2⟩
   -- suffices 1 + a₁⁻¹ ≤ 2 ∧ 0 < a₃ ∧ 2 * a₃ ≤ 2 from
   --   ⟨(mul_le_mul_right (by field_simp [a₃] at *; tauto)).2 (by linarith), this.2.2⟩
