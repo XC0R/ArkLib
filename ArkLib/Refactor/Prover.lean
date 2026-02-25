@@ -52,7 +52,9 @@ def run {m : Type → Type} [Monad m] {Output : Type} :
     let (tr, out) ← run tl next challenges.tail
     return (challenges.head ::ₕ tr, out)
 
-/-- Compose two provers sequentially. -/
+/-- Compose two provers sequentially: the first prover's output is fed into `f` to
+produce the second prover. The resulting prover handles `pSpec₁ ++ pSpec₂` by
+threading the continuation through each round of `pSpec₁`, then starting `pSpec₂`. -/
 def comp {m : Type → Type} [Monad m] {Mid Output : Type} {pSpec₂ : ProtocolSpec} :
     (pSpec₁ : ProtocolSpec) →
     Prover m Mid pSpec₁ → (Mid → m (Prover m Output pSpec₂)) →

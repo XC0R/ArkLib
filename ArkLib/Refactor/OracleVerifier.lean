@@ -101,7 +101,10 @@ When composing two protocols, `oracleSpecOfMessages pSpec₁` (resp. `pSpec₂`)
 embeds into `oracleSpecOfMessages (pSpec₁ ++ pSpec₂)` via left/right injection
 of indices. The range types match definitionally at each recursive step. -/
 
-/-- `SubSpec`: left message oracle spec embeds into the concatenated spec. -/
+/-- Left embedding: `msgOracles(pSpec₁) ⊂ₒ msgOracles(pSpec₁ ++ pSpec₂)`.
+For each `P_to_V` round in `pSpec₁`, the left summand of the index passes through
+unchanged, while the right summand (tail queries) recurses via the inductive hypothesis.
+`V_to_P` rounds contribute no oracle indices and are skipped. -/
 def subSpec_oracleSpecOfMessages_left :
     (pSpec₁ pSpec₂ : ProtocolSpec) →
     oracleSpecOfMessages pSpec₁ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
@@ -115,7 +118,9 @@ def subSpec_oracleSpecOfMessages_left :
         ⟨Sum.inr q'.1, q'.2⟩ } }
   | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_left tl pSpec₂
 
-/-- `SubSpec`: right message oracle spec embeds into the concatenated spec. -/
+/-- Right embedding: `msgOracles(pSpec₂) ⊂ₒ msgOracles(pSpec₁ ++ pSpec₂)`.
+Wraps every index with `Sum.inr` for each `P_to_V` round in `pSpec₁`, pushing
+pSpec₂'s queries past all of pSpec₁'s oracle indices. -/
 def subSpec_oracleSpecOfMessages_right :
     (pSpec₁ pSpec₂ : ProtocolSpec) →
     oracleSpecOfMessages pSpec₂ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
@@ -152,6 +157,10 @@ def toVerifier
     (oStmtData : ∀ i, OStmtIn i) :
     Verifier (OracleComp oSpec) StmtIn StmtOut pSpec :=
   fun stmt tr =>
+    -- Build a QueryImpl that answers all three oracle layers from concrete data:
+    --   oSpec queries → forwarded to the ambient oracle
+    --   [OStmtIn]ₒ queries → answered purely from oStmtData
+    --   message queries → answered purely from the transcript via answerMsgQuery
     let impl : QueryImpl (oSpec + [OStmtIn]ₒ + oracleSpecOfMessages pSpec)
                          (OracleComp oSpec) := fun
       | Sum.inl (Sum.inl i) => liftM (query i)
@@ -180,11 +189,16 @@ def comp
     (ov₁ : OracleVerifier oSpec S₁ OStmt₁ S₂ OStmt₂ pSpec₁)
     (ov₂ : OracleVerifier oSpec S₂ OStmt₂ S₃ OStmt₃ pSpec₂)
     : OracleVerifier oSpec S₁ OStmt₁ S₃ OStmt₃ (pSpec₁ ++ pSpec₂) where
+  -- The composed verifier operates over `vSpec = oSpec + [OStmt₁]ₒ + msgOracles(pSpec₁ ++ pSpec₂)`.
+  -- Both ov₁ and ov₂ expect their own message oracle specs, so we re-embed queries via SubSpec.
+  -- The pattern `q'.2 <$> liftM (query ...)` maps the SubSpec continuation over the raw query
+  -- result, converting the combined spec's range type back to the component's expected range.
   verify := fun stmt ch =>
     let (ch₁, ch₂) := Challenges.split pSpec₁ pSpec₂ ch
     let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
     let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
     let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    -- Lift ov₁'s queries: oSpec and [OStmt₁]ₒ pass through; message queries embed via ssL
     let liftV₁ : QueryImpl
         (oSpec + [OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
         (OracleComp vSpec) := fun
@@ -192,6 +206,9 @@ def comp
       | Sum.inr q =>
         let q' := ssL.monadLift ⟨q, id⟩
         q'.2 <$> liftM (query (spec := vSpec) (Sum.inr q'.1))
+    -- Lift ov₂'s queries: oSpec passes through; [OStmt₂]ₒ queries are answered by running
+    -- ov₁.simulate (which itself needs its queries lifted into vSpec via `inner`);
+    -- pSpec₂ message queries embed via ssR
     let liftV₂ : QueryImpl
         (oSpec + [OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
         (OracleComp vSpec) := fun
@@ -213,10 +230,13 @@ def comp
       match mid with
       | none => pure none
       | some s₂ => simulateQ liftV₂ (ov₂.verify s₂ ch₂)
+  -- The composed simulator answers [OStmt₃]ₒ queries by running ov₂.simulate, whose
+  -- [OStmt₂]ₒ queries are in turn answered by ov₁.simulate (lifted into the combined spec).
   simulate := fun q =>
     let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
     let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
     let sSpec := [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    -- Lift ov₁.simulate's oracle context into sSpec
     let liftSim : QueryImpl
         ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
         (OracleComp sSpec) := fun
@@ -224,6 +244,7 @@ def comp
       | Sum.inr q' =>
         let q'' := ssL.monadLift ⟨q', id⟩
         q''.2 <$> liftM (query (spec := sSpec) (Sum.inr q''.1))
+    -- Route ov₂.simulate's queries: [OStmt₂]ₒ → ov₁.simulate; messages → ssR embedding
     let liftOuter : QueryImpl
         ([OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
         (OracleComp sSpec) := fun

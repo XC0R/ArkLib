@@ -152,6 +152,8 @@ def toReduction
     (red : OracleReduction oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec)
     (oStmtData : ∀ i, OStmtIn i) :
     Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec where
+  -- The oracle prover produces `(StmtOut × OracleData, WitOut)`; we project away
+  -- the oracle data since the plain reduction only needs `(StmtOut, WitOut)`.
   prover := fun (stmt, wit) => do
     let p ← red.prover ((stmt, oStmtData), wit)
     return Prover.mapOutput (fun ((sout, _), wout) => (sout, wout)) pSpec p

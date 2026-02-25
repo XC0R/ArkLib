@@ -42,7 +42,11 @@ def join {pSpec₁ pSpec₂ : ProtocolSpec} (tr₁ : Transcript pSpec₁) (tr₂
 
 end Transcript
 
-/-! ## Challenges operations -/
+/-! ## Challenges operations
+
+`split` and `join` use structural recursion on `pSpec₁` rather than tactic-mode casts
+through `challengeTypes_append`. This ensures all equalities hold definitionally,
+which is critical for `OracleVerifier.comp` and downstream composition proofs. -/
 
 namespace Challenges
 
@@ -67,7 +71,10 @@ def join :
 
 end Challenges
 
-/-! ## Messages operations -/
+/-! ## Messages operations
+
+Same structural recursion strategy as `Challenges.split/join` — `P_to_V` rounds
+contribute a message element (dual to challenges where `V_to_P` contributes). -/
 
 namespace Messages
 
