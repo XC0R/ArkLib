@@ -11,10 +11,13 @@ import Mathlib.Tactic.TypeStar
 `HVector A as` is a heterogeneous vector: given a type family `A : α → Type*` and a list
 `as : List α` of indices, it holds one value of type `A a` for each `a` in `as`.
 
-Defined as a recursive function (nested `Prod`/`PUnit`), not an inductive, to avoid
-a universe bump: when `α : Type 1` (e.g. `Round`), an inductive `HVector` would live in
-`Type 1`, but the recursive def keeps `HVector A l : Type v` where `v` is only the
-universe of `A`'s codomain.
+Important universe note:
+
+This file deliberately defines `HVector` as a nested `Prod`/`PUnit` *function* rather than
+an inductive type. When the index type `α` lives in a higher universe (e.g. `ProtocolSpec.Round :
+Type 1`), an inductive `HVector` would also live in that higher universe, and then values like
+`Transcript pSpec` would no longer be usable as arguments to monads `m : Type → Type`. The nested
+encoding keeps `HVector A l` in the universe of `A`'s codomain.
 -/
 
 /-- A heterogeneous vector indexed by a list, defined as nested products.
@@ -26,6 +29,8 @@ Marked `@[reducible]` so that `(x, xs) : HVector A (a :: as)` type-checks withou
 namespace HVector
 
 /-! ## Constructors and destructors -/
+
+infixr:67 " ::ₕ " => HVector.cons
 
 def nil {α : Type*} {A : α → Type*} : HVector A ([] : List α) := PUnit.unit
 

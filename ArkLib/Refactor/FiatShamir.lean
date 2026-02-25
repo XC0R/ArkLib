@@ -131,7 +131,7 @@ def Messages.deriveTranscript {ι : Type} {oSpec : OracleSpec ι}
 /-! ## Non-Interactive Protocol Spec -/
 
 /-- Trivial `OracleInterface` for the bundled message type (no meaningful queries). -/
-instance Messages.trivialOracleInterface (pSpec : ProtocolSpec) :
+def Messages.trivialOracleInterface (pSpec : ProtocolSpec) :
     OracleInterface (Messages pSpec) where
   Query := PEmpty
   toOC := { spec := (PEmpty.elim ·), impl := (PEmpty.elim ·) }

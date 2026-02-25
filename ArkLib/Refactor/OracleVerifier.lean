@@ -72,6 +72,14 @@ def oracleImplOfMessages :
     | .inr q => oracleImplOfMessages tl msgs.tail q
   | (.V_to_P _) :: tl, msgs => oracleImplOfMessages tl msgs
 
+/-- Build a pure oracle implementation for the combined oracle context
+`[OStmtIn]ₒ + oracleSpecOfMessages pSpec` from concrete input-oracle data and message data. -/
+def oracleImplOfOStmtInMessages {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
+    [∀ i, OracleInterface (OStmtIn i)] (pSpec : ProtocolSpec)
+    (oStmtInData : ∀ i, OStmtIn i) (msgs : Messages pSpec) :
+    QueryImpl ([OStmtIn]ₒ + oracleSpecOfMessages pSpec) Id :=
+  QueryImpl.add (OracleInterface.toOracleImpl OStmtIn oStmtInData) (oracleImplOfMessages pSpec msgs)
+
 /-- Oracle verifier with oracle access to input statements and prover messages.
 
 Oracle statements use function-indexed types (`OStmtIn : ιₛᵢ → Type`) for
@@ -142,6 +150,25 @@ def answerMsgQuery :
   | (.P_to_V _ oi) :: _, tr, .inl q => @OracleInterface.answer _ oi tr.head q
   | (.P_to_V _ _) :: tl, tr, .inr q => answerMsgQuery tl tr.tail q
   | (.V_to_P _) :: tl, tr, q => answerMsgQuery tl tr.tail q
+
+/-- Consistency property connecting `simulate` (query-level) and `reify` (data-level):
+if `reify` succeeds on concrete input-oracle data and messages, then `simulate` must reproduce
+the same answers when run in the corresponding pure oracle context. -/
+def reifySimulateCorrect
+    {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
+    {StmtOut : Type} {ιₛₒ : Type} {OStmtOut : ιₛₒ → Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmtIn i)]
+    [∀ i, OracleInterface (OStmtOut i)]
+    (ov : OracleVerifier oSpec StmtIn OStmtIn StmtOut OStmtOut pSpec) : Prop :=
+  ∀ (oStmtInData : ∀ i, OStmtIn i) (msgs : Messages pSpec) (i : ιₛₒ)
+    (q : OracleInterface.Query (OStmtOut i)),
+    match ov.reify oStmtInData msgs with
+    | none => True
+    | some oStmtOutData =>
+        simulateQ (oracleImplOfOStmtInMessages (pSpec := pSpec) oStmtInData msgs)
+          (ov.simulate ⟨i, q⟩) = pure (OracleInterface.answer (oStmtOutData i) q)
 
 /-- Convert an oracle verifier to a plain verifier by simulating all oracle queries
 with actual data. Extracts challenges and messages from the transcript, builds

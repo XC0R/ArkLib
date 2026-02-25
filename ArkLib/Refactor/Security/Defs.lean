@@ -143,9 +143,10 @@ def Verifier.soundness (langIn : Set StmtIn) (langOut : Set StmtOut)
     Pr[fun (verResult, _) => ∃ s ∈ langOut, verResult = some s
       | do
         let challenges ← sampleChallenges pSpec
-        let (tr, out) ← (simulateQ impl (Prover.run pSpec prover challenges)).run' (← init)
-        let verResult ← (simulateQ impl (verifier stmtIn tr)).run' (← init)
-        return (verResult, out)
+        (simulateQ impl (do
+          let (tr, out) ← Prover.run pSpec prover challenges
+          let verResult ← (verifier stmtIn tr).run
+          return (verResult, out))).run' (← init)
     ] ≤ soundnessError
 
 class Verifier.IsSound (langIn : Set StmtIn) (langOut : Set StmtOut)
@@ -172,17 +173,16 @@ def Verifier.knowledgeSoundness (relIn : Set (StmtIn × WitIn))
   ∃ extractor : Extractor.Straightline oSpec StmtIn WitIn WitOut pSpec,
   ∀ stmtIn : StmtIn,
   ∀ prover : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec,
-    Pr[fun (verResult, (_, witOut), extractedWit) =>
-        (∃ s, verResult = some s ∧ (s, witOut) ∈ relOut) ∧
-        (extractedWit.isNone ∨ ∃ w, extractedWit = some w ∧ (stmtIn, w) ∉ relIn)
+    Pr[fun (verResult, (stmtOut, witOut), extractedWit) =>
+        (verResult = some stmtOut ∧ (stmtOut, witOut) ∈ relOut) ∧
+          (extractedWit.isNone ∨ ∃ w, extractedWit = some w ∧ (stmtIn, w) ∉ relIn)
       | do
         let challenges ← sampleChallenges pSpec
-        let (tr, proverOut) ← (simulateQ impl (Prover.run pSpec prover challenges)).run'
-          (← init)
-        let verResult ← (simulateQ impl (verifier stmtIn tr)).run' (← init)
-        let extractedWit ← (simulateQ impl (extractor stmtIn proverOut.2 tr).run).run'
-          (← init)
-        return (verResult, proverOut, extractedWit)
+        (simulateQ impl (do
+          let (tr, proverOut) ← Prover.run pSpec prover challenges
+          let verResult ← (verifier stmtIn tr).run
+          let extractedWit ← (extractor stmtIn proverOut.2 tr).run
+          return (verResult, proverOut, extractedWit))).run' (← init)
     ] ≤ knowledgeError
 
 class Verifier.IsKnowledgeSound (relIn : Set (StmtIn × WitIn))
