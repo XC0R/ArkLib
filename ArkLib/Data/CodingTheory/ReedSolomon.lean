@@ -74,15 +74,13 @@ noncomputable section
 
 namespace Vandermonde
 
-/--
-A non-square Vandermonde matrix.
--/
+/-- A non-square Vandermonde matrix. -/
 def nonsquare [Semiring F] (ι' : ℕ) (α : ι → F) : Matrix ι (Fin ι') F :=
   Matrix.of fun i j => (α i) ^ j.1
 
 lemma nonsquare_mulVecLin [CommSemiring F] {ι' : ℕ} {α₁ : ι ↪ F} {α₂ : Fin ι' → F} {i : ι} :
   (nonsquare ι' α₁).mulVecLin α₂ i = ∑ x, α₂ x * α₁ i ^ x.1 := by
-  simp [nonsquare, mulVecLin_apply, mulVec_eq_sum]
+  simp [nonsquare, mulVec_eq_sum]
 
 /-- The transpose of a non-square Vandermonde matrix.
 -/
@@ -93,16 +91,14 @@ section
 
 variable [CommRing F] {m n : ℕ} {α : Fin m → F}
 
-/-- The maximal upper square submatrix of a Vandermonde matrix is a Vandermonde matrix.
--/
+/-- The maximal upper square submatrix of a Vandermonde matrix is a Vandermonde matrix. -/
 lemma subUpFull_of_vandermonde_is_vandermonde (h : n ≤ m) :
   Matrix.vandermonde (α ∘ Fin.castLE h) =
   Matrix.subUpFull (nonsquare n α) (Fin.castLE h) := by
   ext r c
   simp [Matrix.vandermonde, Matrix.subUpFull, nonsquare]
 
-/-- The maximal left square submatrix of a Vandermonde matrix is a Vandermonde matrix.
--/
+/-- The maximal left square submatrix of a Vandermonde matrix is a Vandermonde matrix. -/
 lemma subLeftFull_of_vandermonde_is_vandermonde (h : m ≤ n) :
   Matrix.vandermonde α = Matrix.subLeftFull (nonsquare n α) (Fin.castLE h) := by
   ext r c
@@ -113,8 +109,7 @@ section
 variable [IsDomain F]
 
 /-- The rank of a non-square Vandermonde matrix with more rows than columns is the number of
-  columns.
--/
+  columns. -/
 lemma rank_nonsquare_eq_deg_of_deg_le (inj : Function.Injective α) (h : n ≤ m) :
   (Vandermonde.nonsquare (ι' := n) α).rank = n := by
   suffices ((Vandermonde.nonsquare (ι' := n) α).subUpFull (Fin.castLE h)).rank = n by
@@ -126,8 +121,7 @@ lemma rank_nonsquare_eq_deg_of_deg_le (inj : Function.Injective α) (h : n ≤ m
   rw [@Matrix.det_vandermonde_ne_zero_iff F _ n _ (α ∘ Fin.castLE h)]
   apply Function.Injective.comp <;> aesop (add simp Fin.castLE_injective)
 
-/-- The rank of a non-square Vandermonde matrix with more columns than rows is the number of rows.
--/
+/-- The rank of a non-square Vandermonde matrix with more columns than rows is the number of rows. -/
 lemma rank_nonsquare_eq_deg_of_ι_le (inj : Function.Injective α) (h : m ≤ n) :
   (Vandermonde.nonsquare (ι' := n) α).rank = m := by
   suffices ((Vandermonde.nonsquare (ι' := n) α).subLeftFull (Fin.castLE h)).rank = m by
