@@ -18,8 +18,12 @@ basic unit of interactive proof composition.
 ## Main definitions
 
 - `Reduction` — plain reduction structure
+- `Reduction.comp` — sequential composition of two reductions
+- `Reduction.compNth` — `n`-fold composition
 - `OracleProver` — honest prover with oracle statement data
 - `OracleReduction` — oracle reduction structure
+- `OracleReduction.comp` — sequential composition of two oracle reductions
+- `OracleReduction.compNth` — `n`-fold composition
 - `Proof` / `OracleProof` — specializations with `Bool` output
 - `Reduction.run` — execute a reduction with pre-sampled challenges
 - `OracleReduction.toReduction` — bridge via `OracleVerifier.toVerifier`
@@ -76,9 +80,62 @@ def run {m : Type → Type} [Monad m]
   let verResult ← red.verifier stmt tr
   return (verResult, proverOut)
 
+/-- The identity reduction for the empty protocol: prover passes through, verifier accepts. -/
+def id {m : Type → Type} [Monad m] {S W : Type} :
+    Reduction m S W S W [] where
+  prover := fun sw => pure sw
+  verifier := fun stmt _ => pure stmt
+
+/-- Compose two reductions sequentially. -/
+def comp {m : Type → Type} [Monad m]
+    {S₁ W₁ S₂ W₂ S₃ W₃ : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
+    (r₁ : Reduction m S₁ W₁ S₂ W₂ pSpec₁)
+    (r₂ : Reduction m S₂ W₂ S₃ W₃ pSpec₂)
+    : Reduction m S₁ W₁ S₃ W₃ (pSpec₁ ++ pSpec₂) where
+  prover := HonestProver.comp r₁.prover r₂.prover
+  verifier := Verifier.comp r₁.verifier r₂.verifier
+
+/-- Compose a reduction with itself `n` times over the replicated protocol spec. -/
+def compNth {m : Type → Type} [Monad m]
+    {S W : Type} {pSpec : ProtocolSpec} : (n : Nat) →
+    Reduction m S W S W pSpec →
+    Reduction m S W S W (pSpec.replicate n)
+  | 0, _ => Reduction.id
+  | n + 1, r => comp r (compNth n r)
+
 end Reduction
 
 namespace OracleReduction
+
+/-- Compose two oracle reductions sequentially. -/
+def comp
+    {ι : Type} {oSpec : OracleSpec ι}
+    {S₁ : Type} {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type} {W₁ : Type}
+    {S₂ : Type} {ιₛ₂ : Type} {OStmt₂ : ιₛ₂ → Type} {W₂ : Type}
+    {S₃ : Type} {ιₛ₃ : Type} {OStmt₃ : ιₛ₃ → Type} {W₃ : Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt₁ i)]
+    [∀ i, OracleInterface (OStmt₂ i)]
+    [∀ i, OracleInterface (OStmt₃ i)]
+    (r₁ : OracleReduction oSpec S₁ OStmt₁ W₁ S₂ OStmt₂ W₂ pSpec₁)
+    (r₂ : OracleReduction oSpec S₂ OStmt₂ W₂ S₃ OStmt₃ W₃ pSpec₂)
+    : OracleReduction oSpec S₁ OStmt₁ W₁ S₃ OStmt₃ W₃ (pSpec₁ ++ pSpec₂) where
+  prover := HonestProver.comp r₁.prover r₂.prover
+  verifier := OracleVerifier.comp r₁.verifier r₂.verifier
+
+/-- Compose an oracle reduction with itself `n` times over the replicated protocol spec. -/
+def compNth
+    {ι : Type} {oSpec : OracleSpec ι}
+    {S : Type} {ιₛ : Type} {OStmt : ιₛ → Type} {W : Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt i)] : (n : Nat) →
+    OracleReduction oSpec S OStmt W S OStmt W pSpec →
+    OracleReduction oSpec S OStmt W S OStmt W (pSpec.replicate n)
+  | 0, _ => { prover := fun sw => pure sw,
+              verifier := { verify := fun stmt _ => pure stmt,
+                            simulate := sorry,
+                            reify := fun oStmtData _ => some oStmtData } }
+  | n + 1, r => comp r (compNth n r)
 
 /-- Convert an oracle reduction to a plain reduction by providing oracle statement
 data and simulating oracle access via `OracleVerifier.toVerifier`. -/

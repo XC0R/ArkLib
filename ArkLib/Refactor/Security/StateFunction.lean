@@ -37,6 +37,9 @@ def Round.isChallenge : Round → Bool
 def ChallengeIndex (pSpec : ProtocolSpec) : Type :=
   { i : Fin pSpec.length // (pSpec.get i).isChallenge = true }
 
+instance (pSpec : ProtocolSpec) : Fintype (ChallengeIndex pSpec) :=
+  Subtype.fintype _
+
 /-- Convert a full transcript to a partial transcript at `pSpec.length`. -/
 def PartialTranscript.ofTranscript {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
     PartialTranscript pSpec pSpec.length := by

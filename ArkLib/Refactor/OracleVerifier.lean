@@ -25,6 +25,8 @@ with typeclass `OracleInterface`) for compatibility with `SubSpec` and `QueryImp
 - `oracleSpecOfMessages` — oracle spec from bundled OracleInterface
 - `oracleImplOfMessages` — pure oracle implementation from message data
 - `OracleVerifier` — structure with `verify`, `simulate`, `reify`
+- `OracleVerifier.comp` — sequential composition of two oracle verifiers
+- `OracleVerifier.compNth` — `n`-fold composition
 - `OracleVerifier.toVerifier` — bridge to plain `Verifier`
 -/
 
@@ -94,6 +96,42 @@ structure OracleVerifier {ι : Type} (oSpec : OracleSpec ι)
   reify : (∀ i, OStmtIn i) → Messages pSpec → Option (∀ i, OStmtOut i)
 
 namespace OracleVerifier
+
+/-- Compose two oracle verifiers sequentially.
+The `verify` and `simulate` fields require oracle routing between the composed
+message specs; these use `sorry` pending VCVio SubSpec infrastructure.
+The `reify` field is fully implemented. -/
+def comp
+    {ι : Type} {oSpec : OracleSpec ι}
+    {S₁ : Type} {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type}
+    {S₂ : Type} {ιₛ₂ : Type} {OStmt₂ : ιₛ₂ → Type}
+    {S₃ : Type} {ιₛ₃ : Type} {OStmt₃ : ιₛ₃ → Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt₁ i)]
+    [∀ i, OracleInterface (OStmt₂ i)]
+    [∀ i, OracleInterface (OStmt₃ i)]
+    (ov₁ : OracleVerifier oSpec S₁ OStmt₁ S₂ OStmt₂ pSpec₁)
+    (ov₂ : OracleVerifier oSpec S₂ OStmt₂ S₃ OStmt₃ pSpec₂)
+    : OracleVerifier oSpec S₁ OStmt₁ S₃ OStmt₃ (pSpec₁ ++ pSpec₂) where
+  verify := sorry
+  simulate := sorry
+  reify := fun oStmtInData msgs => do
+    let (msgs₁, msgs₂) := Messages.split msgs
+    let oStmtMidData ← ov₁.reify oStmtInData msgs₁
+    ov₂.reify oStmtMidData msgs₂
+
+/-- Compose an oracle verifier with itself `n` times over the replicated protocol spec. -/
+def compNth
+    {ι : Type} {oSpec : OracleSpec ι}
+    {S : Type} {ιₛ : Type} {OStmt : ιₛ → Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt i)] : (n : Nat) →
+    OracleVerifier oSpec S OStmt S OStmt pSpec →
+    OracleVerifier oSpec S OStmt S OStmt (pSpec.replicate n)
+  | 0, _ => { verify := fun stmt _ => pure stmt,
+              simulate := sorry,
+              reify := fun oStmtData _ => some oStmtData }
+  | n + 1, ov => comp ov (compNth n ov)
 
 /-- Convert an oracle verifier to a plain verifier by simulating all oracle queries
 with actual data. Takes explicit oracle statement data as input.

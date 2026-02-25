@@ -533,7 +533,7 @@ Where `comp'` is structural recursion on `pSpec₁` (from PR #146).
 ### Sequential composition of n provers
 
 ```lean
-def Prover.compN (n : ℕ) (Stmt Wit : Fin (n+1) → Type)
+def Prover.compNth (n : ℕ) (Stmt Wit : Fin (n+1) → Type)
     (pSpec : Fin n → ProtocolSpec)
     (prover : ∀ i, Prover m (Stmt i.castSucc) (Wit i.castSucc) (Stmt i.succ) (Wit i.succ) (pSpec i))
     : Prover m (Stmt 0) (Wit 0) (Stmt (.last n)) (Wit (.last n))
@@ -596,10 +596,10 @@ The combined verifier:
 - [ ] Trivial instances (identity reduction is perfectly secure)
 
 ### Phase 3: Composition theorems
-- [ ] `Prover.comp` and `Prover.compN`
-- [ ] `Verifier.comp` and `Verifier.compN`
-- [ ] `OracleVerifier.comp` and `OracleVerifier.compN`
-- [ ] `OracleReduction.comp` and `OracleReduction.compN`
+- [ ] `Prover.comp` and `Prover.compNth`
+- [ ] `Verifier.comp` and `Verifier.compNth`
+- [ ] `OracleVerifier.comp` and `OracleVerifier.compNth`
+- [ ] `OracleReduction.comp` and `OracleReduction.compNth`
 - [ ] Completeness composes
 - [ ] RBR soundness composes
 - [ ] RBR knowledge soundness composes
@@ -611,7 +611,7 @@ The combined verifier:
 - [ ] `SingleRound.oracleReduction`
 - [ ] Prove single-round perfect completeness
 - [ ] Prove single-round RBR knowledge soundness (error `deg / |R|`)
-- [ ] `General.oracleReduction` via `compN`
+- [ ] `General.oracleReduction` via `compNth`
 - [ ] Prove full completeness and RBR knowledge soundness via composition
 
 ### Phase 5: Port remaining protocols
@@ -700,7 +700,7 @@ prover/verifier monads.
 The prover's monad `m` should be `OracleComp (oSpec + challengeOracle)` or similar.
 The exact factoring depends on VCVio's monad infrastructure.
 
-### Q4: `Fin.foldl'` vs explicit list in `compN`
+### Q4: `Fin.foldl'` vs explicit list in `compNth`
 
 **Decision (from audit):** Use `List.join (List.ofFn pSpec)` for heterogeneous
 composition. This produces right-associated appends (`pSpec 0 ++ (pSpec 1 ++ ...)`)
@@ -757,7 +757,7 @@ into the design above. Preserved here for traceability.
    `pSpec`. Solution: define `concat` by structural recursion directly.
    Added to Section 8. (Correctness agent)
 
-9. **`Fin.foldl'` vs `List.join` for `compN`.** `Fin.foldl'` produces
+9. **`Fin.foldl'` vs `List.join` for `compNth`.** `Fin.foldl'` produces
    left-associated appends that Lean can't unfold. Use `List.join (List.ofFn pSpec)`
    for heterogeneous composition, `ProtocolSpec.replicate` for homogeneous.
    (Architecture agent)

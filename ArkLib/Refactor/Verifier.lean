@@ -18,7 +18,8 @@ This is the "plain" track of the dual-track verifier design:
 ## Main definitions
 
 - `Verifier` — type alias for the verifier function
-- `Verifier.comp` — sequential composition
+- `Verifier.comp` — sequential composition of two verifiers
+- `Verifier.compNth` — `n`-fold composition
 -/
 
 namespace ProtocolSpec
@@ -40,6 +41,13 @@ def comp {m : Type → Type} [Monad m] {S₁ S₂ S₃ : Type}
     let (tr₁, tr₂) := Transcript.split tr
     let mid ← v₁ stmt tr₁
     v₂ mid tr₂
+
+/-- Compose a verifier with itself `n` times over the replicated protocol spec. -/
+def compNth {m : Type → Type} [Monad m] {S : Type}
+    {pSpec : ProtocolSpec} : (n : Nat) →
+    Verifier m S S pSpec → Verifier m S S (pSpec.replicate n)
+  | 0, _ => fun stmt _ => pure stmt
+  | n + 1, v => comp v (compNth n v)
 
 end Verifier
 

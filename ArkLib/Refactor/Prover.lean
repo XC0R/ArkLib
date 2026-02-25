@@ -20,9 +20,11 @@ on `ProtocolSpec`. For each round:
 
 - `Prover` — the core coinductive type
 - `Prover.run` — execute with pre-sampled challenges
-- `Prover.comp` — sequential composition
+- `Prover.comp` — sequential composition of two provers
+- `Prover.iterate` — `n`-fold composition (same spec, same state type)
 - `HonestProver` — prover with statement/witness input
 - `HonestProver.comp` — sequential composition of honest provers
+- `HonestProver.compNth` — `n`-fold composition of honest provers
 -/
 
 namespace ProtocolSpec
@@ -62,6 +64,17 @@ def comp {m : Type → Type} [Monad m] {Mid Output : Type} {pSpec₂ : ProtocolS
   | (.V_to_P _) :: tl, prover, f =>
     pure fun chal => do let next ← prover chal; comp tl next f
 
+/-- Iterate a prover step `n` times, composing the same protocol spec repeatedly.
+Used for protocols like sumcheck where a single round is repeated `n` times. -/
+def iterate {m : Type → Type} [Monad m] {S : Type} :
+    (pSpec : ProtocolSpec) → (n : Nat) →
+    (S → m (Prover m S pSpec)) → S →
+    m (Prover m S (pSpec.replicate n))
+  | _, 0, _, s => pure s
+  | pSpec, n + 1, step, s => do
+    let p ← step s
+    comp pSpec p (fun mid => iterate pSpec n step mid)
+
 /-- Run a prover to an intermediate round `n`, producing a partial transcript and the
 remaining prover for rounds `n`..end. Required for round-by-round soundness. -/
 def runToRound {m : Type → Type} [Monad m] {Output : Type} :
@@ -99,6 +112,13 @@ def comp {m : Type → Type} [Monad m] {S₁ W₁ S₂ W₂ S₃ W₃ : Type}
   fun ⟨stmt, wit⟩ => do
     let prover₁ ← p₁ (stmt, wit)
     Prover.comp pSpec₁ prover₁ (fun ⟨midStmt, midWit⟩ => p₂ (midStmt, midWit))
+
+/-- Compose an honest prover with itself `n` times over the replicated protocol spec. -/
+def compNth {m : Type → Type} [Monad m] {S W : Type}
+    {pSpec : ProtocolSpec} (n : Nat)
+    (step : HonestProver m S W S W pSpec)
+    : HonestProver m S W S W (pSpec.replicate n) :=
+  fun sw => Prover.iterate pSpec n step sw
 
 end HonestProver
 

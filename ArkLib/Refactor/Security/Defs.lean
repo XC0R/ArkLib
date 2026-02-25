@@ -62,6 +62,23 @@ def sampleChallenges (pSpec : ProtocolSpec) [ChallengesSampleable pSpec] :
     ProbComp (Challenges pSpec) :=
   ChallengesSampleable.sampleChallenges
 
+/-- Challenge sampling for appended protocol specs. -/
+noncomputable def ChallengesSampleable.ofAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    [ChallengesSampleable pSpec₁] [ChallengesSampleable pSpec₂] :
+    ChallengesSampleable (pSpec₁ ++ pSpec₂) where
+  sampleChallenges := do
+    let ch₁ ← ChallengesSampleable.sampleChallenges (pSpec := pSpec₁)
+    let ch₂ ← ChallengesSampleable.sampleChallenges (pSpec := pSpec₂)
+    return Challenges.join ch₁ ch₂
+
+/-- Challenge sampling for replicated protocol specs. -/
+noncomputable def ChallengesSampleable.ofReplicate
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec] :
+    (n : Nat) → ChallengesSampleable (pSpec.replicate n)
+  | 0 => inferInstanceAs (ChallengesSampleable ([] : ProtocolSpec))
+  | n + 1 => @ofAppend _ _ ‹_› (ofReplicate n)
+
 /-! ## Completeness -/
 
 variable {StmtIn WitIn StmtOut WitOut : Type}
