@@ -180,10 +180,60 @@ def comp
     (ov₁ : OracleVerifier oSpec S₁ OStmt₁ S₂ OStmt₂ pSpec₁)
     (ov₂ : OracleVerifier oSpec S₂ OStmt₂ S₃ OStmt₃ pSpec₂)
     : OracleVerifier oSpec S₁ OStmt₁ S₃ OStmt₃ (pSpec₁ ++ pSpec₂) where
-  verify := sorry
-  simulate := sorry
+  verify := fun stmt ch =>
+    let (ch₁, ch₂) := Challenges.split pSpec₁ pSpec₂ ch
+    let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
+    let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
+    let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    let liftV₁ : QueryImpl
+        (oSpec + [OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
+        (OracleComp vSpec) := fun
+      | Sum.inl q => liftM (query (spec := vSpec) (Sum.inl q))
+      | Sum.inr q =>
+        let q' := ssL.monadLift ⟨q, id⟩
+        q'.2 <$> liftM (query (spec := vSpec) (Sum.inr q'.1))
+    let liftV₂ : QueryImpl
+        (oSpec + [OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
+        (OracleComp vSpec) := fun
+      | Sum.inl (Sum.inl i) => liftM (query (spec := vSpec) (Sum.inl (Sum.inl i)))
+      | Sum.inl (Sum.inr q) =>
+          let inner : QueryImpl
+              ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
+              (OracleComp vSpec) := fun
+            | Sum.inl q' => liftM (query (spec := vSpec) (Sum.inl (Sum.inr q')))
+            | Sum.inr q' =>
+              let q'' := ssL.monadLift ⟨q', id⟩
+              q''.2 <$> liftM (query (spec := vSpec) (Sum.inr q''.1))
+          simulateQ inner (ov₁.simulate q)
+      | Sum.inr q =>
+        let q' := ssR.monadLift ⟨q, id⟩
+        q'.2 <$> liftM (query (spec := vSpec) (Sum.inr q'.1))
+    OptionT.mk do
+      let mid ← simulateQ liftV₁ (ov₁.verify stmt ch₁)
+      match mid with
+      | none => pure none
+      | some s₂ => simulateQ liftV₂ (ov₂.verify s₂ ch₂)
+  simulate := fun q =>
+    let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
+    let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
+    let sSpec := [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    let liftSim : QueryImpl
+        ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
+        (OracleComp sSpec) := fun
+      | Sum.inl q' => liftM (query (spec := sSpec) (Sum.inl q'))
+      | Sum.inr q' =>
+        let q'' := ssL.monadLift ⟨q', id⟩
+        q''.2 <$> liftM (query (spec := sSpec) (Sum.inr q''.1))
+    let liftOuter : QueryImpl
+        ([OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
+        (OracleComp sSpec) := fun
+      | Sum.inl q' => simulateQ liftSim (ov₁.simulate q')
+      | Sum.inr q' =>
+        let q'' := ssR.monadLift ⟨q', id⟩
+        q''.2 <$> liftM (query (spec := sSpec) (Sum.inr q''.1))
+    simulateQ liftOuter (ov₂.simulate q)
   reify := fun oStmtInData msgs => do
-    let (msgs₁, msgs₂) := Messages.split msgs
+    let (msgs₁, msgs₂) := Messages.split pSpec₁ pSpec₂ msgs
     let oStmtMidData ← ov₁.reify oStmtInData msgs₁
     ov₂.reify oStmtMidData msgs₂
 

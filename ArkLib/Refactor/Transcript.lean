@@ -48,15 +48,22 @@ namespace Challenges
 
 def nil : Challenges ([] : ProtocolSpec) := HVector.nil
 
-def split {pSpec₁ pSpec₂ : ProtocolSpec} (ch : Challenges (pSpec₁ ++ pSpec₂)) :
-    Challenges pSpec₁ × Challenges pSpec₂ := by
-  rw [Challenges, challengeTypes_append] at ch
-  exact HVector.splitAt (challengeTypes pSpec₁) ch
+def split :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    Challenges (pSpec₁ ++ pSpec₂) → Challenges pSpec₁ × Challenges pSpec₂
+  | [], _, ch => (HVector.nil, ch)
+  | (.P_to_V _ _) :: tl, pSpec₂, ch => split tl pSpec₂ ch
+  | (.V_to_P _) :: tl, pSpec₂, ch =>
+    let (ch₁, ch₂) := split tl pSpec₂ ch.tail
+    (ch.head ::ₕ ch₁, ch₂)
 
-def join {pSpec₁ pSpec₂ : ProtocolSpec} (ch₁ : Challenges pSpec₁) (ch₂ : Challenges pSpec₂) :
-    Challenges (pSpec₁ ++ pSpec₂) := by
-  simp only [Challenges, challengeTypes_append]
-  exact HVector.append ch₁ ch₂
+def join :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    Challenges pSpec₁ → Challenges pSpec₂ → Challenges (pSpec₁ ++ pSpec₂)
+  | [], _, _, ch₂ => ch₂
+  | (.P_to_V _ _) :: tl, pSpec₂, ch₁, ch₂ => join tl pSpec₂ ch₁ ch₂
+  | (.V_to_P _) :: tl, pSpec₂, ch₁, ch₂ =>
+    ch₁.head ::ₕ join tl pSpec₂ ch₁.tail ch₂
 
 end Challenges
 
@@ -66,16 +73,22 @@ namespace Messages
 
 def nil : Messages ([] : ProtocolSpec) := HVector.nil
 
-def split {pSpec₁ pSpec₂ : ProtocolSpec} (msgs : Messages (pSpec₁ ++ pSpec₂)) :
-    Messages pSpec₁ × Messages pSpec₂ := by
-  rw [Messages, messageTypes_append] at msgs
-  exact HVector.splitAt (messageTypes pSpec₁) msgs
+def split :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    Messages (pSpec₁ ++ pSpec₂) → Messages pSpec₁ × Messages pSpec₂
+  | [], _, msgs => (HVector.nil, msgs)
+  | (.P_to_V _ _) :: tl, pSpec₂, msgs =>
+    let (msgs₁, msgs₂) := split tl pSpec₂ msgs.tail
+    (msgs.head ::ₕ msgs₁, msgs₂)
+  | (.V_to_P _) :: tl, pSpec₂, msgs => split tl pSpec₂ msgs
 
-def join {pSpec₁ pSpec₂ : ProtocolSpec}
-    (msgs₁ : Messages pSpec₁) (msgs₂ : Messages pSpec₂) :
-    Messages (pSpec₁ ++ pSpec₂) := by
-  simp only [Messages, messageTypes_append]
-  exact HVector.append msgs₁ msgs₂
+def join :
+    (pSpec₁ pSpec₂ : ProtocolSpec) →
+    Messages pSpec₁ → Messages pSpec₂ → Messages (pSpec₁ ++ pSpec₂)
+  | [], _, _, msgs₂ => msgs₂
+  | (.P_to_V _ _) :: tl, pSpec₂, msgs₁, msgs₂ =>
+    msgs₁.head ::ₕ join tl pSpec₂ msgs₁.tail msgs₂
+  | (.V_to_P _) :: tl, pSpec₂, msgs₁, msgs₂ => join tl pSpec₂ msgs₁ msgs₂
 
 end Messages
 

@@ -70,7 +70,7 @@ noncomputable def ChallengesSampleable.ofAppend
   sampleChallenges := do
     let ch₁ ← ChallengesSampleable.sampleChallenges (pSpec := pSpec₁)
     let ch₂ ← ChallengesSampleable.sampleChallenges (pSpec := pSpec₂)
-    return Challenges.join ch₁ ch₂
+    return Challenges.join pSpec₁ pSpec₂ ch₁ ch₂
 
 /-- Challenge sampling for replicated protocol specs. -/
 noncomputable def ChallengesSampleable.ofReplicate
