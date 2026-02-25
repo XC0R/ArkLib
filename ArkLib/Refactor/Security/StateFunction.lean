@@ -51,10 +51,11 @@ def PartialTranscript.ofTranscript {pSpec : ProtocolSpec} (tr : Transcript pSpec
 variable {StmtIn WitIn StmtOut WitOut : Type}
   {ι : Type} {oSpec : OracleSpec ι}
   {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
-  {σ : Type} (init : ProbComp σ) (impl : QueryImpl oSpec (StateT σ ProbComp))
+  {σ : Type} (impl : QueryImpl oSpec (StateT σ ProbComp))
 
 /-- A deterministic state function for a verifier. -/
 structure StateFunction
+    (Inv : σ → Prop)
     (langIn : Set StmtIn) (langOut : Set StmtOut)
     (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec) where
   toFun : (k : Nat) → StmtIn → PartialTranscript pSpec k → Prop
@@ -65,10 +66,11 @@ structure StateFunction
     ¬ toFun k stmt tr →
     ∀ (msg : (pSpec.get ⟨k, hk⟩).type),
     ¬ toFun (k + 1) stmt (PartialTranscript.concat pSpec hk tr msg)
-  toFun_full : ∀ stmt (tr : Transcript pSpec),
+  toFun_full : ∀ stmt (tr : Transcript pSpec) (σ0 : σ),
+    Inv σ0 →
     ¬ toFun pSpec.length stmt (PartialTranscript.ofTranscript tr) →
     Pr[(· ∈ langOut) | OptionT.mk do
-      (simulateQ impl (verifier stmt tr)).run' (← init)] = 0
+      (simulateQ impl (verifier stmt tr)).run' σ0] = 0
 
 /-! ## RBR Soundness -/
 
@@ -76,24 +78,28 @@ structure StateFunction
 challenge round, the probability that a fresh challenge flips the state is bounded. -/
 def rbrSoundness (langIn : Set StmtIn) (langOut : Set StmtOut)
     (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec)
+    (Inv : σ → Prop)
     (rbrError : ChallengeIndex pSpec → ℝ≥0) : Prop :=
-  ∃ sf : StateFunction init impl langIn langOut verifier,
+  ∃ sf : StateFunction impl Inv langIn langOut verifier,
   ∀ stmtIn ∉ langIn,
   ∀ (Output : Type),
   ∀ prover : Prover (OracleComp oSpec) Output pSpec,
   ∀ i : ChallengeIndex pSpec,
+  ∀ σ0 : σ,
+  Inv σ0 →
     Pr[fun (tr, _) =>
         ¬ sf.toFun i.1 stmtIn (HVector.take i.1 pSpec tr) ∧
           sf.toFun (i.1 + 1) stmtIn (HVector.take (i.1 + 1) pSpec tr)
       | do
         let challenges ← sampleChallenges pSpec
-        (simulateQ impl (Prover.run pSpec prover challenges)).run' (← init)
+        (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
     ] ≤ rbrError i
 
 class IsRBRSound (langIn : Set StmtIn) (langOut : Set StmtOut)
-    (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec) where
+    (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec)
+    (Inv : σ → Prop) where
   rbrError : ChallengeIndex pSpec → ℝ≥0
-  is_rbr_sound : rbrSoundness init impl langIn langOut verifier rbrError
+  is_rbr_sound : rbrSoundness impl langIn langOut verifier Inv rbrError
 
 /-! ## RBR Knowledge Soundness -/
 
@@ -108,6 +114,7 @@ structure Extractor.RoundByRound
 
 /-- A knowledge state function: maps (round, stmt, partial_transcript, witness) to Prop. -/
 structure KnowledgeStateFunction
+    (Inv : σ → Prop)
     (relIn : Set (StmtIn × WitIn)) (relOut : Set (StmtOut × WitOut))
     (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec)
     {WitMid : Fin (pSpec.length + 1) → Type}
@@ -123,9 +130,10 @@ structure KnowledgeStateFunction
     toFun k.castSucc stmtIn tr
       (extractor.extractMid k stmtIn
         (PartialTranscript.concat pSpec k.isLt tr msg) witMid)
-  toFun_full : ∀ stmtIn (tr : Transcript pSpec) witOut,
+  toFun_full : ∀ stmtIn (tr : Transcript pSpec) witOut (σ0 : σ),
+    Inv σ0 →
     Pr[fun stmtOut => (stmtOut, witOut) ∈ relOut | OptionT.mk do
-      (simulateQ impl (verifier stmtIn tr)).run' (← init)] > 0 →
+      (simulateQ impl (verifier stmtIn tr)).run' σ0] > 0 →
     toFun (.last pSpec.length) stmtIn (PartialTranscript.ofTranscript tr)
       (extractor.extractOut stmtIn tr witOut)
 
@@ -135,13 +143,16 @@ state function from bad to good with probability more than `rbrKnowledgeError i`
 def rbrKnowledgeSoundness
     {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
     {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    (Inv : σ → Prop)
     {WitMid : Fin (pSpec.length + 1) → Type}
     (extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid)
-    (ksf : KnowledgeStateFunction init impl relIn relOut verifier extractor)
+    (ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor)
     (rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0) : Prop :=
   ∀ stmtIn : StmtIn,
   ∀ prover : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec,
   ∀ i : ChallengeIndex pSpec,
+  ∀ σ0 : σ,
+  Inv σ0 →
     Pr[fun (tr, _) =>
       ∃ witMid,
         ¬ ksf.toFun i.1.castSucc stmtIn
@@ -152,7 +163,7 @@ def rbrKnowledgeSoundness
           (HVector.take (i.1 + 1) pSpec tr) witMid
       | do
         let challenges ← sampleChallenges pSpec
-        (simulateQ impl (Prover.run pSpec prover challenges)).run' (← init)
+        (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
     ] ≤ rbrKnowledgeError i
 
 end ProtocolSpec

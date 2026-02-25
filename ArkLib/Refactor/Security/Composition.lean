@@ -51,11 +51,13 @@ theorem Reduction.completeness_comp
     {relIn : Set (S₁ × W₁)} {relMid : Set (S₂ × W₂)} {relOut : Set (S₃ × W₃)}
     {r₁ : Reduction (OracleComp oSpec) S₁ W₁ S₂ W₂ pSpec₁}
     {r₂ : Reduction (OracleComp oSpec) S₂ W₂ S₃ W₃ pSpec₂}
+    {Inv : σ → Prop}
     {ε₁ ε₂ : ℝ≥0}
-    (h₁ : r₁.completeness init impl relIn relMid ε₁)
-    (h₂ : r₂.completeness init impl relMid relOut ε₂) :
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h₁ : r₁.completeness impl Inv relIn relMid ε₁)
+    (h₂ : r₂.completeness impl Inv relMid relOut ε₂) :
     letI := ChallengesSampleable.ofAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-    (r₁.comp r₂).completeness init impl relIn relOut (ε₁ + ε₂) := by
+    (r₁.comp r₂).completeness impl Inv relIn relOut (ε₁ + ε₂) := by
   sorry
 
 /-- Perfect completeness composes. -/
@@ -66,10 +68,12 @@ theorem Reduction.perfectCompleteness_comp
     {relIn : Set (S₁ × W₁)} {relMid : Set (S₂ × W₂)} {relOut : Set (S₃ × W₃)}
     {r₁ : Reduction (OracleComp oSpec) S₁ W₁ S₂ W₂ pSpec₁}
     {r₂ : Reduction (OracleComp oSpec) S₂ W₂ S₃ W₃ pSpec₂}
-    (h₁ : r₁.perfectCompleteness init impl relIn relMid)
-    (h₂ : r₂.perfectCompleteness init impl relMid relOut) :
+    {Inv : σ → Prop}
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h₁ : r₁.perfectCompleteness impl Inv relIn relMid)
+    (h₂ : r₂.perfectCompleteness impl Inv relMid relOut) :
     letI := ChallengesSampleable.ofAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-    (r₁.comp r₂).perfectCompleteness init impl relIn relOut := by
+    (r₁.comp r₂).perfectCompleteness impl Inv relIn relOut := by
   sorry
 
 /-- Perfect completeness of `n`-fold composition: if one round is perfectly complete,
@@ -79,9 +83,11 @@ theorem Reduction.perfectCompleteness_compNth
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {rel : Set (S × W)}
     {r : Reduction (OracleComp oSpec) S W S W pSpec}
-    (h : r.perfectCompleteness init impl rel rel) (n : Nat) :
+    {Inv : σ → Prop}
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : r.perfectCompleteness impl Inv rel rel) (n : Nat) :
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
-    (r.compNth n).perfectCompleteness init impl rel rel := by
+    (r.compNth n).perfectCompleteness impl Inv rel rel := by
   sorry
 
 /-- Completeness of `n`-fold composition with error `n * ε`. -/
@@ -90,10 +96,12 @@ theorem Reduction.completeness_compNth
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {rel : Set (S × W)}
     {r : Reduction (OracleComp oSpec) S W S W pSpec}
+    {Inv : σ → Prop}
     {ε : ℝ≥0}
-    (h : r.completeness init impl rel rel ε) (n : Nat) :
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : r.completeness impl Inv rel rel ε) (n : Nat) :
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
-    (r.compNth n).completeness init impl rel rel (n * ε) := by
+    (r.compNth n).completeness impl Inv rel rel (n * ε) := by
   sorry
 
 end Completeness
@@ -112,8 +120,11 @@ theorem rbrSoundness_implies_soundness
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {langIn : Set StmtIn} {langOut : Set StmtOut}
     {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
     {rbrError : ChallengeIndex pSpec → ℝ≥0}
-    (h : rbrSoundness init impl langIn langOut verifier rbrError) :
+    (hInit : ProtocolSpec.InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrSoundness impl langIn langOut verifier Inv rbrError) :
     verifier.soundness init impl langIn langOut
       (Finset.sum Finset.univ rbrError) := by
   sorry
@@ -125,8 +136,11 @@ theorem Verifier.soundness_compNth
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {lang : Set S}
     {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
     {rbrError : ChallengeIndex pSpec → ℝ≥0}
-    (h : rbrSoundness init impl lang lang v rbrError) (n : Nat) :
+    (hInit : ProtocolSpec.InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrSoundness impl lang lang v Inv rbrError) (n : Nat) :
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
     (v.compNth n).soundness init impl lang lang
       (n * Finset.sum Finset.univ rbrError) := by
@@ -148,11 +162,14 @@ theorem rbrKnowledgeSoundness_implies_knowledgeSoundness
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
     {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
     {WitMid : Fin (pSpec.length + 1) → Type}
     {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
-    {ksf : KnowledgeStateFunction init impl relIn relOut verifier extractor}
+    {ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor}
     {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
-    (h : rbrKnowledgeSoundness init impl extractor ksf rbrKnowledgeError) :
+    (hInit : ProtocolSpec.InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) :
     verifier.knowledgeSoundness init impl relIn relOut
       (Finset.sum Finset.univ rbrKnowledgeError) := by
   sorry
@@ -165,11 +182,14 @@ theorem Verifier.knowledgeSoundness_compNth
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {rel : Set (S × W)}
     {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
     {WitMid : Fin (pSpec.length + 1) → Type}
     {extractor : Extractor.RoundByRound S W W pSpec WitMid}
-    {ksf : KnowledgeStateFunction init impl rel rel v extractor}
+    {ksf : KnowledgeStateFunction impl Inv rel rel v extractor}
     {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
-    (h : rbrKnowledgeSoundness init impl extractor ksf rbrKnowledgeError) (n : Nat) :
+    (hInit : ProtocolSpec.InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) (n : Nat) :
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
     (v.compNth n).knowledgeSoundness init impl rel rel
       (n * Finset.sum Finset.univ rbrKnowledgeError) := by

@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Refactor.Reduction
+import ArkLib.Refactor.Security.Invariant
 
 /-!
 # Security Definitions for Reductions
@@ -92,40 +93,43 @@ the execution with pre-sampled challenges yields a valid output with probability
 
 The probability is over the joint distribution of challenge sampling and shared oracle
 randomness. -/
-def Reduction.completeness (relIn : Set (StmtIn × WitIn))
+def Reduction.completeness (Inv : σ → Prop) (relIn : Set (StmtIn × WitIn))
     (relOut : Set (StmtOut × WitOut))
     (reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec)
     (completenessError : ℝ≥0) : Prop :=
   ∀ stmtIn : StmtIn,
   ∀ witIn : WitIn,
   (stmtIn, witIn) ∈ relIn →
+  ∀ σ0 : σ,
+  (Inv σ0) →
     Pr[fun (verResult, (prvStmtOut, witOut)) =>
         verResult = some prvStmtOut ∧ (prvStmtOut, witOut) ∈ relOut
       | do
         let challenges ← sampleChallenges pSpec
-        (simulateQ impl (reduction.run stmtIn witIn challenges)).run' (← init)
+        (simulateQ impl (reduction.run stmtIn witIn challenges)).run' σ0
     ] ≥ 1 - completenessError
 
 /-- Perfect completeness: completeness with error `0`. -/
-def Reduction.perfectCompleteness (relIn : Set (StmtIn × WitIn))
+def Reduction.perfectCompleteness (Inv : σ → Prop) (relIn : Set (StmtIn × WitIn))
     (relOut : Set (StmtOut × WitOut))
     (reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec) : Prop :=
-  Reduction.completeness init impl relIn relOut reduction 0
+  Reduction.completeness impl Inv relIn relOut reduction 0
 
-class Reduction.IsComplete (relIn : Set (StmtIn × WitIn)) (relOut : Set (StmtOut × WitOut))
-    (reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec) where
-  completenessError : ℝ≥0
-  is_complete : reduction.completeness init impl relIn relOut completenessError
-
-class Reduction.IsPerfectComplete (relIn : Set (StmtIn × WitIn))
+class Reduction.IsComplete (Inv : σ → Prop) (relIn : Set (StmtIn × WitIn))
     (relOut : Set (StmtOut × WitOut))
     (reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec) where
-  is_perfect_complete : reduction.perfectCompleteness init impl relIn relOut
+  completenessError : ℝ≥0
+  is_complete : reduction.completeness impl Inv relIn relOut completenessError
 
-instance {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
+class Reduction.IsPerfectComplete (Inv : σ → Prop) (relIn : Set (StmtIn × WitIn))
+    (relOut : Set (StmtOut × WitOut))
+    (reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec) where
+  is_perfect_complete : reduction.perfectCompleteness impl Inv relIn relOut
+
+instance {Inv : σ → Prop} {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
     {reduction : Reduction (OracleComp oSpec) StmtIn WitIn StmtOut WitOut pSpec}
-    [reduction.IsPerfectComplete init impl relIn relOut] :
-    Reduction.IsComplete init impl relIn relOut reduction where
+    [Reduction.IsPerfectComplete impl Inv relIn relOut reduction] :
+    Reduction.IsComplete impl Inv relIn relOut reduction where
   completenessError := 0
   is_complete := Reduction.IsPerfectComplete.is_perfect_complete
 
@@ -194,10 +198,10 @@ class Verifier.IsKnowledgeSound (relIn : Set (StmtIn × WitIn))
 /-! ## Proof Specializations -/
 
 /-- Completeness for a `Proof` (output is `Bool`, trivial witness). -/
-def Proof.completeness (langIn : Set (StmtIn × WitIn))
+def Proof.completeness (Inv : σ → Prop) (langIn : Set (StmtIn × WitIn))
     (proof : Proof (OracleComp oSpec) StmtIn WitIn pSpec)
     (completenessError : ℝ≥0) : Prop :=
-  Reduction.completeness init impl langIn ({(true, ())} : Set (Bool × Unit))
+  Reduction.completeness impl Inv langIn ({(true, ())} : Set (Bool × Unit))
     proof completenessError
 
 /-- Soundness for a `Proof`. -/
