@@ -5,23 +5,9 @@ Authors: Katerina Hristova, František Silváši, Chung Thai Nguyen
 -/
 
 import ArkLib.Data.CodingTheory.Basic
-import ArkLib.Data.CodingTheory.ReedSolomon
-import Mathlib.Logic.Equiv.Fin.Basic
 import Mathlib.Order.CompletePartialOrder
-import Mathlib.Probability.Distributions.Uniform
-import Mathlib.Data.Real.Basic
-import Mathlib.Data.Real.Sqrt
-import ArkLib.Data.Fin.Basic
-import ArkLib.Data.CodingTheory.Prelims
-import Mathlib.Algebra.Polynomial.Roots
-import Mathlib.Analysis.InnerProductSpace.PiL2
-import Mathlib.Data.ENat.Lattice
-import Mathlib.InformationTheory.Hamming
-import Mathlib.Tactic.Qify
-import Mathlib.Topology.MetricSpace.Infsep
-import Mathlib.Data.NNReal.Defs
 
-noncomputable section
+section
 
 /-!
 ## Main definitions
@@ -137,7 +123,7 @@ def interleavedCodeSet {A : Type*} {κ ι : Type*}
 
 /-- If C is finite and membership is decidable, then interleavedCodeSet C is finite. -/
 @[simp]
-instance interleavedCodeSet_fintype {A : Type*} {κ ι : Type*}
+noncomputable instance interleavedCodeSet_fintype {A : Type*} {κ ι : Type*}
     [Fintype κ] [Fintype ι] [Fintype A] [DecidableEq A]
     (C : Set (ι → A)) :
     Fintype (interleavedCodeSet (κ := κ) (ι := ι) C) := by
@@ -347,7 +333,7 @@ lemma interleave_codewordStack_val_eq (u : CodewordStack A κ ι C) :
   (⋈| u).val = u.val.transpose := rfl
 
 @[simp]
-instance instFintypeInterleavedModuleCode [Fintype A] : Fintype (MC ^⋈ κ) := by
+noncomputable instance instFintypeInterleavedModuleCode [Fintype A] : Fintype (MC ^⋈ κ) := by
   exact Fintype.ofFinite ((MC ^⋈ κ) : Set (ι → (κ → A)))
 
 @[simp]
@@ -591,12 +577,12 @@ end InterleavedCode
 - suffix `Nat` : the proximity is represented in terms of concrete distance (`Δ₀`),
   without this suffix, relative distance (`δᵣ`) is used instead.
 -/
+
 section JointProximityDefinitions
 
--- variable [DecidableEq A] [DecidableEq ι]
 
 variable {κ ι : Type*} [Fintype ι] [Fintype κ]
-  {A : Type*} (C : Set (ι → A)) [DecidableEq A]
+         {A : Type*} (C : Set (ι → A)) [DecidableEq A]
 
 /-- `jointProximity u δ` means the interleaved word stack `u` is within relative distance `δ` of
 the interleaved code `MC^⋈ κ`. -/
@@ -669,7 +655,7 @@ if possible, for consistency.
 TOOD: this can generalize further to support the consequent of mutual correlated agreement. -/
 def jointAgreement {F κ ι : Type*} [Fintype ι] [DecidableEq F]
     (C : Set (ι → F)) (δ : ℝ≥0) (W : κ → ι → F) : Prop :=
-  ∃ S : Finset ι, S.card ≥ (1 - δ) * (Fintype.card ι) ∧
+    ∃ S : Finset ι, S.card ≥ (1 - δ) * (Fintype.card ι) ∧
     ∃ v : κ → ι → F, ∀ i, v i ∈ C ∧ S ⊆ Finset.filter (fun j => v i j = W i j) Finset.univ
 
 open InterleavedCode in
@@ -788,8 +774,7 @@ theorem jointAgreement_iff_jointProximity
         apply congrArg (fun x => x i) at h_agree
         exact id (Eq.symm h_agree)
 
-/-- The list of `κ`-fold codeword stacks whose interleaved codeword forms are
-(less-than)-`δ`-close to `⋈|u`. -/
+/-- The list of `κ`-fold codeword stacks whose interleaved codeword forms are (less-than)-`δ`-close to `⋈|u`. -/
 def relHammingBallInterleavedCode (u : WordStack A κ ι) (δ : ℝ≥0) : Set (CodewordStack A κ ι C) :=
   {v : CodewordStack A κ ι (C := C) | δᵣ(⋈|u, (⋈|v).val) < δ}
 
@@ -798,6 +783,6 @@ def relHammingBallInterleavedCode (u : WordStack A κ ι) (δ : ℝ≥0) : Set (
 notation "Λᵢ(" u "," C "," δ ")" => relHammingBallInterleavedCode C u δ
 
 end JointProximityDefinitions
-
 end Code
 end InterleavedCodeDefinitions
+end
