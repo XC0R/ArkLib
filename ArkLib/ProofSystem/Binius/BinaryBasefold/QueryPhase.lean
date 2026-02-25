@@ -408,7 +408,7 @@ noncomputable def queryKnowledgeStateFunction {σ : Type} (init : ProbComp σ)
       (m:=m) (tr:=tr) (stmt:=stmt) (witMid:=witMid) (oStmt:=oStmt)
   toFun_empty := fun stmt witMid => by simp only; rfl
   toFun_next := fun m hDir stmt tr msg witMid h => by
-    sorry
+    fin_cases m; simp [pSpecQuery] at hDir
   toFun_full := fun stmt tr witOut h => by
     sorry
 
