@@ -5,6 +5,7 @@ Authors: Katerina Hristova, František Silváši, Chung Thai Nguyen
 -/
 
 import ArkLib.Data.CodingTheory.InterleavedCode
+import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.Probability.Notation
 
 /-!
@@ -45,7 +46,7 @@ lemma distInterleavedCodeToCodeLB
 
 namespace ProximityToRS
 
-open ReedSolomonCode NNReal
+open ReedSolomon ReedSolomonCode NNReal
 
 /-- The set of points on an affine line, which are within distance `e` from a Reed-Solomon code.
 -/
@@ -60,6 +61,7 @@ Reed-Solomon code.
 def numberOfClosePts (u v : ι → F) (deg : ℕ) (α : ι ↪ F) (e : ℕ) : ℕ :=
   Fintype.card (closePtsOnAffineLine u v deg α e)
 
+omit [DecidableEq F] in
 /-- **Lemma 4.4, [AHIV22] (Combinatorial proximity gap for affine lines)**
 Let `L = RS_{𝔽, n, k, η}` be a Reed-Solomon code with minimal distance
 `d = n - k + 1`. Let `e` be a positive integer such that `e < d / 3`. Then for every two words
