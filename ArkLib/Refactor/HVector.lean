@@ -21,9 +21,13 @@ encoding keeps `HVector A l` in the universe of `A`'s codomain.
 -/
 
 /-- A heterogeneous vector indexed by a list, defined as nested products.
-Marked `@[reducible]` so that `(x, xs) : HVector A (a :: as)` type-checks without casts. -/
-@[reducible] def HVector {α : Type*} (A : α → Type*) : List α → Type _
-  | [] => PUnit
+Marked `@[reducible]` so that `(x, xs) : HVector A (a :: as)` type-checks without casts.
+
+The base case explicitly uses `PUnit.{v + 1}` to pin the empty-list universe to `A`'s
+codomain universe, preventing universe metavariables from leaking into downstream
+definitions (e.g. `Verifier.compNth`, `OracleVerifier.compNth`). -/
+@[reducible] def HVector.{u, v} {α : Type u} (A : α → Type v) : List α → Type v
+  | [] => PUnit.{v + 1}
   | a :: as => A a × HVector A as
 
 namespace HVector

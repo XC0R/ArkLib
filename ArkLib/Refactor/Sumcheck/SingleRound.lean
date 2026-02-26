@@ -1,0 +1,110 @@
+/-
+Copyright (c) 2026 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+import ArkLib.Refactor.Sumcheck.Defs
+
+/-!
+# Single Round of the Sumcheck Protocol
+
+Defines the components for one round of the sumcheck protocol:
+
+- `prover` — the honest prover (produces a `Prover` coinductive value)
+- `verifier` — the plain verifier (sees the round polynomial directly)
+- `oracleVerifier` — the oracle verifier (queries the round polynomial)
+- `reduction` — pairs prover with plain verifier
+- `oracleReduction` — pairs oracle prover with oracle verifier
+-/
+
+open CompPoly CPoly ProtocolSpec OracleComp OracleSpec
+
+namespace Sumcheck
+
+variable {R : Type} [Field R] [BEq R] [LawfulBEq R] [Nontrivial R] [DecidableEq R]
+variable {n m : ℕ} {deg : ℕ}
+
+/-! ## Prover -/
+
+/-- The honest prover for a single sumcheck round.
+
+Computes the round polynomial via evaluate-and-interpolate, sends it, and
+when given a challenge `r`, produces the output statement with new target `p(r)`. -/
+noncomputable def prover {i : ℕ}
+    (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    Prover Id (StmtOut R) (pSpec R deg) :=
+  let roundPoly := computeRoundPoly poly prevChallenges D evalPoints
+  (roundPoly, pure (fun chal =>
+    pure { target := CPolynomial.eval chal roundPoly.val, challenge := chal }))
+
+/-! ## Plain verifier -/
+
+/-- The plain verifier for a single sumcheck round.
+
+Reads the round polynomial and challenge from the transcript, checks that the
+polynomial's sum over the domain `D` equals the target, then returns the new
+target `p(challenge)`. -/
+def verifier (D : Fin m → R) :
+    Verifier Id (StmtIn R) (StmtOut R) (pSpec R deg) :=
+  fun target tr =>
+    let poly : CDegreeLE R deg := tr.head
+    let chal : R := (tr.tail).head
+    if (Finset.univ : Finset (Fin m)).sum (fun i => CPolynomial.eval (D i) poly.val) = target
+    then pure { target := CPolynomial.eval chal poly.val, challenge := chal }
+    else failure
+
+/-! ## Oracle verifier
+
+The oracle verifier for a single sumcheck round. Instead of reading the round polynomial
+directly, queries it at the domain points to check the sum, and at the challenge point to
+compute the new target. The oracle statement (multivariate polynomial) passes through
+unchanged. -/
+
+section OracleVerifier
+
+variable {ι : Type} {oSpec : OracleSpec ι}
+
+private noncomputable def queryRoundPoly (x : R) :
+    OracleComp (oSpec + [fun (_ : Unit) => OStmt R n]ₒ +
+      oracleSpecOfMessages (pSpec R deg)) R := by
+  change OracleComp _ (oracleSpecOfMessages (pSpec R deg) (Sum.inl x))
+  exact OracleComp.lift (OracleQuery.query (spec :=
+    oSpec + [fun (_ : Unit) => OStmt R n]ₒ + oracleSpecOfMessages (pSpec R deg))
+    (Sum.inr (Sum.inl x)))
+
+noncomputable def oracleVerifier (D : Fin m → R) :
+    OracleVerifier oSpec
+      (StmtIn R) (fun (_ : Unit) => OStmt R n)
+      (StmtOut R) (fun (_ : Unit) => OStmt R n)
+      (pSpec R deg) where
+  verify := fun target challenges => do
+    let evals ← (List.finRange m).mapM (fun i =>
+      OptionT.lift (queryRoundPoly (D i)))
+    guard (evals.sum = target)
+    let chal := challenges.head
+    let newTarget ← OptionT.lift (queryRoundPoly chal)
+    pure { target := newTarget, challenge := chal }
+  simulate := fun q =>
+    liftM (query (spec := [fun (_ : Unit) => OStmt R n]ₒ +
+      oracleSpecOfMessages (pSpec R deg)) (Sum.inl q))
+  reify := fun oStmtData _ => some oStmtData
+
+end OracleVerifier
+
+/-! ## Reduction -/
+
+/-- A single-round sumcheck reduction pairing the honest prover with the plain verifier.
+
+The witness carries the multivariate polynomial, previously fixed challenges,
+domain, and evaluation points needed by the prover. -/
+noncomputable def singleRoundReduction {i : ℕ}
+    (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    Reduction Id (StmtIn R) Unit (StmtOut R) Unit (pSpec R deg) where
+  prover := fun (_, _) => pure <|
+    Prover.mapOutput (fun s => (s, ())) (pSpec R deg) <|
+      prover poly prevChallenges D evalPoints
+  verifier := verifier D
+
+end Sumcheck

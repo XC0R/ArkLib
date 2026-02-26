@@ -57,11 +57,13 @@ open Round
 ## Smart constructors
 -/
 
-/-- Construct a prover message round, inferring the `OracleInterface` instance. -/
-def msg (T : Type) [oi : OracleInterface T] : Round := .P_to_V T oi
+/-- Construct a prover message round, inferring the `OracleInterface` instance.
+`abbrev` so that instance synthesis can see through to `.P_to_V`. -/
+abbrev msg (T : Type) [oi : OracleInterface T] : Round := .P_to_V T oi
 
-/-- Construct a verifier challenge round. -/
-def chal (T : Type) : Round := .V_to_P T
+/-- Construct a verifier challenge round.
+`abbrev` so that instance synthesis can see through to `.V_to_P`. -/
+abbrev chal (T : Type) : Round := .V_to_P T
 
 /-!
 ## Message and challenge type extraction

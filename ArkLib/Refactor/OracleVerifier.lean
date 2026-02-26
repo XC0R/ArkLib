@@ -109,6 +109,25 @@ When composing two protocols, `oracleSpecOfMessages pSpec₁` (resp. `pSpec₂`)
 embeds into `oracleSpecOfMessages (pSpec₁ ++ pSpec₂)` via left/right injection
 of indices. The range types match definitionally at each recursive step. -/
 
+namespace OracleSpec.SubSpec
+
+/-- Compose two oracle-spec embeddings. (VCVio does not currently provide a `SubSpec` trans
+  instance.) -/
+def trans {ι₁ ι₂ ι₃ : Type}
+    {spec₁ : OracleSpec ι₁} {spec₂ : OracleSpec ι₂} {spec₃ : OracleSpec ι₃}
+    (h₁ : spec₁ ⊂ₒ spec₂) (h₂ : spec₂ ⊂ₒ spec₃) : spec₁ ⊂ₒ spec₃ where
+  monadLift q := h₂.monadLift (h₁.monadLift q)
+  liftM_map q f := by
+    have h₁map := h₁.liftM_map (q := q) (f := f)
+    have h₁map' := congrArg h₂.monadLift h₁map
+    calc
+      h₂.monadLift (h₁.monadLift (f <$> q))
+          = h₂.monadLift (f <$> h₁.monadLift q) := h₁map'
+      _ = f <$> h₂.monadLift (h₁.monadLift q) := by
+          simpa using (h₂.liftM_map (q := h₁.monadLift q) (f := f))
+
+end OracleSpec.SubSpec
+
 /-- Left embedding: `msgOracles(pSpec₁) ⊂ₒ msgOracles(pSpec₁ ++ pSpec₂)`.
 For each `P_to_V` round in `pSpec₁`, the left summand of the index passes through
 unchanged, while the right summand (tail queries) recurses via the inductive hypothesis.
@@ -116,14 +135,16 @@ unchanged, while the right summand (tail queries) recurses via the inductive hyp
 def subSpec_oracleSpecOfMessages_left :
     (pSpec₁ pSpec₂ : ProtocolSpec) →
     oracleSpecOfMessages pSpec₁ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
-  | [], _ => { toMonadLift := { monadLift := fun q => PEmpty.elim q.input } }
-  | (.P_to_V _ _) :: tl, pSpec₂ =>
+  | [], _ =>
+    { monadLift := fun q => PEmpty.elim q.input
+      liftM_map := fun q _ => PEmpty.elim q.input }
+  | (.P_to_V _ oi) :: tl, pSpec₂ =>
     let ih := subSpec_oracleSpecOfMessages_left tl pSpec₂
-    { toMonadLift := { monadLift := fun q => match q with
-      | ⟨Sum.inl t, f⟩ => ⟨Sum.inl t, f⟩
-      | ⟨Sum.inr t, f⟩ =>
-        let q' := ih.monadLift ⟨t, f⟩
-        ⟨Sum.inr q'.1, q'.2⟩ } }
+    letI : oracleSpecOfMessages tl ⊂ₒ oracleSpecOfMessages (tl ++ pSpec₂) := ih
+    -- Use VCVio's generic `+`-compatibility instance on the right summand.
+    (inferInstance :
+      (@OracleInterface.spec _ oi + oracleSpecOfMessages tl) ⊂ₒ
+        (@OracleInterface.spec _ oi + oracleSpecOfMessages (tl ++ pSpec₂)))
   | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_left tl pSpec₂
 
 /-- Right embedding: `msgOracles(pSpec₂) ⊂ₒ msgOracles(pSpec₁ ++ pSpec₂)`.
@@ -132,12 +153,18 @@ pSpec₂'s queries past all of pSpec₁'s oracle indices. -/
 def subSpec_oracleSpecOfMessages_right :
     (pSpec₁ pSpec₂ : ProtocolSpec) →
     oracleSpecOfMessages pSpec₂ ⊂ₒ oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
-  | [], _ => { toMonadLift := { monadLift := fun q => q } }
-  | (.P_to_V _ _) :: tl, pSpec₂ =>
+  | [], _ =>
+    { monadLift := fun q => q
+      liftM_map := by
+        intro α β q f
+        cases q; rfl }
+  | (.P_to_V _ oi) :: tl, pSpec₂ =>
     let ih := subSpec_oracleSpecOfMessages_right tl pSpec₂
-    { toMonadLift := { monadLift := fun q =>
-      let q' := ih.monadLift q
-      ⟨Sum.inr q'.1, q'.2⟩ } }
+    let hRight :
+        oracleSpecOfMessages (tl ++ pSpec₂) ⊂ₒ
+          (@OracleInterface.spec _ oi + oracleSpecOfMessages (tl ++ pSpec₂)) :=
+      inferInstance
+    OracleSpec.SubSpec.trans ih hRight
   | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_right tl pSpec₂
 
 namespace OracleVerifier
