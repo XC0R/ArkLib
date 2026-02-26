@@ -3,6 +3,7 @@
 
 \providecommand{\defeq}{\mathrel{:=}}
 \providecommand{\pSpec}{\mathsf{pSpec}}
+\providecommand{\oSpec}{\mathsf{oSpec}}
 \providecommand{\PtoV}{\mathsf{P\_to\_V}}
 \providecommand{\VtoP}{\mathsf{V\_to\_P}}
 \providecommand{\Transcript}{\mathsf{Transcript}}
@@ -132,6 +133,24 @@ We often assume:
   \item (\textbf{$\mathsf{impl}$ preserves $\mathsf{Inv}$}) starting from any $\sigma$ with $\mathsf{Inv}(\sigma)$,
   any oracle query step yields a post-state $\sigma'$ with $\mathsf{Inv}(\sigma')$.
 \end{enumerate}
+
+\begin{remark}[Sequential composition and non-interference]
+\label{rem:composition_noninterference}
+In the refactor, a reduction is executed by first running the prover to generate a full transcript
+and prover output, and only \emph{afterwards} running the verifier on the produced transcript. For a
+sequential composition $R_1 \mathbin{\mathsf{comp}} R_2$, this means the composed prover runs $P_1$
+and then $P_2$ (potentially querying and mutating the shared oracle state) \emph{before} the composed
+verifier runs $V_1$ and then $V_2$.
+
+As a result, the textbook completeness argument for composition is not unconditional: $P_2$ may
+change the shared oracle state before $V_1$ runs, so $V_1$ might no longer be checking the same
+oracle state that was present at the end of $P_1$.
+
+The Lean theorem `Reduction.completeness_comp` proves completeness composition under an additional
+non-interference hypothesis that rules out this issue; we record an abstract paper-level version of
+that hypothesis below and discuss possible weakenings in
+\Cref{rem:oraclefree_strengthening}.
+\end{remark}
 
 \subsection{Security notions}
 
@@ -495,47 +514,152 @@ as desired.
 \begin{definition}[Sequential composition of reductions]
 Let $R_1=(P_1,V_1)$ be a reduction over $\pSpec_1$ from $(\StmtIn_1,\WitIn_1)$ to $(\StmtMid,\WitMid)$,
 and let $R_2=(P_2,V_2)$ be a reduction over $\pSpec_2$ from $(\StmtMid,\WitMid)$ to $(\StmtOut,\WitOut)$.
-Their \emph{sequential composition} $R = R_2 \circ R_1$ is the reduction over $\pSpec_1 \mathbin{++}
-\pSpec_2$ defined by: on input $(x,w)$, run $P_1$ to obtain an intermediate output $(y,u)$ and prefix
-transcript $\tau^{(1)}$, then run $P_2$ on $(y,u)$ to obtain $(z,v)$ and transcript $\tau^{(2)}$;
-output transcript $\tau \defeq \tau^{(1)} \mathbin{\|} \tau^{(2)}$, prover output $(z,v)$, and accept
-only if both verifiers accept in sequence (equivalently, run $V_1$ on $\tau^{(1)}$ to obtain $y$ and
-then run $V_2$ on $\tau^{(2)}$ with input $y$).
+Their \emph{sequential composition} $R = R_1 \mathbin{\mathsf{comp}} R_2$ is the reduction over
+$\pSpec_1 \mathbin{++} \pSpec_2$ defined by: on input $(x,w)$, run $P_1$ to obtain an intermediate
+output $(y,u)$ and prefix transcript $\tau^{(1)}$, then run $P_2$ on $(y,u)$ to obtain $(z,v)$ and
+transcript $\tau^{(2)}$; output transcript $\tau \defeq \tau^{(1)} \mathbin{\|} \tau^{(2)}$, prover
+output $(z,v)$, and accept only if both verifiers accept in sequence (equivalently, run $V_1$ on
+$\tau^{(1)}$ to obtain $y$ and then run $V_2$ on $\tau^{(2)}$ with input $y$).
+
+\smallskip
+\noindent
+(This corresponds to the conventional right-to-left notation $R_2 \circ R_1$, but we use
+$R_1 \mathbin{\mathsf{comp}} R_2$ to match the Lean name `Reduction.comp`.)
 \end{definition}
+
+\begin{definition}[Oracle-free verifier (sufficient non-interference)]
+\label{def:oraclefree_verifier}
+In the Lean model, a verifier is an \emph{oracle computation} that may query a shared oracle
+implementation $\mathsf{impl}$ and hence may depend on (and mutate) the oracle state $\sigma\in\Sigma$.
+We say that a verifier $V_1$ is \emph{oracle-free} if, for every input statement $x$ and transcript
+prefix $\tau$, its oracle computation is observationally equivalent to a \texttt{pure} computation:
+there exists a (possibly randomized) procedure $g_1$ such that executing $V_1(x,\tau)$ is the same as
+returning $g_1(x,\tau)$ without issuing any oracle queries. In particular, running $V_1$ does not
+change the shared oracle state.
+
+This is a convenient sufficient condition ensuring that $V_1$ can be moved earlier or later in a
+composed execution without affecting any oracle state seen by other components.
+\end{definition}
+
+\begin{lemma}[Decomposing a composed run (conceptual)]
+\label{lem:run_comp_decomposition}
+Assume $V_1$ is oracle-free. Consider the composed execution of $R_1 \mathbin{\mathsf{comp}} R_2$ on
+input $(x,w)$ with outside-sampled challenges split as $\mathbf{c}=(\mathbf{c}_1,\mathbf{c}_2)$ for
+$(\pSpec_1,\pSpec_2)$. Then the distribution of the composed experiment is identical to the
+distribution of the following staged experiment:
+\begin{enumerate}
+  \item run $R_1$ on $(x,w)$ using $\mathbf{c}_1$ to obtain $(\tau^{(1)}, y, u)$ and a verifier output
+  $y^{V_1}\in\Option(\StmtMid)$;
+  \item run $P_2$ on $(y,u)$ using $\mathbf{c}_2$ to obtain $(\tau^{(2)}, z, v)$;
+  \item run $V_2$ on $(y^{V_1},\tau^{(2)})$ (reject immediately if $y^{V_1}=\mathsf{none}$).
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}[Proof idea]
+This is the paper analogue of the Lean lemma `ProtocolSpec.Reduction.run_comp_join_eq_bind`. The key
+point is that, because $V_1$ is oracle-free, evaluating $V_1$ does not query or mutate the shared
+oracle state, so we can conceptually place it ``between'' the two prover stages even though the
+definition of execution runs the full composed prover before the composed verifier.
+\end{proof}
 
 \begin{theorem}[Completeness composes with additive error]
 \label{thm:completeness_comp_add}
 Let $rel_{\mathsf{in}} \subseteq \StmtIn_1\times\WitIn_1$, $rel_{\mathsf{mid}} \subseteq
-\StmtMid\times\WitMid$, and $rel_{\mathsf{out}} \subseteq \StmtOut\times\WitOut$. If $R_1$ is
-complete from $rel_{\mathsf{in}}$ to $rel_{\mathsf{mid}}$ with error $\varepsilon_1$ and $R_2$ is
-complete from $rel_{\mathsf{mid}}$ to $rel_{\mathsf{out}}$ with error $\varepsilon_2$, then the
-composition $R_2\circ R_1$ is complete from $rel_{\mathsf{in}}$ to $rel_{\mathsf{out}}$ with error
-$\varepsilon_1+\varepsilon_2$.
+\StmtMid\times\WitMid$, and $rel_{\mathsf{out}} \subseteq \StmtOut\times\WitOut$. Assume:
+\begin{enumerate}
+  \item $V_1$ is oracle-free in the sense of \Cref{def:oraclefree_verifier};
+  \item $\mathsf{impl}$ preserves the oracle invariant $\mathsf{Inv}$;
+  \item $R_1$ is complete from $rel_{\mathsf{in}}$ to $rel_{\mathsf{mid}}$ with error $\varepsilon_1$;
+  \item $R_2$ is complete from $rel_{\mathsf{mid}}$ to $rel_{\mathsf{out}}$ with error $\varepsilon_2$.
+\end{enumerate}
+Then the composition $R_1 \mathbin{\mathsf{comp}} R_2$ is complete from $rel_{\mathsf{in}}$ to
+$rel_{\mathsf{out}}$ with error at most $\varepsilon_1+\varepsilon_2$.
 \end{theorem}
 
 \begin{proof}
-Fix any $(x,w)\in rel_{\mathsf{in}}$. Let $G_1$ be the event that $R_1$'s verifier accepts with
-output equal to $R_1$'s prover statement and $(y,u)\in rel_{\mathsf{mid}}$; by completeness of $R_1$,
-$\Pr[\neg G_1]\le \varepsilon_1$.  Conditional on $G_1$ (and thus on $(y,u)\in rel_{\mathsf{mid}}$),
-let $G_2$ be the analogous ``good'' event for $R_2$ with respect to $rel_{\mathsf{out}}$; by
-completeness of $R_2$ applied to the specific valid intermediate pair, we have
+Fix any $(x,w)\in rel_{\mathsf{in}}$ and any initial oracle state $\sigma_0$ with
+$\mathsf{Inv}(\sigma_0)=\mathsf{true}$. We work in the joint experiment with outside-sampled
+challenges split as $\mathbf{c}=(\mathbf{c}_1,\mathbf{c}_2)$ for $(\pSpec_1,\pSpec_2)$, and we use
+\Cref{lem:run_comp_decomposition} to view the execution in two stages.
+
+\paragraph{Stage success predicates.}
+Let $G_1$ be the event that $R_1$ succeeds, i.e.\ $V_1$ accepts with output equal to $P_1$'s
+intermediate statement and the intermediate pair is in $rel_{\mathsf{mid}}$:
 \[
-  \Pr[\neg G_2 \mid G_1] \le \varepsilon_2.
+  G_1 \defeq
+  \Bigl[
+    y^{V_1} = \mathsf{some}(y)
+    \ \wedge\ (y,u) \in rel_{\mathsf{mid}}
+  \Bigr].
 \]
-The composed reduction succeeds exactly on $G_1 \wedge G_2$, hence
+Let $G_2$ be the analogous event that $R_2$ succeeds on the intermediate pair:
 \[
-  \Pr[G_1 \wedge G_2]
-  \ge 1 - \Pr[\neg G_1] - \Pr[\neg G_2 \wedge G_1]
+  G_2 \defeq
+  \Bigl[
+    z^{V_2} = \mathsf{some}(z)
+    \ \wedge\ (z,v) \in rel_{\mathsf{out}}
+  \Bigr].
+\]
+By completeness of $R_1$, we have $\Pr_{\sigma_0}[\neg G_1]\le \varepsilon_1$.
+
+\paragraph{Re-sampling order for independent challenges.}
+Outside challenges for $\pSpec_2$ are sampled independently of everything that happens in stage~1,
+so we may equivalently sample $\mathbf{c}_2$ \emph{after} stage~1 completes (without changing any
+probability of events). This matches the proof step in Lean that swaps two independent binds
+(`probEvent_bind_bind_swap`).
+
+\paragraph{Stage 2 bound, conditional on stage 1 success.}
+Condition on any outcome of stage~1 in which $G_1$ holds. Then the intermediate pair $(y,u)$ is in
+$rel_{\mathsf{mid}}$. Moreover, because stage~1 is executed via oracle queries under $\mathsf{impl}$
+and $\mathsf{impl}$ preserves $\mathsf{Inv}$, the post-stage-1 oracle state still satisfies
+$\mathsf{Inv}$. Therefore, applying completeness of $R_2$ from this post-state yields
+\[
+  \Pr_{\sigma_0}[\neg G_2 \mid G_1] \le \varepsilon_2.
+\]
+
+\paragraph{Union bound.}
+The composed execution is successful exactly when $G_1 \wedge G_2$ holds, hence
+\[
+  \Pr_{\sigma_0}[G_1 \wedge G_2]
+  \ge 1 - \Pr_{\sigma_0}[\neg G_1] - \Pr_{\sigma_0}[\neg G_2 \wedge G_1]
   \ge 1 - \varepsilon_1 - \varepsilon_2,
 \]
-where the last inequality uses $\Pr[\neg G_2 \wedge G_1] = \Pr[G_1]\Pr[\neg G_2\mid G_1] \le
-\varepsilon_2$. This is completeness with error $\varepsilon_1+\varepsilon_2$.
+where we used $\Pr_{\sigma_0}[\neg G_2 \wedge G_1]=\Pr_{\sigma_0}[G_1]\Pr_{\sigma_0}[\neg G_2\mid G_1]
+\le \varepsilon_2$. This is completeness with error at most $\varepsilon_1+\varepsilon_2$.
 \end{proof}
+
+\begin{remark}[How strong is oracle-freeness? Potential weakenings]
+\label{rem:oraclefree_strengthening}
+The oracle-free hypothesis on $V_1$ is a \emph{sufficient} condition used by the current Lean proof,
+but it is stronger than what one might want for applications. Conceptually, what is needed for the
+completeness composition argument is a \emph{non-interference} property ensuring that stage~2 cannot
+invalidate stage~1's verification by mutating the shared oracle state \emph{before} $V_1$ runs.
+
+There are at least three natural directions to strengthen/generalize this interface:
+\begin{enumerate}
+  \item \textbf{Change the execution semantics.} Define the execution of a composed reduction to run
+  $V_1$ immediately after $P_1$ (before starting $P_2$). This matches the textbook composition proof
+  and removes the need for any extra commutation hypothesis.
+  \item \textbf{Read-only / snapshot semantics for the oracle.} Allow $V_1$ to query the oracle but
+  require that verifier queries are \emph{state-preserving} (or run against a snapshot/rollback of
+  the oracle state). In ROM-style memoization models, this corresponds to ensuring verifier queries
+  do not permanently extend the table seen by later components.
+  \item \textbf{Commutation hypotheses between stage 2 and $V_1$.} Replace oracle-freeness by a
+  condition that $V_1$'s output distribution depends only on the transcript (and input statement),
+  and is invariant under oracle-state changes made by $P_2$ (or, dually, that $P_2$ does not affect
+  the oracle features that $V_1$ reads). This is closer to the minimal ``non-interference'' needed
+  for the reordering step in \Cref{lem:run_comp_decomposition}.
+\end{enumerate}
+Making these weakenings precise is an important follow-up: the current Lean development opts for the
+simple oracle-free sufficient condition because it is easy to state and mechanically usable for the
+refactor, but it is not the only reasonable design point.
+\end{remark}
 
 \begin{corollary}[$n$-fold completeness]
 \label{cor:completeness_comp_n}
-If a reduction is complete from $rel$ to $rel$ with error $\varepsilon$, then the $n$-fold sequential
-composition of the reduction with itself is complete from $rel$ to $rel$ with error $n\varepsilon$.
+Assume $V$ is oracle-free and $\mathsf{impl}$ preserves $\mathsf{Inv}$. If a reduction $R=(P,V)$ is
+complete from $rel$ to $rel$ with error $\varepsilon$, then the $n$-fold sequential composition of
+$R$ with itself is complete from $rel$ to $rel$ with error $n\varepsilon$.
 \end{corollary}
 
 \begin{proof}
