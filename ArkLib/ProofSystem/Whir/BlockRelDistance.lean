@@ -191,8 +191,8 @@ lemma listBlock_subset_listHamming
   [h_fintype : ∀ i : ℕ, Fintype (indexPowT S φ i)] [DecidableEq (indexPowT S φ i)] [Smooth φ']
   (C : Set ((indexPowT S φ i) → F)) (hcode : C = smoothCode φ' m)
   [h_dec : DecidableBlockDisagreement i k f S' φ']
-  (δ : ℝ≥0) (hδLe : δ ≤ 1) :
-  Λᵣ(i, k, f, S', C, hcode, δ) ⊆ relHammingBall C f δ := by
+  (δ : ℝ≥0) :
+  Λᵣ(i, k, f, S', C, hcode, δ) ⊆ closeCodewordsRel C f δ := by
   intro u hu
   simp only [listBlockRelDistance, Set.mem_sep_iff] at hu
   refine ⟨hu.1, ?_⟩

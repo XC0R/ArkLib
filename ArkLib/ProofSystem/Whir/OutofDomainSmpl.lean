@@ -88,13 +88,13 @@ lemma oodSampling_crs_eq_rs
           MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial rVec)
       let multiCRSCode := multiConstrainedCode φ m s w σ
       ∃ u u' : ι → F, u ≠ u' ∧
-        u ∈ relHammingBall multiCRSCode f ↑δ ∧
-        u' ∈ relHammingBall multiCRSCode f ↑δ)
+        u ∈ closeCodewordsRel multiCRSCode f ↑δ ∧
+        u' ∈ closeCodewordsRel multiCRSCode f ↑δ)
     ↔
     (∃ u u' : smoothCode φ m,
       u.val ≠ u'.val ∧
-      u.val ∈ relHammingBall (↑(smoothCode φ m)) f ↑δ ∧
-      u'.val ∈ relHammingBall (↑(smoothCode φ m)) f ↑δ ∧
+      u.val ∈ closeCodewordsRel (↑(smoothCode φ m)) f ↑δ ∧
+      u'.val ∈ closeCodewordsRel (↑(smoothCode φ m)) f ↑δ ∧
       ∀ i : Fin s,
         let ri := rs i
         let rVec := fun j : Fin m => ri ^ (2^(j : ℕ))
@@ -108,12 +108,12 @@ lemma oodSampling_crs_eq_rs
         MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial rVec)
       let multiCRSCode := multiConstrainedCode φ m s w σ
       ∃ u u' : ι → F, u ≠ u' ∧
-        u ∈ relHammingBall multiCRSCode f ↑δ ∧
-        u' ∈ relHammingBall multiCRSCode f ↑δ) : (Fin s → F) → PMF Prop) =
+        u ∈ closeCodewordsRel multiCRSCode f ↑δ ∧
+        u' ∈ closeCodewordsRel multiCRSCode f ↑δ) : (Fin s → F) → PMF Prop) =
     fun rs => PMF.pure (∃ u u' : smoothCode φ m,
       u.val ≠ u'.val ∧
-      u.val ∈ relHammingBall (↑(smoothCode φ m)) f ↑δ ∧
-      u'.val ∈ relHammingBall (↑(smoothCode φ m)) f ↑δ ∧
+      u.val ∈ closeCodewordsRel (↑(smoothCode φ m)) f ↑δ ∧
+      u'.val ∈ closeCodewordsRel (↑(smoothCode φ m)) f ↑δ ∧
       ∀ i : Fin s,
         let ri := rs i
         let rVec := fun j : Fin m => ri ^ (2^(j : ℕ))
