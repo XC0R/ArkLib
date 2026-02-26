@@ -82,7 +82,7 @@ the round polynomial using all previously received challenges, sends it, receive
 new challenge, and continues. Built by structural recursion on the remaining number
 of rounds `k`, with `prevChallenges` tracking all challenges seen so far. -/
 
-noncomputable def multiRoundProver
+def multiRoundProver
     (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     {i : ℕ} → Vector R i → (k : ℕ) → R →
     Prover Id (R × Unit) (generalPSpec R deg k)
@@ -95,7 +95,7 @@ noncomputable def multiRoundProver
 
 /-! ## Multi-round reduction -/
 
-noncomputable def generalReduction
+def generalReduction
     (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     Reduction Id R Unit R Unit (generalPSpec R deg n) where
   prover := fun (target, ()) =>

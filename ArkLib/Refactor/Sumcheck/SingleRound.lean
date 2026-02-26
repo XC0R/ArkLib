@@ -30,7 +30,7 @@ variable {n m : ℕ} {deg : ℕ}
 
 Computes the round polynomial via evaluate-and-interpolate, sends it, and
 when given a challenge `r`, produces the output statement with new target `p(r)`. -/
-noncomputable def prover {i : ℕ}
+def prover {i : ℕ}
     (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     Prover Id (StmtOut R) (pSpec R deg) :=
@@ -98,7 +98,7 @@ end OracleVerifier
 
 The witness carries the multivariate polynomial, previously fixed challenges,
 domain, and evaluation points needed by the prover. -/
-noncomputable def singleRoundReduction {i : ℕ}
+def singleRoundReduction {i : ℕ}
     (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     Reduction Id (StmtIn R) Unit (StmtOut R) Unit (pSpec R deg) where

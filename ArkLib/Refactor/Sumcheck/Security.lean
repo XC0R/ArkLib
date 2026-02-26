@@ -77,49 +77,68 @@ By a union bound over `n` rounds, the total soundness error is `n · deg / |F|`.
 
 section Soundness
 
-variable [Fintype R] [SampleableType R]
+variable [Fintype R] [SampleableType R] [DecidableEq R]
+
+/-! ### Languages and error parameters -/
+
+/-- Output language for the reduced claim after `n` rounds:
+all values attained by evaluating `poly` at some point in `R^n`. -/
+def outputLang (poly : CMvPolynomial n R) : Set R :=
+  Set.range (fun x : Fin n → R => CMvPolynomial.eval x poly)
 
 /-- The per-round soundness error: `deg / |F|`. -/
 def roundSoundnessError : ℝ≥0 :=
   ⟨deg / Fintype.card R, by positivity⟩
 
-/-- The overall soundness error for `n` rounds: `n · deg / |F|`. -/
+/-- Per-challenge round-by-round error function (uniform across rounds). -/
+def rbrSoundnessError : ChallengeIndex (generalPSpec R deg n) → ℝ≥0 :=
+  fun _ => roundSoundnessError (R := R) (deg := deg)
+
+/-- Overall soundness error as the sum of per-challenge RBR errors. -/
 def soundnessError : ℝ≥0 :=
-  ⟨n * deg / Fintype.card R, by positivity⟩
+  Finset.sum Finset.univ (rbrSoundnessError (R := R) (deg := deg) (n := n))
 
-/-- Core single-round soundness lemma (Schwartz-Zippel).
+/-! ### Empty-oracle embedding for framework-native statements
 
-If a univariate polynomial `p` of degree `≤ deg` does not sum to `target` over the
-domain, then for any value `v`, the probability that `p(r) = v` for a uniformly
-random `r ← F` is at most `deg / |F|`. -/
-theorem singleRound_soundness
-    (D : Fin m → R)
-    (roundPoly : CDegreeLE R deg)
-    (target : R)
-    (h_bad : (Finset.univ : Finset (Fin m)).sum
-      (fun i => CPolynomial.eval (D i) roundPoly.val) ≠ target)
-    (v : R) :
-    Pr[fun r => CPolynomial.eval r roundPoly.val = v
-      | ($ᵗ R : ProbComp R)
-    ] ≤ roundSoundnessError (deg := deg) (R := R) := by
+Sumcheck's plain verifier lives in `Verifier Id ...`. The framework security notions
+(`Verifier.rbrSoundness` / `Verifier.soundness`) are phrased over
+`Verifier (OracleComp oSpec) ...`, so we embed the plain verifier into the empty-oracle
+setting. -/
+
+private abbrev EmptySpec : OracleSpec PEmpty := []ₒ
+
+private def emptyImpl : QueryImpl EmptySpec (StateT Unit ProbComp) :=
+  fun q => PEmpty.elim q
+
+private def generalVerifierAsOracle (D : Fin m → R) :
+    Verifier (OracleComp EmptySpec) R R (generalPSpec R deg n) :=
+  fun target tr => OptionT.mk <| pure
+    ((generalVerifier (R := R) (deg := deg) (n := n) (m := m) D target tr).run)
+
+/-- Round-by-round soundness of the `n`-round sumcheck verifier in the framework form. -/
+theorem generalVerifier_rbrSoundness
+    (poly : CMvPolynomial n R) (D : Fin m → R) :
+    rbrSoundness
+      (impl := emptyImpl)
+      (langIn := Sumcheck.inputLang poly D)
+      (langOut := outputLang (R := R) (n := n) poly)
+      (verifier := generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+      (Inv := fun _ : Unit => True)
+      (rbrError := rbrSoundnessError (R := R) (deg := deg) (n := n)) := by
   sorry
 
-/-- Soundness of the general sumcheck verifier.
-
-If `target ∉ inputLang poly D` (the claimed sum is wrong), then for any (possibly
-probabilistic) adversarial prover, the probability that `generalVerifier` accepts
-is at most `n · deg / |F|`. -/
-theorem generalVerifier_soundness [DecidableEq R]
+/-! This is expected to be obtained from `generalVerifier_rbrSoundness` via the
+framework theorem `rbrSoundness_implies_soundness`. -/
+/-- Soundness of the general sumcheck verifier in framework form. -/
+theorem generalVerifier_soundness
     (poly : CMvPolynomial n R) (D : Fin m → R) :
-    ∀ (Output : Type),
-    ∀ prover : Prover ProbComp Output (generalPSpec R deg n),
-    ∀ target ∉ Sumcheck.inputLang poly D,
-    Pr[fun (verResult, _) => verResult.isSome
-      | do
-        let challenges ← sampleChallenges (generalPSpec R deg n)
-        let (tr, out) ← Prover.run (generalPSpec R deg n) prover challenges
-        return (generalVerifier (m := m) D target tr, out)
-    ] ≤ soundnessError (n := n) (deg := deg) (R := R) := by
+    Verifier.soundness
+      (init := (pure () : ProbComp Unit))
+      (impl := emptyImpl)
+      (langIn := Sumcheck.inputLang poly D)
+      (langOut := outputLang (R := R) (n := n) poly)
+      (verifier := generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+      (soundnessError := soundnessError (R := R) (deg := deg) (n := n)) := by
   sorry
 
 end Soundness

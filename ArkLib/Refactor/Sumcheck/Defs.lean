@@ -85,7 +85,7 @@ and interpolates them into a univariate polynomial of degree ≤ `deg`.
 
 The partial sum at point `t` is:
   `∑ z ∈ D^(remaining vars), poly(prevChallenges ++ [t] ++ z)` -/
-noncomputable def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
+def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
     (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) : CDegreeLE R deg :=
   let values : Vector R (deg + 1) := evalPoints.map (fun t =>
