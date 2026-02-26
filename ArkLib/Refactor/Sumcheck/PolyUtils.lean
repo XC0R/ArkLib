@@ -97,10 +97,10 @@ theorem eval_sum' {ι : Type} [DecidableEq ι] (x : R) (s : Finset ι) (f : ι �
   induction s using Finset.cons_induction with
   | empty =>
     simp only [Finset.sum_empty]
-    show eval x 0 = 0
+    change eval x 0 = 0
     rw [eval_toPoly]
     have : (0 : CPolynomial R).toPoly = 0 := by
-      show (0 : CPolynomial.Raw R).toPoly = 0
+      change (0 : CPolynomial.Raw R).toPoly = 0
       exact Raw.toPoly_zero
     rw [this, Polynomial.eval_zero]
   | cons a s ha ih =>

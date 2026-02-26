@@ -143,6 +143,43 @@ def OracleFree {ι : Type} {oSpec : OracleSpec ι} {SIn SOut : Type} {pSpec : Pr
   ∃ g : SIn → Transcript pSpec → Option SOut,
     ∀ stmt tr, (v stmt tr).run = pure (g stmt tr)
 
+/-- `StatePreserving impl v` means that, after simulating the verifier under `impl`,
+running it never changes the shared oracle state. -/
+def StatePreserving {ι : Type} {oSpec : OracleSpec ι} {σ : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp)) {SIn SOut : Type} {pSpec : ProtocolSpec}
+    (v : Verifier (OracleComp oSpec) SIn SOut pSpec) : Prop :=
+  ∀ stmt tr, StateT.StatePreserving (simulateQ impl (v stmt tr).run)
+
+/-- `OutputIndependent impl Inv v` means the simulated verifier's output distribution
+does not depend on the initial oracle state, as long as it satisfies `Inv`. -/
+def OutputIndependent {ι : Type} {oSpec : OracleSpec ι} {σ : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp)) (Inv : σ → Prop)
+    {SIn SOut : Type} {pSpec : ProtocolSpec}
+    (v : Verifier (OracleComp oSpec) SIn SOut pSpec) : Prop :=
+  ∀ stmt tr, StateT.OutputIndependent (simulateQ impl (v stmt tr).run) Inv
+
+lemma oracleFree_statePreserving {ι : Type} {oSpec : OracleSpec ι} {σ : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp))
+    {SIn SOut : Type} {pSpec : ProtocolSpec}
+    {v : Verifier (OracleComp oSpec) SIn SOut pSpec}
+    (h : OracleFree v) :
+    StatePreserving impl v := by
+  rcases h with ⟨g, hg⟩
+  intro stmt tr
+  -- rewrite to `pure`
+  simp [hg]
+
+lemma oracleFree_outputIndependent {ι : Type} {oSpec : OracleSpec ι} {σ : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp)) (Inv : σ → Prop)
+    {SIn SOut : Type} {pSpec : ProtocolSpec}
+    {v : Verifier (OracleComp oSpec) SIn SOut pSpec}
+    (h : OracleFree v) :
+    OutputIndependent impl Inv v := by
+  rcases h with ⟨g, hg⟩
+  intro stmt tr
+  -- rewrite to `pure`
+  simp [hg]
+
 /-!
 ### Why this hypothesis appears
 
@@ -351,7 +388,6 @@ theorem Reduction.completeness_comp
     {Inv : σ → Prop}
     {ε₁ ε₂ : ℝ≥0}
     (hV₁ : Verifier.OracleFree (oSpec := oSpec) r₁.verifier)
-    (_hV₂ : Verifier.OracleFree (oSpec := oSpec) r₂.verifier)
     (hPres : QueryImpl.PreservesInv impl Inv)
     (h₁ : r₁.completeness impl Inv relIn relMid ε₁)
     (h₂ : r₂.completeness impl Inv relMid relOut ε₂) :
@@ -427,24 +463,21 @@ theorem Reduction.completeness_comp
       Pr[(fun z₁ => good₁ z₁.1) | mx] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
     -- Start from the `run'`-based completeness statement.
     have h₁' := h₁ stmtIn witIn hIn σ0 hσ0
-    -- Re-express the `run'` experiment as mapping `z.1` over `mx`.
-    have hmap :
-        (do
-          let challenges ← sampleChallenges pSpec₁
-          Prod.fst <$> (simulateQ impl (r₁.run stmtIn witIn challenges)).run σ0) =
-          (Prod.fst <$> mx) := by
-      simp [mx, stage₁Run, StateT.run]
-    have hRunMap :
+    have h₁_good :
         Pr[good₁ | do
-          let challenges ← sampleChallenges pSpec₁
-          Prod.fst <$> (simulateQ impl (r₁.run stmtIn witIn challenges)).run σ0] ≥
-          (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
-      simpa [good₁, Reduction.completeness, StateT.run'] using h₁'
-    have : Pr[(fun z => good₁ z.1) | mx] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
-      have : Pr[good₁ ∘ Prod.fst | mx] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
-        simpa [hmap] using hRunMap
-      simpa [Function.comp] using this
-    exact this
+            let challenges ← sampleChallenges pSpec₁
+            (stage₁Run challenges).run' σ0] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
+      simpa [good₁, stage₁Run, Reduction.completeness] using h₁'
+    have hmx_run' :
+        (do
+            let challenges ← sampleChallenges pSpec₁
+            (stage₁Run challenges).run' σ0) = Prod.fst <$> mx := by
+      simp [mx, StateT.run', StateT.run, map_eq_bind_pure_comp, bind_assoc]
+    have : Pr[good₁ | Prod.fst <$> mx] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
+      exact (hmx_run'.symm ▸ h₁_good)
+    have : Pr[good₁ ∘ Prod.fst | mx] ≥ (1 : ℝ≥0∞) - (ε₁ : ℝ≥0∞) := by
+      simpa [probEvent_map] using this
+    simpa [Function.comp] using this
   have h₁_fail :
       Pr[(fun z₁ => ¬ good₁ z₁.1) | mx] ≤ (ε₁ : ℝ≥0∞) :=
     probEvent_compl_le_of_ge (by simp) h₁_success
@@ -517,7 +550,7 @@ theorem Reduction.completeness_comp
   have hsucc_exp' :
       Pr[good₂ | Prod.fst <$> exp] ≥ (1 : ℝ≥0∞) - ((ε₁ : ℝ≥0∞) + (ε₂ : ℝ≥0∞)) := by
     simpa [probEvent_map] using hsucc_exp
-  -- Identify `Prod.fst <$> exp` with the `run'` experiment in `Reduction.completeness`.
+  -- Identify `Prod.fst <$> exp` with the `run'`-based experiment in `Reduction.completeness`.
   have hexp' :
       Prod.fst <$> exp =
         (do
@@ -570,7 +603,6 @@ theorem Reduction.perfectCompleteness_comp
     {r₂ : Reduction (OracleComp oSpec) S₂ W₂ S₃ W₃ pSpec₂}
     {Inv : σ → Prop}
     (hV₁ : Verifier.OracleFree (oSpec := oSpec) r₁.verifier)
-    (hV₂ : Verifier.OracleFree (oSpec := oSpec) r₂.verifier)
     (hPres : QueryImpl.PreservesInv impl Inv)
     (h₁ : r₁.perfectCompleteness impl Inv relIn relMid)
     (h₂ : r₂.perfectCompleteness impl Inv relMid relOut) :
@@ -579,7 +611,7 @@ theorem Reduction.perfectCompleteness_comp
       (r₁.comp r₂) := by
   have := @Reduction.completeness_comp ι oSpec σ impl
     S₁ W₁ S₂ W₂ S₃ W₃ pSpec₁ pSpec₂ _ _
-    relIn relMid relOut r₁ r₂ Inv 0 0 hV₁ hV₂ hPres h₁ h₂
+    relIn relMid relOut r₁ r₂ Inv 0 0 hV₁ hPres h₁ h₂
   simpa [Reduction.perfectCompleteness] using this
 
 section CompNth
@@ -607,7 +639,7 @@ theorem Reduction.perfectCompleteness_compNth
         S W S W S W pSpec (pSpec.replicate n)
         ‹ChallengesSampleable pSpec› (ChallengesSampleable.ofReplicate n)
         rel rel rel r (r.compNth n) Inv
-        hV (Reduction.oracleFree_compNth_verifier hV n) hPres h ih
+        hV hPres h ih
 
 /-- Completeness of `n`-fold composition with error `n * ε`. -/
 theorem Reduction.completeness_compNth
@@ -632,7 +664,7 @@ theorem Reduction.completeness_compNth
         S W S W S W pSpec (pSpec.replicate n)
         ‹ChallengesSampleable pSpec› (ChallengesSampleable.ofReplicate n)
         rel rel rel r (r.compNth n) Inv ε (↑n * ε)
-        hV (Reduction.oracleFree_compNth_verifier hV n) hPres h ih
+        hV hPres h ih
 
 end CompNth
 

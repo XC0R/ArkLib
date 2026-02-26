@@ -5,6 +5,10 @@ Authors: Quang Dao
 -/
 import ArkLib.Refactor.Sumcheck.General
 
+-- This test file deliberately uses `native_decide` for computationally-intensive ground
+-- truth checks over `ZMod 7`. Suppress the mathlib-style linter that forbids it.
+set_option linter.style.nativeDecide false
+
 /-!
 # Sumcheck Protocol Test
 
@@ -72,13 +76,13 @@ example :
   native_decide
 
 -- Verifier output value = 1
-example : (generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
-    (by native_decide) |>.value = (1 : F) := by
+example : ((generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
+    (by native_decide)).value = (1 : F) := by
   native_decide
 
 -- Verifier output challenges = (3,5)
-example : (generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
-    (by native_decide) |>.challenges = (⟨#[3, 5], rfl⟩ : Vector F 2) := by
+example : ((generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
+    (by native_decide)).challenges = (⟨#[3, 5], rfl⟩ : Vector F 2) := by
   native_decide
 
 -- Wrong target REJECTED
@@ -104,7 +108,7 @@ example :
   match verResult with
   | some c => IO.println s!"Final value (verifier): {showF c.value}"
   | none => pure ()
-  IO.println s!"Final value (prover):  {showF proverOut.1.value}"
+  IO.println s!"Final value (prover):  {showF proverOut.value}"
   IO.println s!"(should be p(3,5) = 3 + 5 = 8 = 1 mod 7)"
 
 end Sumcheck.Test
