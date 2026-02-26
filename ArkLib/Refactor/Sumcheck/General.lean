@@ -3,6 +3,7 @@ Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
+import ArkLib.Refactor.Sumcheck.Defs
 import ArkLib.Refactor.Sumcheck.SingleRound
 
 /-!
@@ -32,17 +33,38 @@ variable (deg : ℕ)
 variable {R} {deg}
 variable {n m : ℕ}
 
-/-- Single-round verifier that outputs `R` (the new target) for `compNth` composition.
-Projects `StmtOut.target` from the full verifier's output. -/
-def roundVerifier (D : Fin m → R) :
-    Verifier Id R R (pSpec R deg) :=
-  fun target tr => do
-    let result ← verifier D target tr
-    pure result.target
+private def generalVerifierAux (D : Fin m → R) :
+    (k : Nat) →
+    (i : Nat) →
+    (h : i + k = n) →
+    Vector R i →
+    R →
+    Transcript (generalPSpec R deg k) →
+    Option (EvalClaim (R := R) n)
+  | 0, i, h, prevChallenges, target, _ =>
+      let hi : i = n := by simpa using h
+      some { challenges := by simpa [hi] using prevChallenges
+             value := target }
+  | k + 1, i, h, prevChallenges, target, tr => do
+      let (tr₁, tr₂) :=
+        Transcript.split (pSpec₁ := pSpec R deg) (pSpec₂ := generalPSpec R deg k) tr
+      let out ← (Sumcheck.verifier (R := R) (deg := deg) D target tr₁).run
+      have h' : (i + 1) + k = n := by
+        -- from `h : i + (k + 1) = n`
+        omega
+      generalVerifierAux D k (i + 1) h' (prevChallenges.push out.challenge) out.target tr₂
 
+/-- Multi-round sumcheck verifier.
+
+Runs the single-round checks sequentially, accumulating the verifier challenges into
+`EvalClaim.challenges` and returning the final value claim `EvalClaim.value`. The
+final check against the original multivariate polynomial is deferred to the output
+relation/language of the reduction. -/
 def generalVerifier (D : Fin m → R) :
-    Verifier Id R R (generalPSpec R deg n) :=
-  Verifier.compNth n (roundVerifier D)
+    Verifier Id R (EvalClaim (R := R) n) (generalPSpec R deg n) :=
+  fun target tr =>
+    OptionT.mk <| generalVerifierAux (R := R) (deg := deg) (n := n) (m := m) D n 0
+      (by simp) ⟨#[], rfl⟩ target tr
 
 /-! ## Multi-round oracle verifier -/
 
@@ -84,22 +106,27 @@ of rounds `k`, with `prevChallenges` tracking all challenges seen so far. -/
 
 def multiRoundProver
     (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
-    {i : ℕ} → Vector R i → (k : ℕ) → R →
-    Prover Id (R × Unit) (generalPSpec R deg k)
-  | _, _, 0, target => (target, ())
-  | _, prevChallenges, k + 1, _ =>
-    let roundPoly := computeRoundPoly poly prevChallenges D evalPoints
-    (roundPoly, fun chal =>
-      multiRoundProver poly D evalPoints (prevChallenges.push chal) k
-        (CPolynomial.eval chal roundPoly.val))
+    (k : Nat) → (i : Nat) → (h : i + k = n) → Vector R i → R →
+    Prover Id (EvalClaim (R := R) n × Unit) (generalPSpec R deg k)
+  | 0, i, h, prevChallenges, target =>
+      let hi : i = n := by simpa using h
+      ({ challenges := by simpa [hi] using prevChallenges
+         value := target }, ())
+  | k + 1, i, h, prevChallenges, target =>
+      let roundPoly := computeRoundPoly poly prevChallenges D evalPoints
+      (roundPoly, fun chal =>
+        have h' : (i + 1) + k = n := by omega
+        multiRoundProver poly D evalPoints k (i + 1) h' (prevChallenges.push chal)
+          (CPolynomial.eval chal roundPoly.val))
 
 /-! ## Multi-round reduction -/
 
 def generalReduction
     (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
-    Reduction Id R Unit R Unit (generalPSpec R deg n) where
+    Reduction Id R Unit (EvalClaim (R := R) n) Unit (generalPSpec R deg n) where
   prover := fun (target, ()) =>
-    multiRoundProver poly D evalPoints ⟨#[], rfl⟩ n target
+    multiRoundProver (R := R) (deg := deg) (n := n) (m := m) poly D evalPoints n 0
+      (by simp) ⟨#[], rfl⟩ target
   verifier := generalVerifier D
 
 end Sumcheck

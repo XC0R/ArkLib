@@ -3,6 +3,7 @@ Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
+import ArkLib.Refactor.Sumcheck.Defs
 import ArkLib.Refactor.Sumcheck.General
 import ArkLib.Refactor.Security.StateFunction
 
@@ -81,10 +82,13 @@ variable [Fintype R] [SampleableType R] [DecidableEq R]
 
 /-! ### Languages and error parameters -/
 
-/-- Output language for the reduced claim after `n` rounds:
-all values attained by evaluating `poly` at some point in `R^n`. -/
-def outputLang (poly : CMvPolynomial n R) : Set R :=
-  Set.range (fun x : Fin n → R => CMvPolynomial.eval x poly)
+/-- Output language for the reduced claim after `n` rounds.
+
+Since sumcheck is modeled as a **reduction**, the verifier outputs the random point
+`r` (the sampled challenges) together with the final value `v`. The remaining
+obligation is the evaluation relation `poly(r) = v`. -/
+def outputLang (poly : CMvPolynomial n R) : Set (EvalClaim (R := R) n) :=
+  { c | CMvPolynomial.eval (fun i => c.challenges.get i) poly = c.value }
 
 /-- The per-round soundness error: `deg / |F|`. -/
 def roundSoundnessError : ℝ≥0 :=
@@ -111,7 +115,7 @@ private def emptyImpl : QueryImpl EmptySpec (StateT Unit ProbComp) :=
   fun q => PEmpty.elim q
 
 private def generalVerifierAsOracle (D : Fin m → R) :
-    Verifier (OracleComp EmptySpec) R R (generalPSpec R deg n) :=
+    Verifier (OracleComp EmptySpec) R (EvalClaim (R := R) n) (generalPSpec R deg n) :=
   fun target tr => OptionT.mk <| pure
     ((generalVerifier (R := R) (deg := deg) (n := n) (m := m) D target tr).run)
 

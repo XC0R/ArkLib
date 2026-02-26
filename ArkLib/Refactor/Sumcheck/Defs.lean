@@ -43,6 +43,12 @@ structure StmtOut where
   target : R
   challenge : R
 
+/-- The output statement of the full `n`-round sumcheck reduction: the verifier's
+random point (the sequence of challenges) and the final value claim. -/
+structure EvalClaim (n : ℕ) where
+  challenges : Vector R n
+  value : R
+
 /-- The oracle statement: the multivariate polynomial being summed.
 No degree-bound subtype — degree bounds are enforced by the relation instead. -/
 abbrev OStmt (n : ℕ) := CMvPolynomial n R
