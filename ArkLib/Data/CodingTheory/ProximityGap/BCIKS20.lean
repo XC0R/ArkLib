@@ -6,6 +6,11 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 -/
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
+import ArkLib.Data.CodingTheory.ReedSolomon
+import ArkLib.Data.CodingTheory.GuruswamiSudan
+import ArkLib.Data.Polynomial.RationalFunctions
+import ArkLib.Data.Polynomial.Trivariate
+
 
 /-!
   # Definitions and Theorems about Proximity Gaps
@@ -72,7 +77,7 @@ theorem proximity_gap_RSCodes {k t : ℕ} [NeZero k] [NeZero t] {deg : ℕ} {dom
     δ
     (errorBound δ deg domain) := by sorry
 
-set_option linter.style.commandStart false
+
 
 /-
 Theorem 4.1. Suppose `δ ≤ (1-ρ) / 2`. Let `u_0, u_1: 𝒟 → 𝔽_q` be functions. Let
