@@ -160,6 +160,10 @@ import ArkLib.Refactor.ProtocolSpec
 import ArkLib.Refactor.Prover
 import ArkLib.Refactor.Reduction
 import ArkLib.Refactor.Security.Composition
+import ArkLib.Refactor.Security.Composition.Completeness
+import ArkLib.Refactor.Security.Composition.KnowledgeSoundness
+import ArkLib.Refactor.Security.Composition.Soundness
+import ArkLib.Refactor.Security.Composition.Util
 import ArkLib.Refactor.Security.Defs
 import ArkLib.Refactor.Security.StateFunction
 import ArkLib.Refactor.Sumcheck.Completeness
