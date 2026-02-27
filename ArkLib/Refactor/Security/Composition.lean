@@ -5,7 +5,7 @@ Authors: Quang Dao
 -/
 import ArkLib.Refactor.Security.StateFunction
 import Mathlib.Topology.Algebra.InfiniteSum.Constructions
-import VCVio.EvalDist.Monad.Basic
+import VCVio.EvalDist.Fintype
 import VCVio.EvalDist.Monad.Map
 
 /-!
@@ -34,82 +34,6 @@ noncomputable section
 
 open OracleComp OracleSpec ProtocolSpec
 open scoped NNReal ENNReal BigOperators
-
-/-! ## Probability Helper Lemmas
-
-General lemmas about `probEvent` that belong in VCVio. Placed here temporarily. -/
-
-section ProbEvent
-
-variable {m : Type → Type} [Monad m] [HasEvalSPMF m] {α : Type}
-
-/-! ### Union bound for `probEvent` over a finite index set -/
-
-lemma probEvent_exists_finset_le_sum
-    {ι : Type} (s : Finset ι) (mx : m α) (E : ι → α → Prop)
-    [DecidablePred (fun x => ∃ i ∈ s, E i x)]
-    [∀ i, DecidablePred (E i)] :
-    Pr[(fun x => ∃ i ∈ s, E i x) | mx] ≤ Finset.sum s (fun i => Pr[E i | mx]) := by
-  classical
-  letI : DecidableEq ι := Classical.decEq ι
-  -- Prove by induction on the finite set `s`.
-  refine Finset.induction_on s ?base ?step
-  · -- `s = ∅`
-    simp
-  · intro a s haNotMem ih
-    -- Rewrite the event over `insert a s` as a disjunction.
-    have hE :
-        (fun x => ∃ i ∈ insert a s, E i x)
-          = fun x => E a x ∨ ∃ i ∈ s, E i x := by
-      funext x
-      apply propext
-      constructor
-      · rintro ⟨i, hi, hix⟩
-        rcases Finset.mem_insert.mp hi with rfl | hi'
-        · exact Or.inl hix
-        · exact Or.inr ⟨i, hi', hix⟩
-      · intro hx
-        cases hx with
-        | inl hax => exact ⟨a, Finset.mem_insert_self _ _, hax⟩
-        | inr hx' =>
-            rcases hx' with ⟨i, hi, hix⟩
-            exact ⟨i, Finset.mem_insert_of_mem hi, hix⟩
-    -- Union bound for a disjunction via indicator inequality.
-    -- `Pr[p ∨ q] ≤ Pr[p] + Pr[q]`.
-    have hor :
-        Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
-          ≤ Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx] := by
-      -- Expand all three probabilities as `tsum` of `ite`s, then use pointwise `ite_or ≤ ite + ite`.
-      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => E a x ∨ ∃ i ∈ s, E i x)]
-      rw [probEvent_eq_tsum_ite (mx := mx) (p := E a)]
-      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => ∃ i ∈ s, E i x)]
-      -- Now it's pointwise.
-      let f : α → ℝ≥0∞ := fun y => if E a y then Pr[= y | mx] else 0
-      let g : α → ℝ≥0∞ := fun y => if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0
-      have hle :
-          (∑' y : α, if (E a y ∨ ∃ i ∈ s, E i y) then Pr[= y | mx] else 0)
-            ≤ (∑' y : α, (f y + g y)) := by
-        refine ENNReal.tsum_le_tsum fun y => ?_
-        by_cases ha' : E a y <;> by_cases hs' : (∃ i ∈ s, E i y) <;>
-          simp [f, g, ha', hs']
-      have hspl : (∑' y : α, (f y + g y)) = (∑' y : α, f y) + (∑' y : α, g y) := by
-        simpa using (ENNReal.tsum_add (f := f) (g := g))
-      -- Put together.
-      exact le_trans hle (le_of_eq hspl)
-    -- Finish by rewriting `hE`, applying `hor`, then the induction hypothesis.
-    -- Also, `Finset.sum (insert a s) = Pr[E a] + sum s`.
-    have hsum :
-        Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx]
-          ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
-      by
-        -- `add_le_add_left` may produce the terms in the opposite order; normalize by commutativity.
-        simpa [add_comm, add_left_comm, add_assoc] using add_le_add_left ih (Pr[E a | mx])
-    have : Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
-        ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
-      le_trans hor hsum
-    simpa [hE, Finset.sum_insert haNotMem, add_assoc, add_left_comm, add_comm] using this
-
-end ProbEvent
 
 namespace HVector
 
@@ -310,6 +234,22 @@ lemma run_comp_join_bind {m : Type → Type} [Monad m] [LawfulMonad m]
   -- Apply `>>= k` to both sides of `run_comp_join`.
   simpa [bind_assoc] using congrArg (fun z => z >>= k) (run_comp_join (m := m)
     (prover₁ := prover₁) (f := f) (ch₁ := ch₁) (ch₂ := ch₂))
+
+/-- Extract the first-stage prover from a prover over `pSpec₁ ++ pSpec₂`.
+Running the extracted prover over `pSpec₁` returns the residual prover for `pSpec₂`. -/
+def splitPrefix {m : Type → Type} [Monad m] {Output : Type} :
+    (pSpec₁ : ProtocolSpec) → {pSpec₂ : ProtocolSpec} →
+    Prover m Output (pSpec₁ ++ pSpec₂) → Prover m (Prover m Output pSpec₂) pSpec₁
+  | [], _, prover => prover
+  | (.P_to_V _ _) :: tl, _, prover =>
+      let (msg, cont) := prover
+      (msg, do
+        let next ← cont
+        return splitPrefix tl next)
+  | (.V_to_P _) :: tl, _, prover =>
+      fun chal => do
+        let next ← prover chal
+        return splitPrefix tl next
 
 end Prover
 
@@ -672,10 +612,111 @@ variable {StmtIn StmtOut : Type}
   {ι : Type} {oSpec : OracleSpec ι}
   {σ : Type} (init : ProbComp σ) (impl : QueryImpl oSpec (StateT σ ProbComp))
 
+lemma probEvent_exists_finset_le_sum
+    {m : Type → Type} [Monad m] [HasEvalSPMF m]
+    {α : Type} {ι : Type} (s : Finset ι) (mx : m α) (E : ι → α → Prop)
+    :
+    Pr[(fun x => ∃ i ∈ s, E i x) | mx] ≤ Finset.sum s (fun i => Pr[E i | mx]) := by
+  classical
+  letI : DecidableEq ι := Classical.decEq ι
+  refine Finset.induction_on s ?base ?step
+  · simp
+  · intro a s ha ih
+    have hE :
+        (fun x => ∃ i ∈ insert a s, E i x) = fun x => E a x ∨ ∃ i ∈ s, E i x := by
+      funext x
+      apply propext
+      constructor
+      · rintro ⟨i, hi, hix⟩
+        rcases Finset.mem_insert.mp hi with rfl | hi'
+        · exact Or.inl hix
+        · exact Or.inr ⟨i, hi', hix⟩
+      · intro hx
+        cases hx with
+        | inl hax => exact ⟨a, Finset.mem_insert_self _ _, hax⟩
+        | inr hx' =>
+            rcases hx' with ⟨i, hi, hix⟩
+            exact ⟨i, Finset.mem_insert_of_mem hi, hix⟩
+    have hor :
+        Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
+          ≤ Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx] := by
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => E a x ∨ ∃ i ∈ s, E i x)]
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := E a)]
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => ∃ i ∈ s, E i x)]
+      have hle :
+          (∑' y : α, if (E a y ∨ ∃ i ∈ s, E i y) then Pr[= y | mx] else 0)
+            ≤ (∑' y : α, ((if E a y then Pr[= y | mx] else 0)
+                + (if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0))) := by
+        refine ENNReal.tsum_le_tsum fun y => ?_
+        by_cases ha' : E a y <;> by_cases hs' : (∃ i ∈ s, E i y) <;>
+          simp [ha', hs']
+      have hspl :
+          (∑' y : α, ((if E a y then Pr[= y | mx] else 0)
+              + (if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0)))
+            =
+          (∑' y : α, (if E a y then Pr[= y | mx] else 0))
+            + (∑' y : α, (if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0)) := by
+        simpa using (ENNReal.tsum_add
+          (f := fun y : α => (if E a y then Pr[= y | mx] else 0))
+          (g := fun y : α => (if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0)))
+      exact le_trans hle (le_of_eq hspl)
+    have hsum :
+        Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx]
+          ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) := by
+      simpa [add_comm, add_left_comm, add_assoc] using add_le_add_left ih (Pr[E a | mx])
+    have :
+        Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
+          ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
+      le_trans hor hsum
+    simpa [hE, Finset.sum_insert ha, add_assoc, add_left_comm, add_comm] using this
+
+private lemma cast_cons_hvector {r : Round} {l₁ l₂ : List Round}
+    (h : l₁ = l₂) (hd : r.type) (tltr : HVector Round.type l₁) :
+    (hd, cast (congrArg (fun l => HVector Round.type l) h) tltr) =
+      cast (congrArg (fun l => HVector Round.type (r :: l)) h) (hd, tltr) := by
+  cases h
+  rfl
+
+private lemma hvector_take_length_eq {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
+    HVector.take pSpec.length pSpec tr = PartialTranscript.ofTranscript tr := by
+  induction pSpec with
+  | nil =>
+      cases tr
+      rfl
+  | cons r tl ih =>
+      cases tr with
+      | mk hd tltr =>
+          simpa [HVector.take, PartialTranscript.ofTranscript, ih tltr, List.take_length]
+            using cast_cons_hvector (h := (List.take_length (l := tl)).symm) hd tltr
+
+private lemma hvector_take_succ_eq_concat {pSpec : ProtocolSpec}
+    (k : Nat) (hk : k < pSpec.length) (tr : Transcript pSpec) :
+    HVector.take (k + 1) pSpec tr =
+      PartialTranscript.concat pSpec hk (HVector.take k pSpec tr)
+        (HVector.get pSpec tr ⟨k, hk⟩) := by
+  induction pSpec generalizing k with
+  | nil =>
+      cases hk
+  | cons r tl ih =>
+      cases k with
+      | zero =>
+          cases tr
+          simp [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons]
+      | succ k =>
+          cases tr with
+          | mk hd tltr =>
+              have hk' : k < tl.length := by simpa using hk
+              simpa [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons,
+                HVector.head, HVector.tail] using
+                congrArg (fun t => (hd, t)) (ih k hk' tltr)
+
+set_option maxHeartbeats 800000 in
+-- This theorem performs several large dependent rewrites over `ProbComp` binds and
+-- transcript casts; the default heartbeat budget times out during elaboration.
 /-- RBR soundness implies overall soundness. The total soundness error is bounded by
 the sum of per-round RBR errors over all challenge rounds.
 
-**Proof strategy** (currently `sorry`):
+**Proof strategy**:
 1. Extract the state function `sf` from `rbrSoundness`.
 2. For `stmtIn ∉ langIn`, `¬sf.toFun 0 stmtIn HVector.nil` (by `toFun_empty`).
 3. Bound `Pr[accept]` by `Pr[sf.toFun pSpec.length stmtIn tr]` using `toFun_full` and
@@ -694,12 +735,347 @@ theorem rbrSoundness_implies_soundness
     (h : rbrSoundness impl langIn langOut verifier Inv rbrError) :
     verifier.soundness init impl langIn langOut
       (Finset.sum Finset.univ rbrError) := by
+  classical
   obtain ⟨sf, hrbr⟩ := h
   intro Output prover stmtIn hstmtIn
-  have _hstart : ¬sf.toFun 0 stmtIn HVector.nil :=
+  have _hstart : ¬ sf.toFun 0 stmtIn HVector.nil :=
     fun hf => hstmtIn ((sf.toFun_empty stmtIn).mpr hf)
-  -- TODO: complete the proof (see docstring above).
-  sorry
+  let ε : ℝ≥0∞ := (Finset.sum Finset.univ rbrError : ℝ≥0)
+  let accept : (Option StmtOut × Output) → Prop :=
+    fun z => ∃ s ∈ langOut, z.1 = some s
+  let expPair : σ → ProbComp (Option StmtOut × Output) := fun σ0 => do
+    let z ← (do
+      let challenges ← sampleChallenges pSpec
+      (simulateQ impl (Prover.run pSpec prover challenges)).run σ0)
+    let verResult ← (simulateQ impl (verifier stmtIn z.1.1)).run' z.2
+    return (verResult, z.1.2)
+  have probEvent_some_eq_optionT :
+      ∀ (mxo : ProbComp (Option StmtOut)),
+        Pr[(fun o => ∃ s ∈ langOut, o = some s) | mxo] =
+          Pr[(· ∈ langOut) | (OptionT.mk mxo : OptionT ProbComp StmtOut)] := by
+    intro mxo
+    rw [probEvent_eq_tsum_ite, probEvent_eq_tsum_ite]
+    rw [tsum_option (f := fun o : Option StmtOut =>
+      if (∃ s ∈ langOut, o = some s) then Pr[= o | mxo] else 0) ENNReal.summable]
+    simp [OptionT.probOutput_eq]
+  have htake_full (tr : Transcript pSpec) :
+      HVector.take pSpec.length pSpec tr = PartialTranscript.ofTranscript tr := by
+    exact hvector_take_length_eq (tr := tr)
+  have hσbound : ∀ σ0, Inv σ0 → Pr[accept | expPair σ0] ≤ ε := by
+    intro σ0 hσ0
+    let mxRun : ProbComp ((Transcript pSpec × Output) × σ) := do
+      let challenges ← sampleChallenges pSpec
+      (simulateQ impl (Prover.run pSpec prover challenges)).run σ0
+    let mx0 : ProbComp (Transcript pSpec × Output) := do
+      let challenges ← sampleChallenges pSpec
+      (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
+    let my : ((Transcript pSpec × Output) × σ) → ProbComp (Option StmtOut × Output) := fun z => do
+      let verResult ← (simulateQ impl (verifier stmtIn z.1.1)).run' z.2
+      return (verResult, z.1.2)
+    let finalRun : ((Transcript pSpec × Output) × σ) → Prop := fun z =>
+      sf.toFun pSpec.length stmtIn (PartialTranscript.ofTranscript z.1.1)
+    let final0 : (Transcript pSpec × Output) → Prop := fun z =>
+      sf.toFun pSpec.length stmtIn (PartialTranscript.ofTranscript z.1)
+    let flip : ChallengeIndex pSpec → (Transcript pSpec × Output) → Prop := fun i z =>
+      ¬ sf.toFun i.1 stmtIn (HVector.take i.1 pSpec z.1) ∧
+        sf.toFun (i.1 + 1) stmtIn (HVector.take (i.1 + 1) pSpec z.1)
+    have hexpPair_eq_bind : expPair σ0 = mxRun >>= my := by
+      unfold expPair mxRun my
+      simp [StateT.run', StateT.run, bind_assoc]
+    have hmx0_eq_mapfst : mx0 = Prod.fst <$> mxRun := by
+      simp [mx0, mxRun, StateT.run', StateT.run, map_eq_bind_pure_comp, bind_assoc]
+    have hInv_on_support : ∀ z ∈ support mxRun, Inv z.2 := by
+      intro z hz
+      simp only [mxRun, mem_support_bind_iff] at hz
+      rcases hz with ⟨ch, hch, hz'⟩
+      exact (OracleComp.simulateQ_run_preservesInv (impl := impl) (Inv := Inv) hPres
+        (oa := Prover.run pSpec prover ch) σ0 hσ0 z hz')
+    have h_acc_le_finalRun :
+        Pr[accept | expPair σ0] ≤ Pr[finalRun | mxRun] := by
+      rw [hexpPair_eq_bind, probEvent_bind_eq_tsum]
+      rw [probEvent_eq_tsum_ite (mx := mxRun) (p := finalRun)]
+      refine ENNReal.tsum_le_tsum fun z => ?_
+      by_cases hz : z ∈ support mxRun
+      · have hInvz : Inv z.2 := hInv_on_support z hz
+        by_cases hft : finalRun z
+        · calc
+            Pr[= z | mxRun] * Pr[accept | my z] ≤ Pr[= z | mxRun] * 1 := by
+              exact mul_le_mul' le_rfl probEvent_le_one
+            _ = Pr[= z | mxRun] := by simp
+            _ = (if finalRun z then Pr[= z | mxRun] else 0) := by simp [hft]
+        · have hopt0 :
+            Pr[(fun verResult => ∃ s ∈ langOut, verResult = some s) |
+              (simulateQ impl (verifier stmtIn z.1.1)).run' z.2] = 0 := by
+            rw [probEvent_some_eq_optionT]
+            exact sf.toFun_full stmtIn z.1.1 z.2 hInvz hft
+          have hinner0 : Pr[accept | my z] = 0 := by
+            unfold my accept
+            simpa [probEvent_map, Function.comp] using hopt0
+          simp [hft, hinner0]
+      · have hz0 : Pr[= z | mxRun] = 0 := probOutput_eq_zero_of_not_mem_support hz
+        by_cases hft : finalRun z <;> simp [hft, hz0]
+    have h_final0_eq_finalRun : Pr[final0 | mx0] = Pr[finalRun | mxRun] := by
+      rw [hmx0_eq_mapfst]
+      rw [probEvent_map]
+      rfl
+    have h_final_false_of_noFlip :
+        ∀ tr : Transcript pSpec,
+          (∀ i : ChallengeIndex pSpec,
+            ¬ (¬ sf.toFun i.1 stmtIn (HVector.take i.1 pSpec tr) ∧
+                sf.toFun (i.1 + 1) stmtIn (HVector.take (i.1 + 1) pSpec tr))) →
+          ¬ sf.toFun pSpec.length stmtIn (PartialTranscript.ofTranscript tr) := by
+      intro tr hNoFlip
+      have hfalse_prefix :
+          ∀ k, k ≤ pSpec.length →
+            ¬ sf.toFun k stmtIn (HVector.take k pSpec tr) := by
+        intro k hkLe
+        induction k with
+        | zero =>
+            simpa using _hstart
+        | succ k ih =>
+            have hkLt : k < pSpec.length := Nat.lt_of_succ_le hkLe
+            have hkFalse : ¬ sf.toFun k stmtIn (HVector.take k pSpec tr) := ih (Nat.le_of_lt hkLt)
+            by_cases hchal : (pSpec.get ⟨k, hkLt⟩).isChallenge = true
+            · have hNoFlipK :
+                ¬ (¬ sf.toFun k stmtIn (HVector.take k pSpec tr) ∧
+                    sf.toFun (k + 1) stmtIn (HVector.take (k + 1) pSpec tr)) := by
+                simpa using hNoFlip ⟨⟨k, hkLt⟩, hchal⟩
+              exact fun hkSucc => hNoFlipK ⟨hkFalse, hkSucc⟩
+            · have hnon : (pSpec.get ⟨k, hkLt⟩).isChallenge = false := by
+                exact Bool.eq_false_iff.mpr hchal
+              have hstep :=
+                sf.toFun_next k hkLt hnon stmtIn (HVector.take k pSpec tr) hkFalse
+                  (HVector.get pSpec tr ⟨k, hkLt⟩)
+              have htake := hvector_take_succ_eq_concat (k := k) (hk := hkLt) (tr := tr)
+              simpa [htake] using hstep
+      have hlenFalse :
+          ¬ sf.toFun pSpec.length stmtIn (HVector.take pSpec.length pSpec tr) :=
+        hfalse_prefix pSpec.length le_rfl
+      have hfullEq := htake_full tr
+      simpa [hfullEq] using hlenFalse
+    have h_final_implies_exists :
+        ∀ x : Transcript pSpec × Output, final0 x → ∃ i : ChallengeIndex pSpec, flip i x := by
+      intro x hxFinal
+      by_contra hNone
+      push_neg at hNone
+      exact (h_final_false_of_noFlip x.1 hNone) hxFinal
+    have h_final_le_exists :
+        Pr[final0 | mx0] ≤
+          Pr[(fun x => ∃ i ∈ (Finset.univ : Finset (ChallengeIndex pSpec)), flip i x) | mx0] := by
+      refine probEvent_mono ?_
+      intro x hx hxFinal
+      rcases h_final_implies_exists x hxFinal with ⟨i, hi⟩
+      exact ⟨i, Finset.mem_univ i, hi⟩
+    have h_union :
+        Pr[(fun x => ∃ i ∈ (Finset.univ : Finset (ChallengeIndex pSpec)), flip i x) | mx0] ≤
+          Finset.sum Finset.univ (fun i => Pr[flip i | mx0]) := by
+      exact probEvent_exists_finset_le_sum
+        (s := (Finset.univ : Finset (ChallengeIndex pSpec))) (mx := mx0)
+        (E := fun i x => flip i x)
+    have h_each : ∀ i : ChallengeIndex pSpec, Pr[flip i | mx0] ≤ rbrError i := by
+      intro i
+      simpa [mx0, flip] using hrbr stmtIn hstmtIn Output prover i σ0 hσ0
+    have h_final0_le_sum : Pr[final0 | mx0] ≤ ε := by
+      calc
+        Pr[final0 | mx0]
+            ≤ Pr[(fun x => ∃ i ∈ (Finset.univ : Finset (ChallengeIndex pSpec)), flip i x) | mx0] :=
+              h_final_le_exists
+        _ ≤ Finset.sum Finset.univ (fun i => Pr[flip i | mx0]) :=
+              h_union
+        _ ≤ Finset.sum Finset.univ (fun i => (rbrError i : ℝ≥0∞)) := by
+              exact Finset.sum_le_sum (fun i _ => h_each i)
+        _ = ε := by
+              simp [ε]
+    calc
+      Pr[accept | expPair σ0] ≤ Pr[finalRun | mxRun] := h_acc_le_finalRun
+      _ = Pr[final0 | mx0] := h_final0_eq_finalRun.symm
+      _ ≤ ε := h_final0_le_sum
+  have hInitBound :
+      Pr[accept | do
+        let σ0 ← init
+        expPair σ0] ≤ ε := by
+    rw [probEvent_bind_eq_tsum]
+    calc
+      ∑' σ0, Pr[= σ0 | init] * Pr[accept | expPair σ0]
+          ≤ ∑' σ0, Pr[= σ0 | init] * ε := by
+            refine ENNReal.tsum_le_tsum fun σ0 => ?_
+            by_cases hσ0 : σ0 ∈ support init
+            · exact mul_le_mul' le_rfl (hσbound σ0 (hInit σ0 hσ0))
+            · simp [probOutput_eq_zero_of_not_mem_support hσ0]
+      _ = (∑' σ0, Pr[= σ0 | init]) * ε := by
+            rw [ENNReal.tsum_mul_right]
+      _ ≤ 1 * ε := by
+            exact mul_le_mul' tsum_probOutput_le_one le_rfl
+      _ = ε := by simp
+  let f : Challenges pSpec → σ → ProbComp (Option StmtOut × Output) := fun challenges σ0 => do
+    let z ← (simulateQ impl (Prover.run pSpec prover challenges)).run σ0
+    let verResult ← (simulateQ impl (verifier stmtIn z.1.1)).run' z.2
+    return (verResult, z.1.2)
+  have hswap :
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        let σ0 ← init
+        f challenges σ0] =
+      Pr[accept | do
+        let σ0 ← init
+        let challenges ← sampleChallenges pSpec
+        f challenges σ0] := by
+    simpa [f] using
+      (probEvent_bind_bind_swap
+        (mx := sampleChallenges pSpec) (my := init) (f := f) (q := accept))
+  have hmain :
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        (f challenges (← init))] ≤ ε := by
+    calc
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        (f challenges (← init))]
+          = Pr[accept | do
+              let challenges ← sampleChallenges pSpec
+              let σ0 ← init
+              f challenges σ0] := by
+                simp
+      _ = Pr[accept | do
+            let σ0 ← init
+            let challenges ← sampleChallenges pSpec
+            f challenges σ0] := hswap
+      _ = Pr[accept | do
+            let σ0 ← init
+            expPair σ0] := by
+              simp [expPair, f, bind_assoc]
+      _ ≤ ε := hInitBound
+  simpa [accept, expPair, f, ε] using hmain
+
+/-- `soundnessFromState` is `Verifier.soundness` with explicit initial state `σ0`,
+assuming `Inv σ0`. -/
+private def Verifier.soundnessFromState
+    {StmtIn StmtOut : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    (impl : QueryImpl oSpec (StateT σ ProbComp)) (Inv : σ → Prop)
+    (langIn : Set StmtIn) (langOut : Set StmtOut)
+    (verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec)
+    (soundnessError : ℝ≥0) : Prop :=
+  ∀ (Output : Type),
+  ∀ prover : Prover (OracleComp oSpec) Output pSpec,
+  ∀ stmtIn ∉ langIn,
+  ∀ σ0 : σ,
+  (Inv σ0) →
+    Pr[fun (verResult, _) => ∃ s ∈ langOut, verResult = some s
+      | do
+        let challenges ← sampleChallenges pSpec
+        (simulateQ impl (do
+          let (tr, out) ← Prover.run pSpec prover challenges
+          let verResult ← (verifier stmtIn tr).run
+          return (verResult, out))).run' σ0
+    ] ≤ soundnessError
+
+private theorem soundnessFromState_of_rbr
+    {StmtIn StmtOut : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {langIn : Set StmtIn} {langOut : Set StmtOut}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
+    {rbrError : ChallengeIndex pSpec → ℝ≥0}
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrSoundness impl langIn langOut verifier Inv rbrError) :
+    Verifier.soundnessFromState impl Inv langIn langOut verifier
+      (Finset.sum Finset.univ rbrError) := by
+  intro Output prover stmtIn hstmtIn σ0 hσ0
+  have hInitPure : InitSatisfiesInv (init := (pure σ0 : ProbComp σ)) Inv := by
+    intro σ' hσ'
+    have hEq : σ' = σ0 := by simpa [support_pure] using hσ'
+    simpa [hEq] using hσ0
+  have hSound :
+      verifier.soundness (pure σ0) impl langIn langOut
+        (Finset.sum Finset.univ rbrError) :=
+    rbrSoundness_implies_soundness (init := (pure σ0 : ProbComp σ)) (impl := impl)
+      (hInit := hInitPure) (hPres := hPres) (h := h)
+  simpa [Verifier.soundness] using
+    (hSound (Output := Output) (prover := prover) (stmtIn := stmtIn) hstmtIn)
+
+set_option maxHeartbeats 800000 in
+-- This helper performs large bind reassociations and event rewrites over `ProbComp`.
+private theorem soundness_of_soundnessFromState
+    {StmtIn StmtOut : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {langIn : Set StmtIn} {langOut : Set StmtOut}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
+    {soundnessError : ℝ≥0}
+    (hInit : InitSatisfiesInv init Inv)
+    (hσbound : Verifier.soundnessFromState impl Inv langIn langOut verifier soundnessError) :
+    verifier.soundness init impl langIn langOut soundnessError := by
+  intro Output prover stmtIn hstmtIn
+  let ε : ℝ≥0∞ := (soundnessError : ℝ≥0∞)
+  let accept : (Option StmtOut × Output) → Prop := fun z => ∃ s ∈ langOut, z.1 = some s
+  let exp : σ → ProbComp (Option StmtOut × Output) := fun σ0 => do
+    let challenges ← sampleChallenges pSpec
+    (simulateQ impl (do
+      let (tr, out) ← Prover.run pSpec prover challenges
+      let verResult ← (verifier stmtIn tr).run
+      return (verResult, out))).run' σ0
+  have hσbound' : ∀ σ0, Inv σ0 → Pr[accept | exp σ0] ≤ ε := by
+    intro σ0 hσ0
+    simpa [ε, accept, exp, Verifier.soundnessFromState] using
+      (hσbound (Output := Output) (prover := prover) (stmtIn := stmtIn) hstmtIn σ0 hσ0)
+  have hInitBound :
+      Pr[accept | do
+        let σ0 ← init
+        exp σ0] ≤ ε := by
+    rw [probEvent_bind_eq_tsum]
+    calc
+      ∑' σ0, Pr[= σ0 | init] * Pr[accept | exp σ0]
+          ≤ ∑' σ0, Pr[= σ0 | init] * ε := by
+            refine ENNReal.tsum_le_tsum fun σ0 => ?_
+            by_cases hσ0 : σ0 ∈ support init
+            · exact mul_le_mul' le_rfl (hσbound' σ0 (hInit σ0 hσ0))
+            · simp [probOutput_eq_zero_of_not_mem_support hσ0]
+      _ = (∑' σ0, Pr[= σ0 | init]) * ε := by
+            rw [ENNReal.tsum_mul_right]
+      _ ≤ 1 * ε := by
+            exact mul_le_mul' tsum_probOutput_le_one le_rfl
+      _ = ε := by simp
+  let f : Challenges pSpec → σ → ProbComp (Option StmtOut × Output) := fun challenges σ0 => do
+    (simulateQ impl (do
+      let (tr, out) ← Prover.run pSpec prover challenges
+      let verResult ← (verifier stmtIn tr).run
+      return (verResult, out))).run' σ0
+  have hswap :
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        let σ0 ← init
+        f challenges σ0] =
+      Pr[accept | do
+        let σ0 ← init
+        let challenges ← sampleChallenges pSpec
+        f challenges σ0] := by
+    simpa [f] using
+      (probEvent_bind_bind_swap
+        (mx := sampleChallenges pSpec) (my := init) (f := f) (q := accept))
+  have hmain :
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        (f challenges (← init))] ≤ ε := by
+    calc
+      Pr[accept | do
+        let challenges ← sampleChallenges pSpec
+        (f challenges (← init))]
+          = Pr[accept | do
+              let challenges ← sampleChallenges pSpec
+              let σ0 ← init
+              f challenges σ0] := by
+                simp
+      _ = Pr[accept | do
+            let σ0 ← init
+            let challenges ← sampleChallenges pSpec
+            f challenges σ0] := hswap
+      _ = Pr[accept | do
+            let σ0 ← init
+            exp σ0] := by
+              simp [exp, f]
+      _ ≤ ε := hInitBound
+  simpa [Verifier.soundness, accept, exp, f, ε] using hmain
 
 /-- Soundness of `n`-fold composition: if each copy has RBR soundness error `rbrError`,
 the composed protocol has total soundness error at most `n * Σᵢ rbrError(i)`.

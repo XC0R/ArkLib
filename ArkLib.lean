@@ -161,7 +161,6 @@ import ArkLib.Refactor.Prover
 import ArkLib.Refactor.Reduction
 import ArkLib.Refactor.Security.Composition
 import ArkLib.Refactor.Security.Defs
-import ArkLib.Refactor.Security.Invariant
 import ArkLib.Refactor.Security.StateFunction
 import ArkLib.Refactor.Sumcheck.Completeness
 import ArkLib.Refactor.Sumcheck.Defs
