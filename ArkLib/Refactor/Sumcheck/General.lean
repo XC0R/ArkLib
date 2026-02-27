@@ -33,38 +33,29 @@ variable (deg : ℕ)
 variable {R} {deg}
 variable {n m : ℕ}
 
-private def generalVerifierAux (D : Fin m → R) :
-    (k : Nat) →
-    (i : Nat) →
-    (h : i + k = n) →
-    Vector R i →
-    R →
-    Transcript (generalPSpec R deg k) →
-    Option (EvalClaim (R := R) n)
-  | 0, i, h, prevChallenges, target, _ =>
-      let hi : i = n := by simpa using h
-      some { challenges := by simpa [hi] using prevChallenges
-             value := target }
-  | k + 1, i, h, prevChallenges, target, tr => do
-      let (tr₁, tr₂) :=
-        Transcript.split (pSpec₁ := pSpec R deg) (pSpec₂ := generalPSpec R deg k) tr
-      let out ← (Sumcheck.verifier (R := R) (deg := deg) D target tr₁).run
-      have h' : (i + 1) + k = n := by
-        -- from `h : i + (k + 1) = n`
-        omega
-      generalVerifierAux D k (i + 1) h' (prevChallenges.push out.challenge) out.target tr₂
+def initState (target : R) : RoundState (R := R) :=
+  { i := 0, challenges := ⟨#[], rfl⟩, target := target }
 
-/-- Multi-round sumcheck verifier.
+/-- The single-round verifier, lifted to act on the state statement type `RoundState`. -/
+def roundVerifierState (D : Fin m → R) :
+    Verifier Id (RoundState (R := R)) (RoundState (R := R)) (pSpec (R := R) deg) :=
+  fun st tr => do
+    let p : CDegreeLE R deg := tr.head
+    let chal : R := (tr.tail).head
+    guard ((Finset.univ : Finset (Fin m)).sum (fun j => CPolynomial.eval (D j) p.val) = st.target)
+    pure { i := st.i + 1
+           challenges := st.challenges.push chal
+           target := CPolynomial.eval chal p.val }
 
-Runs the single-round checks sequentially, accumulating the verifier challenges into
-`EvalClaim.challenges` and returning the final value claim `EvalClaim.value`. The
-final check against the original multivariate polynomial is deferred to the output
-relation/language of the reduction. -/
+/-- Multi-round sumcheck verifier (as a state transformer).
+
+Runs `n` single rounds and returns the final `RoundState`. The final check against the original
+multivariate polynomial is deferred to the output language/relation. -/
 def generalVerifier (D : Fin m → R) :
-    Verifier Id R (EvalClaim (R := R) n) (generalPSpec R deg n) :=
-  fun target tr =>
-    OptionT.mk <| generalVerifierAux (R := R) (deg := deg) (n := n) (m := m) D n 0
-      (by simp) ⟨#[], rfl⟩ target tr
+    Verifier Id R (RoundState (R := R)) (generalPSpec R deg n) :=
+  fun target tr => do
+    let st0 := initState (R := R) target
+    (Verifier.compNth n (roundVerifierState (R := R) (deg := deg) D)) st0 tr
 
 /-! ## Multi-round oracle verifier -/
 
@@ -104,29 +95,31 @@ the round polynomial using all previously received challenges, sends it, receive
 new challenge, and continues. Built by structural recursion on the remaining number
 of rounds `k`, with `prevChallenges` tracking all challenges seen so far. -/
 
-def multiRoundProver
-    (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
-    (k : Nat) → (i : Nat) → (h : i + k = n) → Vector R i → R →
-    Prover Id (EvalClaim (R := R) n × Unit) (generalPSpec R deg k)
-  | 0, i, h, prevChallenges, target =>
-      let hi : i = n := by simpa using h
-      ({ challenges := by simpa [hi] using prevChallenges
-         value := target }, ())
-  | k + 1, i, h, prevChallenges, target =>
-      let roundPoly := computeRoundPoly poly prevChallenges D evalPoints
-      (roundPoly, fun chal =>
-        have h' : (i + 1) + k = n := by omega
-        multiRoundProver poly D evalPoints k (i + 1) h' (prevChallenges.push chal)
-          (CPolynomial.eval chal roundPoly.val))
+def roundProverStep
+    (backend : ∀ i : ℕ, Vector R i → CDegreeLE R deg) :
+    (RoundState (R := R) × Unit) → Id (Prover Id (RoundState (R := R) × Unit) (pSpec (R := R) deg))
+  | (st, ()) =>
+      let roundPoly := backend st.i st.challenges
+      pure (roundPoly, pure (fun chal =>
+        pure ({ i := st.i + 1
+                challenges := st.challenges.push chal
+                target := CPolynomial.eval chal roundPoly.val }, ())))
 
 /-! ## Multi-round reduction -/
 
 def generalReduction
-    (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
-    Reduction Id R Unit (EvalClaim (R := R) n) Unit (generalPSpec R deg n) where
-  prover := fun (target, ()) =>
-    multiRoundProver (R := R) (deg := deg) (n := n) (m := m) poly D evalPoints n 0
-      (by simp) ⟨#[], rfl⟩ target
-  verifier := generalVerifier D
+    (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1))
+    (backend : ∀ i : ℕ, Vector R i → CDegreeLE R deg :=
+      fun i prev => computeRoundPoly (R := R) (deg := deg) (n := n) (m := m) (i := i)
+        poly prev D evalPoints) :
+    Reduction Id R Unit (RoundState (R := R)) Unit (generalPSpec R deg n) where
+  prover := fun (target, ()) => do
+    let st0 : RoundState (R := R) := initState (R := R) target
+    let out0 : RoundState (R := R) × Unit := (st0, ())
+    Prover.iterate (m := Id) (S := RoundState (R := R) × Unit)
+      (pSpec (R := R) deg) n
+      (roundProverStep (R := R) (deg := deg) backend)
+      out0
+  verifier := generalVerifier (R := R) (deg := deg) (n := n) (m := m) D
 
 end Sumcheck

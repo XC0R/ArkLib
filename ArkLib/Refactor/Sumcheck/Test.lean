@@ -77,12 +77,16 @@ example :
 
 -- Verifier output value = 1
 example : ((generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
-    (by native_decide)).value = (1 : F) := by
+    (by native_decide)).target = (1 : F) := by
   native_decide
 
 -- Verifier output challenges = (3,5)
 example : ((generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
     (by native_decide)).challenges = (⟨#[3, 5], rfl⟩ : Vector F 2) := by
+  native_decide
+
+example : ((generalVerifier (n := 2) (m := 2) (deg := 1) D (4 : F) transcript).get
+    (by native_decide)).i = 2 := by
   native_decide
 
 -- Wrong target REJECTED
@@ -106,9 +110,9 @@ example :
   IO.println s!"Challenges: r₁ = 3, r₂ = 5"
   IO.println s!"Verifier: {if verResult.isSome then "ACCEPTED" else "REJECTED"}"
   match verResult with
-  | some c => IO.println s!"Final value (verifier): {showF c.value}"
+  | some c => IO.println s!"Final value (verifier): {showF c.target}"
   | none => pure ()
-  IO.println s!"Final value (prover):  {showF proverOut.value}"
+  IO.println s!"Final value (prover):  {showF proverOut.target}"
   IO.println s!"(should be p(3,5) = 3 + 5 = 8 = 1 mod 7)"
 
 end Sumcheck.Test

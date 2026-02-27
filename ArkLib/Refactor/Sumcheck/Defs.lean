@@ -43,11 +43,14 @@ structure StmtOut where
   target : R
   challenge : R
 
-/-- The output statement of the full `n`-round sumcheck reduction: the verifier's
-random point (the sequence of challenges) and the final value claim. -/
-structure EvalClaim (n : ℕ) where
-  challenges : Vector R n
-  value : R
+/-! ## Multi-round state -/
+
+/-- The multi-round sumcheck statement after `i` rounds: the challenges so far and the current
+remaining-sum target. This is the natural “state statement” for composing rounds. -/
+structure RoundState where
+  i : ℕ
+  challenges : Vector R i
+  target : R
 
 /-- The oracle statement: the multivariate polynomial being summed.
 No degree-bound subtype — degree bounds are enforced by the relation instead. -/

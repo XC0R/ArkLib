@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Refactor.Security.StateFunction
+import Mathlib.Topology.Algebra.InfiniteSum.Constructions
 import VCVio.EvalDist.Monad.Basic
 import VCVio.EvalDist.Monad.Map
 
@@ -32,7 +33,7 @@ compose under `Reduction.comp` and `Reduction.compNth`.
 noncomputable section
 
 open OracleComp OracleSpec ProtocolSpec
-open scoped NNReal ENNReal
+open scoped NNReal ENNReal BigOperators
 
 /-! ## Probability Helper Lemmas
 
@@ -41,6 +42,72 @@ General lemmas about `probEvent` that belong in VCVio. Placed here temporarily. 
 section ProbEvent
 
 variable {m : Type → Type} [Monad m] [HasEvalSPMF m] {α : Type}
+
+/-! ### Union bound for `probEvent` over a finite index set -/
+
+lemma probEvent_exists_finset_le_sum
+    {ι : Type} (s : Finset ι) (mx : m α) (E : ι → α → Prop)
+    [DecidablePred (fun x => ∃ i ∈ s, E i x)]
+    [∀ i, DecidablePred (E i)] :
+    Pr[(fun x => ∃ i ∈ s, E i x) | mx] ≤ Finset.sum s (fun i => Pr[E i | mx]) := by
+  classical
+  letI : DecidableEq ι := Classical.decEq ι
+  -- Prove by induction on the finite set `s`.
+  refine Finset.induction_on s ?base ?step
+  · -- `s = ∅`
+    simp
+  · intro a s haNotMem ih
+    -- Rewrite the event over `insert a s` as a disjunction.
+    have hE :
+        (fun x => ∃ i ∈ insert a s, E i x)
+          = fun x => E a x ∨ ∃ i ∈ s, E i x := by
+      funext x
+      apply propext
+      constructor
+      · rintro ⟨i, hi, hix⟩
+        rcases Finset.mem_insert.mp hi with rfl | hi'
+        · exact Or.inl hix
+        · exact Or.inr ⟨i, hi', hix⟩
+      · intro hx
+        cases hx with
+        | inl hax => exact ⟨a, Finset.mem_insert_self _ _, hax⟩
+        | inr hx' =>
+            rcases hx' with ⟨i, hi, hix⟩
+            exact ⟨i, Finset.mem_insert_of_mem hi, hix⟩
+    -- Union bound for a disjunction via indicator inequality.
+    -- `Pr[p ∨ q] ≤ Pr[p] + Pr[q]`.
+    have hor :
+        Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
+          ≤ Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx] := by
+      -- Expand all three probabilities as `tsum` of `ite`s, then use pointwise `ite_or ≤ ite + ite`.
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => E a x ∨ ∃ i ∈ s, E i x)]
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := E a)]
+      rw [probEvent_eq_tsum_ite (mx := mx) (p := fun x => ∃ i ∈ s, E i x)]
+      -- Now it's pointwise.
+      let f : α → ℝ≥0∞ := fun y => if E a y then Pr[= y | mx] else 0
+      let g : α → ℝ≥0∞ := fun y => if (∃ i ∈ s, E i y) then Pr[= y | mx] else 0
+      have hle :
+          (∑' y : α, if (E a y ∨ ∃ i ∈ s, E i y) then Pr[= y | mx] else 0)
+            ≤ (∑' y : α, (f y + g y)) := by
+        refine ENNReal.tsum_le_tsum fun y => ?_
+        by_cases ha' : E a y <;> by_cases hs' : (∃ i ∈ s, E i y) <;>
+          simp [f, g, ha', hs']
+      have hspl : (∑' y : α, (f y + g y)) = (∑' y : α, f y) + (∑' y : α, g y) := by
+        simpa using (ENNReal.tsum_add (f := f) (g := g))
+      -- Put together.
+      exact le_trans hle (le_of_eq hspl)
+    -- Finish by rewriting `hE`, applying `hor`, then the induction hypothesis.
+    -- Also, `Finset.sum (insert a s) = Pr[E a] + sum s`.
+    have hsum :
+        Pr[E a | mx] + Pr[(fun x => ∃ i ∈ s, E i x) | mx]
+          ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
+      by
+        -- `add_le_add_left` may produce the terms in the opposite order; normalize by commutativity.
+        simpa [add_comm, add_left_comm, add_assoc] using add_le_add_left ih (Pr[E a | mx])
+    have : Pr[(fun x => E a x ∨ ∃ i ∈ s, E i x) | mx]
+        ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
+      le_trans hor hsum
+    simpa [hE, Finset.sum_insert haNotMem, add_assoc, add_left_comm, add_comm] using this
 
 /-- Swapping two independent random draws preserves probability of any event. -/
 lemma probEvent_bind_bind_swap [LawfulMonad m]
@@ -704,6 +771,7 @@ theorem rbrSoundness_implies_soundness
   intro Output prover stmtIn hstmtIn
   have _hstart : ¬sf.toFun 0 stmtIn HVector.nil :=
     fun hf => hstmtIn ((sf.toFun_empty stmtIn).mpr hf)
+  -- TODO: complete the proof (see docstring above).
   sorry
 
 /-- Soundness of `n`-fold composition: if each copy has RBR soundness error `rbrError`,

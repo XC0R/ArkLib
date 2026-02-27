@@ -75,19 +75,16 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
     ((generalReduction (R := R) (deg := deg) (n := n) (m := m)
         poly D evalPoints backend).run target () challenges).1.isSome := by
   classical
-
   -- Simplification helpers for the `Id` monad.
   have pure_id {α : Type} (x : α) : (pure x : Id α) = x := rfl
   have bind_id {α β : Type} (x : Id α) (f : α → Id β) : (x >>= f) = f x := rfl
   have map_id {α β : Type} (f : α → β) (x : Id α) : f <$> x = f x := rfl
-
   -- State transition induced by the backend polynomial.
   let stepState (st : RoundState (R := R)) (r : R) : RoundState (R := R) :=
     let p := backend st.i st.challenges
     { i := st.i + 1
       challenges := st.challenges.push r
       target := CPolynomial.eval r p.val }
-
   -- Initial invariant: at `i = 0`, `trueTarget` is the full-domain sum.
   have hInv0 :
       (initState (R := R) (target := target)).target =
@@ -96,17 +93,25 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
     rcases h_valid with ⟨rfl⟩
     -- Reduce `trueTarget` at `i = 0` and identify `evalPoint` with `D ∘ z`.
     -- (This is the only place we use that the initial `fixed` vector is empty.)
-    simp [initState, trueTarget]
+    change
+      (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+          CMvPolynomial.eval (D ∘ z) poly) =
+        (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+          CMvPolynomial.eval
+            (evalPoint (R := R) (n := n) (m := m)
+              (fixed := (⟨#[], rfl⟩ : Vector R 0)) D z)
+            poly)
     -- goal: two sums over `Fin n → Fin m` match pointwise
     refine Finset.sum_congr rfl ?_
     intro z _
     -- show the evaluation functions coincide
-    have : (evalPoint (R := R) (n := n) (m := m) (fixed := (⟨#[], rfl⟩ : Vector R 0)) D z) = (D ∘ z) := by
+    have :
+        (evalPoint (R := R) (n := n) (m := m) (fixed := (⟨#[], rfl⟩ : Vector R 0)) D z) =
+          (D ∘ z) := by
       funext k
       -- `i = 0`, so we always take the `else` branch and `rem = k.val < n`.
       simp [evalPoint]
     simp [this]
-
   -- Main round-by-round lemma: running `k` honest rounds yields a transcript that the
   -- `k`-fold composed verifier accepts, and the verifier’s output matches the honest state.
   -- Helpers: the honest prover after `k` rounds from state `st`, and its execution.
@@ -121,14 +126,14 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
       Transcript (generalPSpec (R := R) deg k) × (RoundState (R := R) × Unit) :=
     Prover.run (m := Id) (Output := RoundState (R := R) × Unit)
       (generalPSpec (R := R) deg k) (iter k st) ch
-
   have hRoundByRound :
       ∀ (k : Nat) (st : RoundState (R := R))
         (hInv :
           st.target =
             trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := st.i) st.challenges D)
         (ch : Challenges (generalPSpec (R := R) deg k)),
-        (Verifier.compNth k (roundVerifierState (R := R) (deg := deg) (m := m) D)) st (run k st ch).1 =
+        (Verifier.compNth k (roundVerifierState (R := R) (deg := deg) (m := m) D)) st
+            (run k st ch).1 =
           some (run k st ch).2.1 := by
     intro k st hInv ch
     induction k generalizing st with
@@ -152,9 +157,11 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
         -- Expand `run (k+1) st ch` into the first-round transcript piece and the tail run.
         have hRun :
             run (k + 1) st ch =
-              (((p, (r, (run k st1 ch.tail).1)) : Transcript (generalPSpec (R := R) deg (k + 1))),
+              (((p, (r, (run k st1 ch.tail).1))
+                  : Transcript (generalPSpec (R := R) deg (k + 1))),
                 (run k st1 ch.tail).2) := by
-          -- `simp` unfolds `run/iter` and computes the first round; the remaining goal is definitional.
+          -- `simp` unfolds `run/iter` and computes the first round;
+          -- the remaining goal is definitional.
           simp [run, iter, generalPSpec, Prover.iterate, Prover.run, Prover.comp, roundProverStep,
             st1, stepState, p, r, pure_id, bind_id]
           rfl
@@ -166,13 +173,15 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
         -- Assemble one verifier step + IH:
         -- rewrite the honest transcript via `hRun`, then unfold the first verifier round.
         rw [hRun]
-        -- After rewriting, the verifier’s first round is exactly `roundVerifierState` on transcript `(p,r)`,
-        -- which accepts by `hGuard` and outputs `st1`. The remaining verifier is `compNth k`, so the goal
+        -- After rewriting, the verifier’s first round is
+        -- `roundVerifierState` on transcript `(p,r)`,
+        -- which accepts by `hGuard` and outputs `st1`. The remaining verifier is `compNth k`,
+        -- so the goal
         -- reduces to `hIH`.
         simpa [Verifier.compNth, Verifier.comp, roundVerifierState, Transcript.split,
           HVector.splitAt, HVector.head, HVector.tail, p, r, st1, stepState, hGuard] using hIH
-
-  -- Now unfold `Reduction.run` and apply the round-by-round lemma at `k = n` from the initial state.
+  -- Now unfold `Reduction.run` and apply `hRoundByRound`
+  -- at `k = n` from the initial state.
   let st0 : RoundState (R := R) := initState (R := R) (target := target)
   have hInvStart :
       st0.target =
@@ -185,7 +194,8 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
     hRoundByRound n st0 hInvStart challenges
   -- Expand `Reduction.run` and rewrite the verifier result to `some ...`.
   unfold ProtocolSpec.Reduction.run
-  -- `generalReduction.verifier` is `generalVerifier`, which is exactly `Verifier.compNth ...` on `st0`.
+  -- `generalReduction.verifier` is `generalVerifier`,
+  -- i.e. `Verifier.compNth ...` on `st0`.
   exact by
     simp [generalReduction, generalVerifier, st0, runOut, run, iter, hAccept,
       pure_id, bind_id]
@@ -226,6 +236,7 @@ def TrueRoundPolyExists (poly : CMvPolynomial n R) (D : Fin m → R) : Prop :=
 
 /-! ### Univariate Schwartz–Zippel (via root counting) -/
 
+set_option linter.unusedDecidableInType false in
 private lemma prob_eval_eq_le_of_ne
     (p q : CDegreeLE R deg) (hne : p.val.toPoly ≠ q.val.toPoly) :
     Pr[fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val | $ᵗ R]
@@ -259,7 +270,8 @@ private lemma prob_eval_eq_le_of_ne
   -- Convert the probability to a cardinality fraction over a finite uniform type.
   -- Then bound the numerator by the number of roots of `f`.
   have hcard :
-      ((Finset.univ.filter (fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0)
+      ((Finset.univ.filter (fun r : R =>
+          CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0)
         ≤ deg := by
     -- Replace the filter predicate with `f.eval r = 0`.
     have hfilter :
@@ -298,7 +310,8 @@ private lemma prob_eval_eq_le_of_ne
   -- (Note: `Pr` returns `ℝ≥0∞`, we bound it via coercions from `ℝ≥0`.)
   have hPr :
       Pr[fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val | $ᵗ R]
-        = ((Finset.univ.filter (fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0)
+        = ((Finset.univ.filter (fun r : R =>
+            CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0)
             / (Fintype.card R : ℝ≥0) := by
     -- Provided by `VCVio`'s `SampleableType` development.
     rw [probEvent_uniformSample (α := R)
@@ -308,10 +321,11 @@ private lemma prob_eval_eq_le_of_ne
   -- Use the numerator bound.
   -- Avoid specialized division lemmas by rewriting as multiplication by an inverse.
   have hcard' :
-      ((Finset.univ.filter (fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0∞)
+      ((Finset.univ.filter (fun r : R =>
+          CPolynomial.eval r p.val = CPolynomial.eval r q.val)).card : ℝ≥0∞)
         ≤ (deg : ℝ≥0∞) := by
     exact_mod_cast hcard
-  simp [div_eq_mul_inv]
+  rw [div_eq_mul_inv]
   exact mul_le_mul_of_nonneg_right hcard' (by positivity)
 
 /-! ### Languages and error parameters -/

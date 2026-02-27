@@ -48,7 +48,8 @@ def trueTarget (poly : CMvPolynomial n R) {i : ℕ} (fixed : Vector R i) (D : Fi
 
 /-- The “true” round function in round `i`: fix the first `i` variables to `fixed`,
 set the next variable to `t`, and sum over the remaining `n - i - 1` variables in `D`. -/
-def trueRoundValue (poly : CMvPolynomial n R) {i : ℕ} (fixed : Vector R i) (D : Fin m → R) (t : R) : R :=
+def trueRoundValue (poly : CMvPolynomial n R) {i : ℕ}
+    (fixed : Vector R i) (D : Fin m → R) (t : R) : R :=
   (Finset.univ : Finset (Fin (n - i - 1) → Fin m)).sum (fun z =>
     CMvPolynomial.eval
       (fun k =>
