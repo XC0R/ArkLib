@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Refactor.Reduction
-import ArkLib.Refactor.Security.Invariant
+import VCVio.OracleComp.SimSemantics.PreservesInv
 
 /-!
 # Security Definitions for Reductions
