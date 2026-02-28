@@ -545,7 +545,41 @@ theorem Verifier.knowledgeSoundness_compNth
       subst this; exact hnotRel hChoose
   · have hstmtIn_not_lang : stmtIn ∉ lang := by
       simp only [lang, Set.mem_setOf_eq]; exact hStmtIn
-    sorry
+    have hExtNone : extResult = none := dif_neg hStmtIn
+    have hSoundBound := hSound (S × W) prover stmtIn hstmtIn_not_lang
+    have hInnerEq : ∀ ch σ0,
+        (simulateQ impl (do
+          let (tr, proverOut) ← Prover.run (pSpec.replicate n) prover ch
+          let verResult ← ((v.compNth n) stmtIn tr).run
+          let extractedWit ← (slExtractor stmtIn proverOut.2 tr).run
+          return (verResult, proverOut, extractedWit))).run' σ0 =
+        (fun z : Option S × (S × W) => (z.1, z.2, extResult)) <$>
+          (simulateQ impl (do
+            let (tr, out) ← Prover.run (pSpec.replicate n) prover ch
+            let verResult ← ((v.compNth n) stmtIn tr).run
+            return (verResult, out))).run' σ0 := by
+      intro ch σ0
+      rw [hOcEq, simulateQ_map, StateT.run'_map]
+    have map_bind_eq : ∀ {α β γ : Type _} (mx : ProbComp α) (g : α → ProbComp β) (f : β → γ),
+        (mx >>= fun a => f <$> g a) = f <$> (mx >>= g) := by
+      intro α β γ mx g f
+      simp only [map_eq_bind_pure_comp, bind_assoc]
+    have hCompEq :
+        (do
+          let ch ← sampleChallenges (pSpec.replicate n)
+          (simulateQ impl (do
+            let (tr, proverOut) ← Prover.run (pSpec.replicate n) prover ch
+            let verResult ← ((v.compNth n) stmtIn tr).run
+            let extractedWit ← (slExtractor stmtIn proverOut.2 tr).run
+            return (verResult, proverOut, extractedWit))).run' (← init)) =
+        (fun z : Option S × (S × W) => (z.1, z.2, extResult)) <$> baseComp := by
+      simp_rw [hInnerEq, map_bind_eq]
+      rfl
+    rw [hCompEq, probEvent_map]
+    refine le_trans (probEvent_mono ?_) hSoundBound
+    intro z _ hBad
+    simp only [Function.comp, hExtNone, Option.isNone_none, true_or, and_true] at hBad
+    exact ⟨z.2.1, ⟨z.2.2, hBad.2⟩, hBad.1⟩
 
 end KnowledgeSoundness
 
