@@ -102,6 +102,25 @@ def mapOutput {m : Type → Type} [Functor m] {A B : Type} (f : A → B) :
   | (.P_to_V _ _) :: tl, (msg, cont) => (msg, (mapOutput f tl) <$> cont)
   | (.V_to_P _) :: tl, recv => fun ch => (mapOutput f tl) <$> recv ch
 
+theorem run_mapOutput {m : Type → Type} [Monad m] [LawfulMonad m] {A B : Type} (f : A → B) :
+    (pSpec : ProtocolSpec) → (prover : Prover m A pSpec) → (ch : Challenges pSpec) →
+    Prover.run pSpec (mapOutput f pSpec prover) ch =
+      (fun (tr, out) => (tr, f out)) <$> Prover.run pSpec prover ch
+  | [], output, _ => by simp [run, mapOutput]
+  | (.P_to_V _ _) :: tl, (msg, cont), ch => by
+    show run _ (mapOutput f _ (msg, cont)) ch = _
+    simp only [run, mapOutput, bind_pure_comp, map_eq_bind_pure_comp, bind_assoc, pure_bind,
+      Function.comp]
+    congr 1; ext next
+    rw [run_mapOutput f tl next]
+    simp [map_eq_bind_pure_comp, bind_assoc]
+  | (.V_to_P _) :: tl, recv, ch => by
+    show run _ (mapOutput f _ recv) ch = _
+    simp only [run, mapOutput, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp]
+    congr 1; ext next
+    rw [run_mapOutput f tl next]
+    simp [map_eq_bind_pure_comp, bind_assoc]
+
 end Prover
 
 /-- An honest prover: takes a statement/witness pair and monadically produces

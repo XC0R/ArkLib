@@ -166,4 +166,24 @@ def rbrKnowledgeSoundness
         (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
     ] ≤ rbrKnowledgeError i
 
+/-! ## Bridge: RBR Knowledge Soundness → RBR Soundness -/
+
+/-- Derive RBR soundness from RBR knowledge soundness by existentially quantifying
+out the witness in the knowledge state function. The languages are derived from the
+relations: `langIn = {s | ∃ w, (s, w) ∈ relIn}`, `langOut = {s | ∃ w, (s, w) ∈ relOut}`. -/
+theorem rbrKnowledgeSoundness_implies_rbrSoundness
+    {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
+    {WitMid : Fin (pSpec.length + 1) → Type}
+    {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
+    {ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor}
+    {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
+    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) :
+    rbrSoundness impl
+      {s | ∃ w, (s, w) ∈ relIn}
+      {s | ∃ w, (s, w) ∈ relOut}
+      verifier Inv rbrKnowledgeError := by
+  sorry
+
 end ProtocolSpec

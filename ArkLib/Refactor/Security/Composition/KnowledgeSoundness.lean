@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Refactor.Security.Composition.Util
+import ArkLib.Refactor.Security.Composition.Soundness
 
 /-!
 # Knowledge Soundness Composition
@@ -20,6 +21,14 @@ noncomputable section
 open OracleComp OracleSpec ProtocolSpec
 open scoped NNReal ENNReal BigOperators
 
+@[simp] lemma StateT.run'_map {m : Type → Type} [Monad m] [LawfulMonad m]
+    {σ α β : Type} (f : α → β) (x : StateT σ m α) (s : σ) :
+    (f <$> x).run' s = f <$> x.run' s := by
+  change (fun x : β × σ => x.1) <$> (f <$> x).run s =
+      f <$> ((fun x : α × σ => x.1) <$> x.run s)
+  rw [StateT.run_map]
+  simp [Functor.map_map]
+
 namespace ProtocolSpec
 
 /-! ## RBR Knowledge Soundness → Knowledge Soundness -/
@@ -33,7 +42,7 @@ variable {StmtIn WitIn StmtOut WitOut : Type}
 /-- RBR knowledge soundness implies overall knowledge soundness. The total knowledge
 error is bounded by the sum of per-round RBR knowledge errors.
 
-**Proof strategy** (currently `sorry`): analogous to `rbrSoundness_implies_soundness`
+**Proof strategy**: analogous to `rbrSoundness_implies_soundness`
 with the knowledge state function in place of the state function. The extractor is
 composed round-by-round. -/
 theorem rbrKnowledgeSoundness_implies_knowledgeSoundness
@@ -462,7 +471,81 @@ theorem Verifier.knowledgeSoundness_compNth
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
     (v.compNth n).knowledgeSoundness init impl rel rel
       (n * Finset.sum Finset.univ rbrKnowledgeError) := by
-  sorry
+  classical
+  letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+  let lang : Set S := {s | ∃ w, (s, w) ∈ rel}
+  have hRbrSound : rbrSoundness impl lang lang v Inv rbrKnowledgeError :=
+    rbrKnowledgeSoundness_implies_rbrSoundness impl h
+  have hSound :
+      letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+      (v.compNth n).soundness init impl lang lang
+        (n * Finset.sum Finset.univ rbrKnowledgeError) :=
+    Verifier.soundness_compNth init impl hOut hState hInit hPres hRbrSound n
+  let slExtractor : Extractor.Straightline oSpec S W W (pSpec.replicate n) :=
+    fun stmtIn _ _ =>
+      OptionT.mk <| pure <|
+        if hRel : ∃ w : W, (stmtIn, w) ∈ rel then
+          some (Classical.choose hRel)
+        else
+          none
+  refine ⟨slExtractor, ?_⟩
+  intro stmtIn prover
+  let extResult : Option W :=
+    if hRel : ∃ w : W, (stmtIn, w) ∈ rel then some (Classical.choose hRel) else none
+  let baseComp : ProbComp (Option S × (S × W)) := do
+    let challenges ← sampleChallenges (pSpec.replicate n)
+    (simulateQ impl (do
+      let (tr, out) ← Prover.run (pSpec.replicate n) prover challenges
+      let verResult ← ((v.compNth n) stmtIn tr).run
+      return (verResult, out))).run' (← init)
+  have hOcEq : ∀ challenges,
+      (do
+        let (tr, proverOut) ← Prover.run (pSpec.replicate n) prover challenges
+        let verResult ← ((v.compNth n) stmtIn tr).run
+        let extractedWit ← (slExtractor stmtIn proverOut.2 tr).run
+        return (verResult, proverOut, extractedWit)
+        : OracleComp oSpec _) =
+      (fun z => (z.1, z.2, extResult)) <$> (do
+        let (tr, out) ← Prover.run (pSpec.replicate n) prover challenges
+        let verResult ← ((v.compNth n) stmtIn tr).run
+        return (verResult, out)) := by
+    intro challenges
+    simp only [slExtractor, extResult]
+    dsimp only [OptionT.run, OptionT.mk]
+    simp only [map_eq_bind_pure_comp, bind_assoc, Function.comp, pure_bind]
+  by_cases hStmtIn : ∃ w : W, (stmtIn, w) ∈ rel
+  · have hChoose : (stmtIn, Classical.choose hStmtIn) ∈ rel :=
+      Classical.choose_spec hStmtIn
+    suffices hzero : Pr[fun (verResult, (stmtOut, witOut), extractedWit) =>
+        (verResult = some stmtOut ∧ (stmtOut, witOut) ∈ rel) ∧
+          (extractedWit.isNone ∨ ∃ w, extractedWit = some w ∧ (stmtIn, w) ∉ rel)
+      | do
+        let challenges ← sampleChallenges (pSpec.replicate n)
+        (simulateQ impl (do
+          let (tr, proverOut) ← Prover.run (pSpec.replicate n) prover challenges
+          let verResult ← ((v.compNth n) stmtIn tr).run
+          let extractedWit ← (slExtractor stmtIn proverOut.2 tr).run
+          return (verResult, proverOut, extractedWit))).run' (← init)] = 0 by
+      exact le_of_eq hzero |>.trans (by positivity)
+    rw [probEvent_eq_zero_iff]
+    intro z hz ⟨_, hBad⟩
+    have hExtVal : z.2.2 = some (Classical.choose hStmtIn) := by
+      rw [mem_support_bind_iff] at hz
+      obtain ⟨ch, _, hz₁⟩ := hz
+      rw [mem_support_bind_iff] at hz₁
+      obtain ⟨σ0, _, hz₂⟩ := hz₁
+      rw [hOcEq, simulateQ_map, StateT.run'_map] at hz₂
+      simp only [support_map, Set.mem_image] at hz₂
+      obtain ⟨a, _, rfl⟩ := hz₂
+      simp [extResult, hStmtIn]
+    rcases hBad with hnone | ⟨w, hw, hnotRel⟩
+    · simp [hExtVal] at hnone
+    · have : w = Classical.choose hStmtIn :=
+        (Option.some.inj (hExtVal.symm.trans hw)).symm
+      subst this; exact hnotRel hChoose
+  · have hstmtIn_not_lang : stmtIn ∉ lang := by
+      simp only [lang, Set.mem_setOf_eq]; exact hStmtIn
+    sorry
 
 end KnowledgeSoundness
 
