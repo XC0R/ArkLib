@@ -455,6 +455,7 @@ soundness error at most `n * Σᵢ rbrKnowledgeError(i)`.
 **Proof strategy** (currently `sorry`): analogous to `Verifier.soundness_compNth`. -/
 theorem Verifier.knowledgeSoundness_compNth
     {S W : Type}
+    [Inhabited S] [Inhabited W]
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {rel : Set (S × W)}
     {v : Verifier (OracleComp oSpec) S S pSpec}

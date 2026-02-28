@@ -485,7 +485,275 @@ private theorem Verifier.soundnessFromState_comp
             return (verResult, out))).run' σ0] =
         Pr[accept | expSwap] by
       rw [hEq]; exact_mod_cast hBound
-    sorry -- hEq: computation equivalence (deferred)
+    have hsample : sampleChallenges (pSpec₁ ++ pSpec₂) = do
+        let ch₁ ← sampleChallenges pSpec₁
+        let ch₂ ← sampleChallenges pSpec₂
+        return Challenges.join pSpec₁ pSpec₂ ch₁ ch₂ := rfl
+    have probEvent_bind_of_evalDist_eq :
+        ∀ {α β : Type} (mx my : ProbComp α) (g : α → ProbComp β) (q : β → Prop),
+          evalDist mx = evalDist my →
+            Pr[q | mx >>= g] = Pr[q | my >>= g] := by
+      intro α β mx my g q hdist
+      rw [probEvent_bind_eq_tsum, probEvent_bind_eq_tsum]
+      have hprob : ∀ x : α, Pr[= x | mx] = Pr[= x | my] := (evalDist_ext_iff.mp hdist)
+      exact tsum_congr (fun x => by rw [hprob x])
+    have hVerCompState :
+        ∀ tr₁ tr₂ (σs : σ),
+          Pr[accept | (simulateQ impl
+            ((Verifier.comp v₁ v₂ stmtIn (Transcript.join tr₁ tr₂)).run)).run' σs] =
+          Pr[accept | do
+            let mid ← (v₁Run tr₁).run' σs
+            match mid with
+            | none => pure none
+            | some s => (v₂Run s tr₂).run' σs] := by
+      intro tr₁ tr₂ σs
+      let mxv : StateT σ ProbComp (Option S) := v₁Run tr₁
+      let A : (Option S × σ) → ProbComp (Option S) := fun us =>
+        match us.1 with
+        | none => pure none
+        | some s => (fun x => x.1) <$> (v₂Run s tr₂).run us.2
+      let B : (Option S × σ) → ProbComp (Option S) := fun us =>
+        match us.1 with
+        | none => pure none
+        | some s => (fun x => x.1) <$> (v₂Run s tr₂).run σs
+      have hLeftProb :
+          Pr[accept | (simulateQ impl
+            ((Verifier.comp v₁ v₂ stmtIn (Transcript.join tr₁ tr₂)).run)).run' σs] =
+          Pr[accept | mxv.run σs >>= A] := by
+        let leftPair : ProbComp (Option S × σ) :=
+          (simulateQ impl
+            ((Verifier.comp v₁ v₂ stmtIn (Transcript.join tr₁ tr₂)).run)) σs
+        let pairStep : ProbComp (Option S × σ) := do
+          let us ← mxv.run σs
+          match us.1 with
+          | none => pure (none, us.2)
+          | some s => (v₂Run s tr₂).run us.2
+        have hCompEq : leftPair = pairStep := by
+          unfold leftPair pairStep mxv v₁Run v₂Run
+          simp only [Verifier.comp, Transcript.split_join, OptionT.run_bind, Option.elimM,
+            simulateQ_bind]
+          change ((simulateQ impl (v₁ stmtIn tr₁).run >>= fun x =>
+              simulateQ impl (x.elim (pure none) fun x => (v₂ x tr₂).run)).run σs) =
+            (do
+              let us ← (simulateQ impl (v₁ stmtIn tr₁).run).run σs
+              match us.1 with
+              | none => pure (none, us.2)
+              | some s => (simulateQ impl (v₂ s tr₂).run).run us.2)
+          rw [StateT.run_bind]
+          apply bind_congr
+          intro us
+          cases hmid : us.1 <;> simp [Option.elim]
+        calc
+          Pr[accept | (simulateQ impl
+              ((Verifier.comp v₁ v₂ stmtIn (Transcript.join tr₁ tr₂)).run)).run' σs]
+              = Pr[accept | Prod.fst <$> leftPair] := by
+                  simp [leftPair, StateT.run']
+          _ = Pr[accept ∘ Prod.fst | leftPair] := by
+                simp
+          _ = Pr[accept ∘ Prod.fst | pairStep] := by rw [hCompEq]
+          _ = Pr[accept | Prod.fst <$> pairStep] := by
+                simp
+          _ = Pr[accept | mxv.run σs >>= fun us =>
+                match us.1 with
+                | none => pure none
+                | some s => (v₂Run s tr₂).run us.2 >>= pure ∘ fun x => x.1] := by
+                have hEqComp :
+                    Prod.fst <$> pairStep =
+                    (do
+                      let us ← mxv.run σs
+                      match us.1 with
+                      | none => pure none
+                      | some s => (v₂Run s tr₂).run us.2 >>= pure ∘ fun x => x.1) := by
+                  unfold pairStep
+                  simp only [map_eq_bind_pure_comp, bind_assoc]
+                  apply bind_congr
+                  intro us
+                  cases hmid : us.1 <;> simp
+                rw [hEqComp]
+          _ = Pr[accept | mxv.run σs >>= A] := by
+                rfl
+      have hAB :
+          Pr[accept | mxv.run σs >>= A] = Pr[accept | mxv.run σs >>= B] := by
+        refine probEvent_bind_congr ?_
+        intro us hus
+        have husσ : us.2 = σs := (hState₁ stmtIn tr₁) σs us hus
+        cases hmid : us.1 <;> simp [A, B, hmid, husσ]
+      have hRightProb :
+          Pr[accept | mxv.run σs >>= B] =
+          Pr[accept | do
+            let mid ← (v₁Run tr₁).run' σs
+            match mid with
+            | none => pure none
+            | some s => (v₂Run s tr₂).run' σs] := by
+        simp [mxv, B, v₁Run, v₂Run, StateT.run', StateT.run, bind_assoc, map_eq_bind_pure_comp]
+      exact hLeftProb.trans (hAB.trans hRightProb)
+    let pairComp : ProbComp (Option S × Output) := do
+      let challenges ← sampleChallenges (pSpec₁ ++ pSpec₂)
+      (simulateQ impl (do
+        let (tr, out) ← Prover.run (m := OracleComp oSpec) (Output := Output)
+          (pSpec₁ ++ pSpec₂) prover challenges
+        let verResult ← (Verifier.comp v₁ v₂ stmtIn tr).run
+        return (verResult, out))).run' σ0
+    change Pr[fun (verResult, _) => ∃ s ∈ lang, verResult = some s | pairComp] =
+      Pr[accept | expSwap]
+    calc
+      Pr[fun (verResult, _) => ∃ s ∈ lang, verResult = some s | pairComp]
+          = Pr[accept | Prod.fst <$> pairComp] := by
+              change Pr[accept ∘ Prod.fst | pairComp] = Pr[accept | Prod.fst <$> pairComp]
+              simpa [pairComp] using
+                (probEvent_map (q := accept) (f := Prod.fst) (mx := pairComp)).symm
+      _ = Pr[accept | do
+            let challenges ← sampleChallenges (pSpec₁ ++ pSpec₂)
+            (simulateQ impl (do
+              let (tr, out) ← Prover.run (m := OracleComp oSpec) (Output := Output)
+                (pSpec₁ ++ pSpec₂) prover challenges
+              let verResult ← (Verifier.comp v₁ v₂ stmtIn tr).run
+              return verResult)).run' σ0] := by
+            simp [pairComp, map_eq_bind_pure_comp, bind_assoc]
+      _ = Pr[accept | do
+            let ch₁ ← sampleChallenges pSpec₁
+            let ch₂ ← sampleChallenges pSpec₂
+            let z₁ ← (stage₁Run ch₁).run σ0
+            let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+            (simulateQ impl
+              ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run' z₂.2] := by
+            simp [hsample, stage₁Run, stage₂Run, p₁, Prover.run_splitPrefix_join,
+              simulateQ_bind, bind_assoc]
+      _ = Pr[accept | do
+            let ch₁ ← sampleChallenges pSpec₁
+            let z₁ ← (stage₁Run ch₁).run σ0
+            let ch₂ ← sampleChallenges pSpec₂
+            let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+            (simulateQ impl
+              ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run' z₂.2] := by
+            refine probEvent_bind_congr ?_
+            intro ch₁ _
+            simpa [bind_assoc] using
+              (probEvent_bind_bind_swap
+                (mx := sampleChallenges pSpec₂)
+                (my := (stage₁Run ch₁).run σ0)
+                (f := fun ch₂ z₁ => do
+                  let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+                  (simulateQ impl
+                    ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run' z₂.2)
+                (q := accept))
+      _ = Pr[accept | do
+            let ch₁ ← sampleChallenges pSpec₁
+            let z₁ ← (stage₁Run ch₁).run σ0
+            let mid ← (v₁Run z₁.1.1).run' z₁.2
+            let ch₂ ← sampleChallenges pSpec₂
+            let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+            match mid with
+            | none => pure none
+            | some s => (v₂Run s z₂.1.1).run' z₂.2] := by
+            refine probEvent_bind_congr ?_
+            intro ch₁ _
+            refine probEvent_bind_congr ?_
+            intro z₁ hz₁
+            have hInvz₁ : Inv z₁.2 := by
+              exact (OracleComp.simulateQ_run_preservesInv (impl := impl) (Inv := Inv) hPres
+                (oa := Prover.run pSpec₁ p₁ ch₁) σ0 hσ0 _ hz₁)
+            let mx₂ : ProbComp ((Transcript pSpec₂ × Output) × σ) := do
+              let ch₂ ← sampleChallenges pSpec₂
+              (stage₂Run z₁.1.2 ch₂).run z₁.2
+            let midComp : ProbComp (Option S) := (v₁Run z₁.1.1).run' z₁.2
+            have hMidInside :
+                Pr[accept | mx₂ >>= fun z₂ =>
+                  (simulateQ impl
+                    ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run' z₂.2] =
+                Pr[accept | mx₂ >>= fun z₂ =>
+                  do
+                    let mid ← (v₁Run z₁.1.1).run' z₁.2
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] := by
+              refine probEvent_bind_congr ?_
+              intro z₂ hz₂
+              have hInvz₂ : Inv z₂.2 := by
+                simp only [mx₂, mem_support_bind_iff] at hz₂
+                rcases hz₂ with ⟨ch₂, _, hz₂'⟩
+                exact (OracleComp.simulateQ_run_preservesInv (impl := impl) (Inv := Inv) hPres
+                  (oa := Prover.run pSpec₂ z₁.1.2 ch₂) z₁.2 hInvz₁ _ hz₂')
+              have hCompAtZ₂ :=
+                hVerCompState z₁.1.1 z₂.1.1 z₂.2
+              have hMidDist :
+                  evalDist ((v₁Run z₁.1.1).run' z₂.2) =
+                    evalDist ((v₁Run z₁.1.1).run' z₁.2) :=
+                hOut₁ stmtIn z₁.1.1 z₂.2 z₁.2 hInvz₂ hInvz₁
+              have hMidSwap :
+                  Pr[accept | do
+                    let mid ← (v₁Run z₁.1.1).run' z₂.2
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] =
+                  Pr[accept | do
+                    let mid ← (v₁Run z₁.1.1).run' z₁.2
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] := by
+                exact probEvent_bind_of_evalDist_eq
+                  ((v₁Run z₁.1.1).run' z₂.2)
+                  ((v₁Run z₁.1.1).run' z₁.2)
+                  (fun mid =>
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2)
+                  accept
+                  hMidDist
+              exact hCompAtZ₂.trans hMidSwap
+            have hSwapMid :
+                Pr[accept | mx₂ >>= fun z₂ =>
+                  do
+                    let mid ← midComp
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] =
+                Pr[accept | midComp >>= fun mid =>
+                  mx₂ >>= fun z₂ =>
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] := by
+              simpa [midComp] using
+                (probEvent_bind_bind_swap
+                  (mx := mx₂)
+                  (my := midComp)
+                  (f := fun z₂ mid =>
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2)
+                  (q := accept))
+            calc
+              Pr[accept | do
+                  let ch₂ ← sampleChallenges pSpec₂
+                  let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+                  (simulateQ impl
+                    ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run' z₂.2]
+                  = Pr[accept | mx₂ >>= fun z₂ =>
+                      (simulateQ impl
+                        ((Verifier.comp v₁ v₂ stmtIn (Transcript.join z₁.1.1 z₂.1.1)).run)).run'
+                          z₂.2] := by
+                      simp [mx₂, bind_assoc]
+              _ = Pr[accept | mx₂ >>= fun z₂ =>
+                    do
+                      let mid ← (v₁Run z₁.1.1).run' z₁.2
+                      match mid with
+                      | none => pure none
+                      | some s => (v₂Run s z₂.1.1).run' z₂.2] := hMidInside
+              _ = Pr[accept | midComp >>= fun mid =>
+                    mx₂ >>= fun z₂ =>
+                      match mid with
+                      | none => pure none
+                      | some s => (v₂Run s z₂.1.1).run' z₂.2] := hSwapMid
+              _ = Pr[accept | do
+                    let mid ← (v₁Run z₁.1.1).run' z₁.2
+                    let ch₂ ← sampleChallenges pSpec₂
+                    let z₂ ← (stage₂Run z₁.1.2 ch₂).run z₁.2
+                    match mid with
+                    | none => pure none
+                    | some s => (v₂Run s z₂.1.1).run' z₂.2] := by
+                      simp [mx₂, midComp, bind_assoc]
+      _ = Pr[accept | expSwap] := by
+            simp [expSwap]
   -- Step 2: Factor expSwap as mx >>= my for the union bound
   let mx : ProbComp
       ((Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ) := do
@@ -506,11 +774,174 @@ private theorem Verifier.soundnessFromState_comp
   let p := fun (z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ) =>
     z.2.1 = none ∨ ∃ s, z.2.1 = some s ∧ s ∉ lang
   have hBad₁ : Pr[fun z => ¬ p z | mx] ≤ (ε₁ : ℝ≥0∞) := by
-    sorry
+    have h₁Bound :
+        Pr[fun (verResult, _) => ∃ s ∈ lang, verResult = some s | do
+          let challenges ← sampleChallenges pSpec₁
+          (simulateQ impl (do
+            let (tr, out) ← Prover.run (m := OracleComp oSpec)
+              (Output := Prover (OracleComp oSpec) Output pSpec₂) pSpec₁ p₁ challenges
+            let verResult ← (v₁ stmtIn tr).run
+            return (verResult, out))).run' σ0] ≤ (ε₁ : ℝ≥0∞) := by
+      simpa [Verifier.soundnessFromState] using
+        (h₁ (Output := Prover (OracleComp oSpec) Output pSpec₂)
+          (prover := p₁) (stmtIn := stmtIn) hstmtIn σ0 hσ0)
+    have hPred :
+        (fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ => ¬ p z) =
+          (fun z => ∃ s ∈ lang, z.2.1 = some s) := by
+      funext z
+      cases hmid : z.2.1 <;> simp [p, hmid]
+    have hmxMap :
+        (fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ =>
+          (z.2.1, z.1)) <$> mx =
+        (do
+          let ch₁ ← sampleChallenges pSpec₁
+          let z₁ ← (stage₁Run ch₁).run σ0
+          let mid ← (v₁Run z₁.1.1).run' z₁.2
+          return (mid, z₁.1.2)) := by
+      simp [mx]
+    have hmxEq :
+        (do
+          let ch₁ ← sampleChallenges pSpec₁
+          let z₁ ← (stage₁Run ch₁).run σ0
+          let mid ← (v₁Run z₁.1.1).run' z₁.2
+          return (mid, z₁.1.2)) =
+        (do
+          let challenges ← sampleChallenges pSpec₁
+          (simulateQ impl (do
+            let (tr, out) ← Prover.run (m := OracleComp oSpec)
+              (Output := Prover (OracleComp oSpec) Output pSpec₂) pSpec₁ p₁ challenges
+            let verResult ← (v₁ stmtIn tr).run
+            return (verResult, out))).run' σ0) := by
+      simp [stage₁Run, v₁Run, p₁, simulateQ_bind]
+    calc
+      Pr[fun z => ¬ p z | mx]
+          = Pr[(fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ =>
+              ∃ s ∈ lang, z.2.1 = some s) | mx] := by
+              simp [hPred]
+      _ = Pr[(fun z : Option S × Prover (OracleComp oSpec) Output pSpec₂ =>
+            ∃ s ∈ lang, z.1 = some s) |
+            (fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ =>
+              (z.2.1, z.1)) <$> mx] := by
+              change Pr[(fun z : Option S × Prover (OracleComp oSpec) Output pSpec₂ =>
+                ∃ s ∈ lang, z.1 = some s) ∘
+                  (fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ =>
+                    (z.2.1, z.1)) | mx] =
+                Pr[(fun z : Option S × Prover (OracleComp oSpec) Output pSpec₂ =>
+                  ∃ s ∈ lang, z.1 = some s) |
+                  (fun z : (Prover (OracleComp oSpec) Output pSpec₂) × Option S × σ =>
+                    (z.2.1, z.1)) <$> mx]
+              simp
+      _ = Pr[(fun z : Option S × Prover (OracleComp oSpec) Output pSpec₂ =>
+            ∃ s ∈ lang, z.1 = some s) |
+            (do
+              let ch₁ ← sampleChallenges pSpec₁
+              let z₁ ← (stage₁Run ch₁).run σ0
+              let mid ← (v₁Run z₁.1.1).run' z₁.2
+              return (mid, z₁.1.2))] := by
+              simp [hmxMap]
+      _ = Pr[fun (verResult, _) => ∃ s ∈ lang, verResult = some s | do
+            let challenges ← sampleChallenges pSpec₁
+            (simulateQ impl (do
+              let (tr, out) ← Prover.run (m := OracleComp oSpec)
+                (Output := Prover (OracleComp oSpec) Output pSpec₂) pSpec₁ p₁ challenges
+              let verResult ← (v₁ stmtIn tr).run
+              return (verResult, out))).run' σ0] := by
+              rw [hmxEq]
+      _ ≤ (ε₁ : ℝ≥0∞) := h₁Bound
   -- Step 4: Bound Pr[accept | my z] ≤ ε₂ when p z holds
   have hBad₂ : ∀ z ∈ support mx, p z →
       Pr[fun o => ¬ (¬ accept o) | my z] ≤ (ε₂ : ℝ≥0∞) := by
-    sorry
+    intro z hz hp
+    rcases hp with hnone | ⟨s, hs, hsNotLang⟩
+    · have hmyNone :
+          my z = (do
+            let ch₂ ← sampleChallenges pSpec₂
+            let _ ← (stage₂Run z.1 ch₂).run z.2.2
+            pure none) := by
+          simp [my, hnone]
+      rw [hmyNone]
+      have : Pr[fun o : Option S => ¬ (¬ accept o) | do
+        let ch₂ ← sampleChallenges pSpec₂
+        let _ ← (stage₂Run z.1 ch₂).run z.2.2
+        pure none] = 0 := by
+        rw [probEvent_eq_zero_iff]
+        intro x hx hxAcc
+        simp only [mem_support_bind_iff] at hx
+        rcases hx with ⟨ch₂, _, hx₁⟩
+        rcases hx₁ with ⟨u, _, hx₂⟩
+        have hxEq : x = none := by
+          simpa [support_pure] using hx₂
+        subst hxEq
+        simp [accept] at hxAcc
+      rw [this]
+      simp
+    · have hInvz : Inv z.2.2 := by
+        simp only [mx, mem_support_bind_iff] at hz
+        rcases hz with ⟨ch₁, _, hz₁⟩
+        rcases hz₁ with ⟨z₁, hz₁, mid, _, hz₃⟩
+        have hzEq : z = (z₁.1.2, mid, z₁.2) := by
+          simpa [support_pure] using hz₃
+        subst hzEq
+        exact (OracleComp.simulateQ_run_preservesInv (impl := impl) (Inv := Inv) hPres
+          (oa := Prover.run pSpec₁ p₁ ch₁) σ0 hσ0 _ hz₁)
+      have h₂Bound :
+          Pr[fun (verResult, _) => ∃ s' ∈ lang, verResult = some s' | do
+            let challenges ← sampleChallenges pSpec₂
+            (simulateQ impl (do
+              let (tr, out) ← Prover.run (m := OracleComp oSpec)
+                (Output := Output) pSpec₂ z.1 challenges
+              let verResult ← (v₂ s tr).run
+              return (verResult, out))).run' z.2.2] ≤ (ε₂ : ℝ≥0∞) := by
+        simpa [Verifier.soundnessFromState] using
+          (h₂ (Output := Output) (prover := z.1) (stmtIn := s) hsNotLang z.2.2 hInvz)
+      have hmySome :
+          my z = (do
+            let ch₂ ← sampleChallenges pSpec₂
+            let z₂ ← (stage₂Run z.1 ch₂).run z.2.2
+            (v₂Run s z₂.1.1).run' z₂.2) := by
+        simp [my, hs]
+      rw [hmySome]
+      let pairStage₂ : ProbComp (Option S × Output) := do
+        let challenges ← sampleChallenges pSpec₂
+        (simulateQ impl (do
+          let (tr, out) ← Prover.run (m := OracleComp oSpec)
+            (Output := Output) pSpec₂ z.1 challenges
+          let verResult ← (v₂ s tr).run
+          return (verResult, out))).run' z.2.2
+      have h₂BoundMap : Pr[accept | Prod.fst <$> pairStage₂] ≤ (ε₂ : ℝ≥0∞) := by
+        have hPairEq :
+            Pr[accept | Prod.fst <$> pairStage₂] =
+            Pr[fun (verResult, _) => ∃ s' ∈ lang, verResult = some s' | pairStage₂] := by
+          change Pr[accept | Prod.fst <$> pairStage₂] = Pr[accept ∘ Prod.fst | pairStage₂]
+          simp
+        exact hPairEq.trans_le h₂Bound
+      have h₂BoundMid :
+          Pr[accept | do
+            let challenges ← sampleChallenges pSpec₂
+            (simulateQ impl (do
+              let (tr, out) ← Prover.run (m := OracleComp oSpec)
+                (Output := Output) pSpec₂ z.1 challenges
+              let verResult ← (v₂ s tr).run
+              return verResult)).run' z.2.2] ≤ (ε₂ : ℝ≥0∞) := by
+        have hMapComp :
+            Prod.fst <$> pairStage₂ =
+            (do
+              let challenges ← sampleChallenges pSpec₂
+              (simulateQ impl (do
+                let (tr, out) ← Prover.run (m := OracleComp oSpec)
+                  (Output := Output) pSpec₂ z.1 challenges
+                let verResult ← (v₂ s tr).run
+                return verResult)).run' z.2.2) := by
+          simp [pairStage₂, map_eq_bind_pure_comp, bind_assoc]
+        rw [← hMapComp]
+        exact h₂BoundMap
+      have hTarget :
+          Pr[accept | do
+            let ch₂ ← sampleChallenges pSpec₂
+            let z₂ ← (stage₂Run z.1 ch₂).run z.2.2
+            (v₂Run s z₂.1.1).run' z₂.2] ≤ (ε₂ : ℝ≥0∞) := by
+        simpa [stage₂Run, v₂Run, simulateQ_bind, bind_assoc] using h₂BoundMid
+      simpa [accept] using hTarget
   -- Step 5: Apply the union bound
   rw [hFactor]
   have h := probEvent_bind_le_add (mx := mx) (my := my) (p := p)

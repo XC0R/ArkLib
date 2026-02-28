@@ -174,6 +174,7 @@ relations: `langIn = {s | ∃ w, (s, w) ∈ relIn}`, `langOut = {s | ∃ w, (s, 
 theorem rbrKnowledgeSoundness_implies_rbrSoundness
     {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
     {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    [Inhabited StmtOut] [Inhabited WitOut]
     {Inv : σ → Prop}
     {WitMid : Fin (pSpec.length + 1) → Type}
     {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
@@ -184,6 +185,134 @@ theorem rbrKnowledgeSoundness_implies_rbrSoundness
       {s | ∃ w, (s, w) ∈ relIn}
       {s | ∃ w, (s, w) ∈ relOut}
       verifier Inv rbrKnowledgeError := by
-  sorry
+  classical
+  let sf : StateFunction impl Inv
+      {s | ∃ w, (s, w) ∈ relIn}
+      {s | ∃ w, (s, w) ∈ relOut}
+      verifier := {
+    toFun := fun (k : Nat) (stmt : StmtIn) (tr : PartialTranscript pSpec k) =>
+      if hk : k ≤ pSpec.length then
+        ∃ witMid : WitMid ⟨k, Nat.lt_succ_of_le hk⟩,
+          ksf.toFun ⟨k, Nat.lt_succ_of_le hk⟩ stmt tr witMid
+      else
+        False
+    toFun_empty := by
+      intro stmt
+      simp only [Nat.zero_le, dite_true]
+      constructor
+      · intro hIn
+        rcases hIn with ⟨witIn, hwitIn⟩
+        refine ⟨cast extractor.eqIn.symm witIn, ?_⟩
+        have : (stmt, cast extractor.eqIn (cast extractor.eqIn.symm witIn)) ∈ relIn := by
+          simpa using hwitIn
+        simpa using (ksf.toFun_empty stmt (cast extractor.eqIn.symm witIn)).mp this
+      · intro hSf
+        rcases hSf with ⟨witMid, hMid⟩
+        refine ⟨cast extractor.eqIn witMid, ?_⟩
+        simpa using (ksf.toFun_empty stmt witMid).mpr hMid
+    toFun_next := by
+      intro k hk hnon stmt tr hFalse msg hTrue
+      have hkLe : k ≤ pSpec.length := Nat.le_of_lt hk
+      have hkSuccLe : k + 1 ≤ pSpec.length := Nat.succ_le_of_lt hk
+      rcases (by simpa [hkSuccLe] using hTrue) with ⟨witMid, hMidSucc⟩
+      let ik : Fin pSpec.length := ⟨k, hk⟩
+      have hMid :
+          ksf.toFun ik.castSucc stmt tr
+            (extractor.extractMid ik stmt
+              (PartialTranscript.concat pSpec hk tr msg) witMid) :=
+        ksf.toFun_next ik hnon stmt tr msg witMid (by simpa [ik] using hMidSucc)
+      have hSf :
+          (if hk' : k ≤ pSpec.length then
+            ∃ witMid : WitMid ⟨k, Nat.lt_succ_of_le hk'⟩,
+              ksf.toFun ⟨k, Nat.lt_succ_of_le hk'⟩ stmt tr witMid
+          else False) := by
+        simp only [hkLe, dite_true]
+        refine ⟨cast (by simp [ik]) (extractor.extractMid ik stmt
+            (PartialTranscript.concat pSpec hk tr msg) witMid), ?_⟩
+        simpa [ik] using hMid
+      exact hFalse (by simpa using hSf)
+    toFun_full := by
+      intro stmt tr σ0 hσ0 hFalse
+      rw [probEvent_eq_zero_iff]
+      intro stmtOut hStmtOut hLangOut
+      rcases hLangOut with ⟨witOut, hRelOut⟩
+      have hPos :
+          Pr[fun s => (s, witOut) ∈ relOut
+            | OptionT.mk do
+              (simulateQ impl (verifier stmt tr)).run' σ0] > 0 := by
+        exact (probEvent_pos_iff).2 ⟨stmtOut, hStmtOut, hRelOut⟩
+      have hMidLast :
+          ksf.toFun (.last pSpec.length) stmt (PartialTranscript.ofTranscript tr)
+            (extractor.extractOut stmt tr witOut) :=
+        ksf.toFun_full stmt tr witOut σ0 hσ0 hPos
+      have hSfLast :
+          (if hk' : pSpec.length ≤ pSpec.length then
+            ∃ witMid : WitMid ⟨pSpec.length, Nat.lt_succ_of_le hk'⟩,
+              ksf.toFun ⟨pSpec.length, Nat.lt_succ_of_le hk'⟩ stmt
+                (PartialTranscript.ofTranscript tr) witMid
+          else False) := by
+        simp only [le_rfl, dite_true]
+        exact ⟨_, hMidLast⟩
+      exact hFalse (by simpa using hSfLast)
+  }
+  refine ⟨sf, ?_⟩
+  intro stmtIn _ Output prover i σ0 hσ0
+  let dummyOut : StmtOut × WitOut := default
+  let prover' : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec :=
+    Prover.mapOutput (fun _ : Output => dummyOut) pSpec prover
+  let exp : ProbComp (Transcript pSpec × Output) := do
+    let challenges ← sampleChallenges pSpec
+    (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
+  let exp' : ProbComp (Transcript pSpec × (StmtOut × WitOut)) := do
+    let challenges ← sampleChallenges pSpec
+    (simulateQ impl (Prover.run pSpec prover' challenges)).run' σ0
+  let flipSF : ChallengeIndex pSpec → (Transcript pSpec × Output) → Prop := fun j z =>
+    ¬ sf.toFun j.1 stmtIn (HVector.take j.1 pSpec z.1) ∧
+      sf.toFun (j.1 + 1) stmtIn (HVector.take (j.1 + 1) pSpec z.1)
+  let flipSF' : ChallengeIndex pSpec → (Transcript pSpec × (StmtOut × WitOut)) → Prop := fun j z =>
+    ¬ sf.toFun j.1 stmtIn (HVector.take j.1 pSpec z.1) ∧
+      sf.toFun (j.1 + 1) stmtIn (HVector.take (j.1 + 1) pSpec z.1)
+  let flipKSF : ChallengeIndex pSpec → (Transcript pSpec × (StmtOut × WitOut)) → Prop := fun j z =>
+    ∃ witMid,
+      ¬ ksf.toFun j.1.castSucc stmtIn
+        (HVector.take j.1.castSucc pSpec z.1)
+        (extractor.extractMid j.1 stmtIn
+          (HVector.take (j.1 + 1) pSpec z.1) witMid) ∧
+      ksf.toFun j.1.succ stmtIn
+        (HVector.take (j.1 + 1) pSpec z.1) witMid
+  have run'_map_local :
+      ∀ {α β : Type} (f : α → β) (x : StateT σ ProbComp α) (s : σ),
+        (f <$> x).run' s = f <$> x.run' s := by
+    intro α β f x s
+    change (fun x : β × σ => x.1) <$> (f <$> x).run s =
+      f <$> ((fun x : α × σ => x.1) <$> x.run s)
+    rw [StateT.run_map]
+    simp [Functor.map_map]
+  have hExpMap : exp' = (fun z : Transcript pSpec × Output => (z.1, dummyOut)) <$> exp := by
+    simp [exp', exp, prover', Prover.run_mapOutput, simulateQ_map]
+  have hFlipEq : Pr[flipSF i | exp] = Pr[flipSF' i | exp'] := by
+    rw [hExpMap, probEvent_map]
+    rfl
+  have hFlipLe : Pr[flipSF' i | exp'] ≤ Pr[flipKSF i | exp'] := by
+    refine probEvent_mono ?_
+    intro z _ hz
+    rcases hz with ⟨hPrev, hSucc⟩
+    have hiLe : i.1 ≤ pSpec.length := Nat.le_of_lt i.1.isLt
+    have hiSuccLe : i.1 + 1 ≤ pSpec.length := Nat.succ_le_of_lt i.1.isLt
+    rcases (by simpa [flipSF', sf, hiSuccLe] using hSucc) with ⟨witMid, hSuccKsf⟩
+    refine ⟨witMid, ?_, ?_⟩
+    · intro hPrevKsf
+      have hPrevSf :
+          sf.toFun i.1 stmtIn (HVector.take i.1 pSpec z.1) := by
+        simp only [sf, hiLe, dite_true]
+        exact ⟨_, hPrevKsf⟩
+      exact hPrev hPrevSf
+    · simpa using hSuccKsf
+  have hKsfBound : Pr[flipKSF i | exp'] ≤ rbrKnowledgeError i := by
+    simpa [flipKSF, exp', prover'] using h stmtIn prover' i σ0 hσ0
+  calc
+    Pr[flipSF i | exp] = Pr[flipSF' i | exp'] := hFlipEq
+    _ ≤ Pr[flipKSF i | exp'] := hFlipLe
+    _ ≤ rbrKnowledgeError i := hKsfBound
 
 end ProtocolSpec
