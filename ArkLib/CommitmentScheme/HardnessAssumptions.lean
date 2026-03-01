@@ -24,7 +24,9 @@ import ArkLib.ToVCVio.Oracle
 
 variable {ι η : Type} (oSpec : OracleSpec ι) (advSpec : OracleSpec η)
 
-open OracleSpec OracleComp SubSpec SimOracle
+open OracleSpec OracleComp SubSpec
+open CompPoly.CPolynomial
+open Polynomial
 open scoped NNReal ENNReal
 
 namespace Groups
@@ -59,11 +61,13 @@ def ARSDHAdversary (D : ℕ) :=
     StateT unifSpec.QueryCache ProbComp (Finset (ZMod p) × G₁ × G₁)
 
 /-- The probabillity of breaking ARSDH for a specific adversary. -/
-noncomputable def ARSDH_Experiment [∀ i, SelectableType (unifSpec.range i)] (D : ℕ)
+noncomputable def ARSDH_Experiment [∀ i, SampleableType (unifSpec.Range i)]
+    {g₁ : G₁} {g₂ : G₂} (D : ℕ)
     (adversary : ARSDHAdversary D (G₁ := G₁) (G₂ := G₂) (p := p))
     : ℝ≥0∞ :=
-  [fun (τ,S,h₁,h₂) =>
-    letI Zₛ := ∏ s ∈ S, (X - C s)
+  Pr[fun (τ,S,h₁,h₂) =>
+    let Zₛ : CompPoly.CPolynomial (ZMod p) :=
+      ∏ s ∈ S, (CompPoly.CPolynomial.X - CompPoly.CPolynomial.C s)
     S.card = D + 1 ∧ h₁ ≠ 1 ∧ h₂ = h₁ ^ (1 / Zₛ.eval τ).val
   | (do
     let τ ← simulateQ randomOracle ($ᵗ(ZMod p))
@@ -100,7 +104,8 @@ of this simulation to the adversary (to use in it's own simulation).
 Taken from Def. 9.6 in "On the Fiat–Shamir Security of Succinct Arguments from Functional
 Commitments" (see https://eprint.iacr.org/2025/902.pdf)
 -/
-def ARSDHAssumption (D : ℕ) (error : ℝ≥0)
+def ARSDHAssumption [∀ i, SampleableType (unifSpec.Range i)]
+    {g₁ : G₁} {g₂ : G₂} (D : ℕ) (error : ℝ≥0)
     : Prop :=
      ∀ (adversary : ARSDHAdversary D
         (G₁ := G₁) (G₂ := G₂) (p := p)),

@@ -67,7 +67,7 @@ theorem distEq_trans (mx my mz : OracleComp spec α)
 
 section DistributionalEquivalence
 
-variable {ι : Type u} {spec : OracleSpec ι} [spec.FiniteRange]
+variable {ι : Type u} {spec : OracleSpec ι} [spec.Fintype] [spec.Inhabited]
 variable {α β γ δ : Type u}
 
 /-- Binding with a mapped computation is the same as binding with the original and composing. -/
@@ -131,7 +131,7 @@ lemma evalDist_bind_congr_right (oa : OracleComp spec α)
     {f g : α → OracleComp spec β}
     (h : ∀ a, evalDist (f a) = evalDist (g a)) :
     evalDist (oa >>= f) = evalDist (oa >>= g) := by
-  simp only [evalDist_bind, Function.comp_def]
+  simp only [evalDist_bind]
   congr 1
   funext a
   exact h a
@@ -148,7 +148,7 @@ lemma mapM_bind_pure_tuple_proj {L : ℕ} {ε σ τ υ : Type u}
     (claims.mapM body >>= fun evals => pure (a, b, c, evals)) >>=
       (fun t => pure (Vector.map (fun x => (x.1, x.2.1, x.2.2.1)) t.2.2.2))
     = Vector.map (fun x => (x.1, x.2.1, x.2.2.1)) <$> claims.mapM body := by
-  simp only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def, bind_pure]
+  simp only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def]
 
 /-- Bind congruence: if continuations are equal for all inputs, binds are equal -/
 lemma bind_congr_fun (oa : OracleComp spec α) (f g : α → OracleComp spec β)

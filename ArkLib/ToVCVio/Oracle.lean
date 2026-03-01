@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import VCVio.OracleComp.QueryTracking.CachingOracle
+import VCVio.OracleComp.ProbComp
 
 /-!
   # Helper Definitions and Lemmas to be ported to VCVio
@@ -276,3 +277,19 @@ def runWithOracle (f : spec.FunctionType) : OracleComp spec α → α :=
 --   impl | query i t => hom (so.impl (query i t))
 
 -- end QueryImpl
+
+/-- Nonempty `ZMod p` types can be selected from, using implicit casting of `ZMod (p - 1 + 1)`. -/
+instance instSampleableTypeZMod' (p : ℕ) : SampleableType (ZMod (p + 1)) where
+  selectElem := $[0..p]
+  mem_support_selectElem := by grind
+  probOutput_selectElem_eq x y := by
+    change Pr[= x | $[0..p]] = Pr[= y | $[0..p]]
+    simp
+  probFailure_selectElem := by simp
+
+/-- `ZMod p` is selectable when `p > 0`, by rewriting as `ZMod ((p - 1) + 1)`. -/
+instance instSampleableTypeZMod (p : ℕ) [Fact (0 < p)] : SampleableType (ZMod p) := by
+  have hp : p = (p - 1) + 1 :=
+    (Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.mpr
+      (Nat.pos_iff_ne_zero.mp (Fact.out)))).symm
+  exact hp ▸ inferInstance
