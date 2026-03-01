@@ -37,18 +37,19 @@ variable {G₁ : Type} [Group G₁] [PrimeOrderWith G₁ p] [DecidableEq G₁] {
   [Module (ZMod p) (Additive G₁)] [Module (ZMod p) (Additive G₂)] [Module (ZMod p) (Additive Gₜ)]
   (pairing : (Additive G₁) →ₗ[ZMod p] (Additive G₂) →ₗ[ZMod p] (Additive Gₜ))
 
-omit [DecidableEq Gₜ] [DecidableEq G₁] in
+omit [DecidableEq Gₜ] [DecidableEq G₁] [Fact (0 < p)] in
 lemma lin_fst (g₁ : G₁) (g₂ : G₂) (a : ℤ) : a • (pairing g₁ g₂) =  pairing (g₁ ^ a) (g₂) := by
   change a • (pairing (Additive.ofMul g₁) (Additive.ofMul g₂))
     = pairing (Additive.ofMul (g₁ ^ a)) (Additive.ofMul g₂)
   simp [ofMul_zpow]
 
-omit [DecidableEq Gₜ] [DecidableEq G₁] in
+omit [DecidableEq Gₜ] [DecidableEq G₁] [Fact (0 < p)] in
 lemma lin_snd (g₁ : G₁) (g₂ : G₂) (a : ℤ) : a • (pairing g₁ g₂) =  pairing (g₁) (g₂ ^ a) := by
   change a • (pairing (Additive.ofMul g₁) (Additive.ofMul g₂))
     = pairing (Additive.ofMul g₁) (Additive.ofMul (g₂ ^ a))
   simp [ofMul_zpow]
 
+omit [Fact (0 < p)] in
 lemma modp_eq (x y : ℤ) (g : G) (hxy : x ≡ y [ZMOD p]) : g ^ x = g ^ y := by
   have hordg : g = 1 ∨ orderOf g = p := by
     have ord_g_dvd : orderOf g ∣ p := by
@@ -64,6 +65,7 @@ lemma modp_eq (x y : ℤ) (g : G) (hxy : x ≡ y [ZMOD p]) : g ^ x = g ^ y := by
       simpa [ordp] using hxmy_p
     exact (orderOf_dvd_sub_iff_zpow_eq_zpow).1 hxmy
 
+omit [Fact (0 < p)] in
 lemma modp_eq_additive (x y : ℤ) (g : Additive G) (hxy : x ≡ y [ZMOD p]) : x • g = y • g := by
   have hxyeq : (Additive.toMul g) ^ x = (Additive.toMul g) ^ y :=
     modp_eq (G:=G) (p:=p) (g:=(Additive.toMul g)) x y hxy
@@ -91,12 +93,13 @@ maximum degree `n`), we compute: `∏ i : Fin (n+1), srs[i] ^ (p.coeff i)` -/
 def commit (srs : Vector G₁ (n + 1)) (coeffs : Fin (n + 1) → ZMod p) : G₁ :=
   ∏ i : Fin (n + 1), srs[i] ^ (coeffs i).val
 
-omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] in
+omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] [Fact (0 < p)] in
 /-- The commitment to a mathlib polynomial `poly` of maximum degree `n` is equal to
 `g₁ ^ (poly.1.eval a).val` -/
 theorem commit_eq {a : ZMod p} (hpG1 : Nat.card G₁ = p)
     (poly : Polynomial.degreeLT (ZMod p) (n + 1)) :
-    commit (towerOfExponents g₁ a n) (Polynomial.degreeLTEquiv _ _ poly) = g₁ ^ (poly.1.eval a).val := by
+    commit (towerOfExponents g₁ a n) (Polynomial.degreeLTEquiv _ _ poly)
+    = g₁ ^ (poly.1.eval a).val := by
   have {g₁ : G₁} (a b : ℕ) : g₁^a = g₁^b ↔ g₁^(a : ℤ) = g₁^(b : ℤ) := by
     simp only [zpow_natCast]
   simp only [commit, towerOfExponents, Fin.getElem_fin, Vector.getElem_ofFn]
@@ -104,24 +107,23 @@ theorem commit_eq {a : ZMod p} (hpG1 : Nat.card G₁ = p)
     Polynomial.eval_eq_sum_degreeLTEquiv poly.property,
       this,
       ←orderOf_dvd_sub_iff_zpow_eq_zpow]
-
   have hordg₁ : g₁ = 1 ∨ orderOf g₁ = p := by
     have ord_g₁_dvd : orderOf g₁ ∣ p := by rw [← hpG1]; apply orderOf_dvd_natCard
     rw [Nat.dvd_prime hp.out, orderOf_eq_one_iff] at ord_g₁_dvd
     exact ord_g₁_dvd
-
   rcases hordg₁ with ord1 | ordp
   · simp [ord1]
-  · simp [ordp, ←ZMod.intCast_eq_intCast_iff_dvd_sub]
+  · simp only [ordp, Nat.cast_sum, Nat.cast_mul, Nat.cast_pow, ZMod.natCast_val, Subtype.coe_eta,
+    ← ZMod.intCast_eq_intCast_iff_dvd_sub, ZMod.intCast_cast, ZMod.cast_id', id_eq, Int.cast_sum,
+    Int.cast_mul, Int.cast_pow]
     apply Fintype.sum_congr
     intro x
     exact mul_comm _ _
 
 omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] in
-/-- The commitment to a computable polynomial (CPolynomial) `poly` of maximum degree `n+1` is equal to
-`g₁ ^ (poly.eval a).val`.
-Note that the degree of a CPolynomial is the mathematical degree + 1 for non-zero polynomials. -/
-theorem commit_eq_UniPoly {a : ZMod p} (hpG1 : Nat.card G₁ = p)
+/-- The commitment to a computable polynomial (CPolynomial) `poly` of
+maximum degree `n+1` is equal to `g₁ ^ (poly.eval a).val`. -/
+theorem commit_eq_CPolynomial {a : ZMod p} (hpG1 : Nat.card G₁ = p)
     (poly : CPolynomial (ZMod p)) (hn : poly.degree ≤ n + 1) :
     commit (towerOfExponents g₁ a n)
     ((coeff poly) ∘ Fin.val)
