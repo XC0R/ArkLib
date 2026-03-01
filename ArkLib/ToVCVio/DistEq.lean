@@ -14,11 +14,11 @@ import ArkLib.ToVCVio.SimOracle
 
 universe u v w
 
-open OracleComp SimOracle
+open OracleComp
 
 namespace HasEvalDist
 
-variable {m : Type u → Type v} [Monad m] [HasEvalDist m]
+variable {m : Type u → Type v} [Monad m] [HasEvalSPMF m]
 
 def eq {α : Type u} (mx my : m α) : Prop :=
   evalDist mx = evalDist my
@@ -40,7 +40,7 @@ namespace OracleComp
 
 -- Shouldn't have to define this separately once we have an instance `HasEvalDist (OracleComp spec)`
 
-variable {ι : Type u} {spec : OracleSpec ι} [spec.FiniteRange] {α : Type u}
+variable {ι : Type u} {spec : OracleSpec ι} [spec.Fintype] [spec.Inhabited] {α : Type u}
 
 def distEq (mx my : OracleComp spec α) : Prop :=
   evalDist mx = evalDist my
@@ -90,10 +90,10 @@ lemma evalDist_bind_map_fst (oa : OracleComp spec α) (f : α → OracleComp spe
     evalDist (Prod.fst <$> (oa >>= f)) = evalDist (oa >>= fun a => Prod.fst <$> f a) := by
   simp only [map_eq_bind_pure_comp, bind_assoc]
 
-/-- If two computations are equal after applying evalDist, their probEvents are equal. -/
-lemma probEvent_of_evalDist_eq {oa : OracleComp spec α} {ob : OracleComp spec α}
-    (h : evalDist oa = evalDist ob) (p : α → Prop) : [p | oa] = [p | ob] :=
-  probEvent_congr (fun _ => Iff.rfl) h
+-- /-- If two computations are equal after applying evalDist, their probEvents are equal. -/
+--lemma probEvent_of_evalDist_eq {oa : OracleComp spec α} {ob : OracleComp spec α}
+--    (h : evalDist oa = evalDist ob) (p : α → Prop) : Pr[p | oa] = Pr[p | ob] :=
+--  probEvent_congr (fun _ => Iff.rfl) h
 
 /-- Mapping over a bind distributes: f <$> (oa >>= ob) = oa >>= (f <$> · ∘ ob) -/
 lemma evalDist_map_bind' (oa : OracleComp spec α) (ob : α → OracleComp spec β) (f : β → γ) :
@@ -155,7 +155,7 @@ lemma bind_congr_fun (oa : OracleComp spec α) (f g : α → OracleComp spec β)
     (h : ∀ a, f a = g a) : oa >>= f = oa >>= g := by
   congr 1; funext a; exact h a
 
-omit [spec.FiniteRange] in
+omit [spec.Fintype] in
 /-- Vector.map after Vector.mapM can be fused into the mapM (OracleComp equality).
     This is the naturality of traverse: map g <$> traverse f = traverse (map g <$> f) -/
 lemma vector_map_mapM {n : ℕ} (xs : Vector α n)
@@ -185,7 +185,7 @@ lemma evalDist_stateT_run_congr {σ : Type u}
     components is the same as sampling and applying gen twice.
     This follows from monad associativity and pure_bind. -/
 lemma liftComp_keygen_bind {ι' : Type u} {superSpec : OracleSpec ι'}
-    [superSpec.FiniteRange] [spec ⊂ₒ superSpec]
+    [superSpec.Fintype] [spec ⊂ₒ superSpec]
     (sample : OracleComp spec α) (gen : α → β)
     (body : β → β → OracleComp superSpec γ) :
     (liftComp (sample >>= fun a => pure (gen a, gen a)) superSpec >>=
@@ -193,15 +193,15 @@ lemma liftComp_keygen_bind {ι' : Type u} {superSpec : OracleSpec ι'}
     (liftComp sample superSpec >>= fun a => body (gen a) (gen a)) := by
   simp only [liftComp_bind, liftComp_pure, bind_assoc, pure_bind]
 
-/-- evalDist version of liftComp_keygen_bind -/
-lemma evalDist_liftComp_keygen_bind {ι' : Type u} {superSpec : OracleSpec ι'}
-    [superSpec.FiniteRange] [spec ⊂ₒ superSpec]
-    (sample : OracleComp spec α) (gen : α → β)
-    (body : β → β → OracleComp superSpec γ) :
-    evalDist (liftComp (sample >>= fun a => pure (gen a, gen a)) superSpec >>=
-              fun p => body p.1 p.2) =
-    evalDist (liftComp sample superSpec >>= fun a => body (gen a) (gen a)) := by
-  rw [liftComp_keygen_bind]
+--/-- evalDist version of liftComp_keygen_bind -/
+--lemma evalDist_liftComp_keygen_bind {ι' : Type u} {superSpec : OracleSpec ι'}
+--    [superSpec.Fintype] [spec ⊂ₒ superSpec]
+--    (sample : OracleComp spec α) (gen : α → β)
+--    (body : β → β → OracleComp superSpec γ) :
+--    evalDist (liftComp (sample >>= fun a => pure (gen a, gen a)) superSpec >>=
+--              fun p => body p.1 p.2) =
+--    evalDist (liftComp sample superSpec >>= fun a => body (gen a) (gen a)) := by
+--  rw [liftComp_keygen_bind]
 
 
 /-- StateT.run with bind preserves evalDist equality -/

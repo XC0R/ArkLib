@@ -6,9 +6,9 @@ Authors: Chung Thai Nguyen, Quang Dao
 
 import ArkLib.Data.CodingTheory.BerlekampWelch.BerlekampWelch
 import ArkLib.Data.CodingTheory.ReedSolomon
-import ArkLib.Data.FieldTheory.AdditiveNTT.AdditiveNTT
+import CompPoly.Fields.Binary.AdditiveNTT.AdditiveNTT
 import ArkLib.Data.MvPolynomial.Multilinear
-import ArkLib.Data.Vector.Basic
+import CompPoly.Data.Vector.Basic
 import ArkLib.ProofSystem.Sumcheck.Spec.SingleRound
 
 namespace Binius.BinaryBasefold

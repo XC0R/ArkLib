@@ -8,7 +8,8 @@ Authors: Tobias Rothmann and Quang Dao
 import ArkLib.CommitmentScheme.Basic
 import ArkLib.CommitmentScheme.HardnessAssumptions
 import ArkLib.AGM.Basic
-import ArkLib.Data.UniPoly.Basic
+import CompPoly.Univariate.Basic
+import CompPoly.Univariate.ToPoly
 import ArkLib.ToVCVio.DistEq
 import ArkLib.ToVCVio.Oracle
 import ArkLib.ToVCVio.SimOracle
@@ -23,7 +24,7 @@ import VCVio.OracleComp.QueryTracking.CachingOracle
 In this file, we define the KZG polynomial commitment scheme, and prove its correctness and
 straightline extraction in the AGM. -/
 
-open UniPoly
+open CompPoly.CPolynomial
 open Polynomial
 
 namespace KZG
@@ -118,11 +119,11 @@ theorem commit_eq {a : ZMod p} (hpG1 : Nat.card G₁ = p)
     exact mul_comm _ _
 
 omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] in
-/-- The commitment to a computable polynomial (UniPoly) `poly` of maximum degree `n+1` is equal to
+/-- The commitment to a computable polynomial (CPolynomial) `poly` of maximum degree `n+1` is equal to
 `g₁ ^ (poly.eval a).val`.
-Note that the degree of a UniPoly is the mathematical degree + 1 for non-zero polynomials. -/
+Note that the degree of a CPolynomial is the mathematical degree + 1 for non-zero polynomials. -/
 theorem commit_eq_UniPoly {a : ZMod p} (hpG1 : Nat.card G₁ = p)
-    (poly : UniPoly (ZMod p)) (hn : poly.degree ≤ n + 1) :
+    (poly : CPolynomial (ZMod p)) (hn : poly.degree ≤ n + 1) :
     commit (towerOfExponents g₁ a n)
     ((coeff poly) ∘ Fin.val)
   = g₁ ^ (poly.eval a).val := by
@@ -172,9 +173,9 @@ theorem commit_eq_UniPoly {a : ZMod p} (hpG1 : Nat.card G₁ = p)
   we return the commitment to the polynomial `q(X) = (poly(X) - poly.eval z) / (X - z)` -/
 def generateOpening [Fact (Nat.Prime p)] (srs : Vector G₁ (n + 1))
     (coeffs : Fin (n + 1) → ZMod p) (z : ZMod p) : G₁ :=
-    letI poly : UniPoly (ZMod p) := UniPoly.mk (Array.ofFn coeffs)
-    letI q : UniPoly (ZMod p) := UniPoly.divByMonic (poly - UniPoly.C (poly.eval z))
-      (UniPoly.X - UniPoly.C z)
+    letI poly : CPolynomial (ZMod p) := mk (Array.ofFn coeffs)
+    letI q : CPolynomial (ZMod p) := divByMonic (poly - C (poly.eval z))
+      (X - C z)
     commit srs (fun i : Fin (n + 1) => q.coeff i)
 
 /-- To verify a KZG opening `opening` for a commitment `commitment` at point `z` with claimed
@@ -190,7 +191,7 @@ def verifyOpening (verifySrs : Vector G₂ 2) (commitment : G₁) (opening : G�
 omit [DecidableEq G₁] in
 theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   (coeffs : Fin (n + 1) → ZMod p) (z : ZMod p) :
-  let poly : UniPoly (ZMod p) := UniPoly.mk (Array.ofFn coeffs)
+  let poly : CPolynomial (ZMod p) := mk (Array.ofFn coeffs)
   let v : ZMod p := poly.eval z
   let srs : Vector G₁ (n + 1) × Vector G₂ 2 := generateSrs (g₁:=g₁) (g₂:=g₂) n a
   let C : G₁ := commit srs.1 coeffs
@@ -218,14 +219,14 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
     simp
 
   -- expansion of (a-z) to Polynomial form
-  have haz : (a-z) = UniPoly.eval a (UniPoly.X - UniPoly.C z) := by
+  have haz : (a-z) = eval a (X - C z) := by
     simp_rw [←eval_toPoly_eq_eval, toPoly_sub, eval_sub,
     eval_toPoly_eq_eval]
-    simp only [UniPoly.eval_X, UniPoly.eval_C]
+    simp only [eval_X, eval_C]
 
   -- the polynomial form of (a-z) is monic
-  have hmonic : monic (UniPoly.X - UniPoly.C z) := by
-    simp only [UniPoly.monic_X_sub_C]
+  have hmonic : monic (X - C z) := by
+    simp only [monic_X_sub_C]
 
   -- the proof
 
@@ -235,19 +236,19 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   -- define q(X) := (poly(X) - poly(z)) / (X-z)
   -- and restate the opening as the evaluation of q at a (opening => g₁^q(a))
   simp_rw [generateOpening, ←hcoeffs]
-  set q := (mk poly - UniPoly.C (UniPoly.eval z (mk poly))).divByMonic (UniPoly.X - UniPoly.C z)
+  set q := (mk poly - C (eval z (mk poly))).divByMonic (X - C z)
   have hqdeg : degree q ≤ n+1 := by
     calc
-      degree q ≤ degree (mk poly - UniPoly.C (UniPoly.eval z (mk poly))) := by
+      degree q ≤ degree (mk poly - C (eval z (mk poly))) := by
         simp [q, degree_divByMonic hmonic]
-      _ ≤ max (degree (mk poly)) (degree (UniPoly.C (UniPoly.eval z (mk poly)))) :=
-        UniPoly.degree_sub _ _
+      _ ≤ max (degree (mk poly)) (degree (C (eval z (mk poly)))) :=
+        degree_sub _ _
       _ ≤ max (n+1) 1 := by
         apply max_le_max
         · exact hpdeg
-        · by_cases h0 : UniPoly.eval z (mk poly) = 0
+        · by_cases h0 : eval z (mk poly) = 0
           · simp only [h0, degree_C_zero, zero_le]
-          · simp [UniPoly.degree_C (x := UniPoly.eval z (mk poly)) (by simpa using h0)]
+          · simp [degree_C (x := eval z (mk poly)) (by simpa using h0)]
       _ = n+1 := by
         simp only [Nat.succ_le_succ (Nat.zero_le n), sup_of_le_left]
   have hfun: (fun i ↦ q.coeff ↑i : Fin (n+1) → ZMod p) = (coeff q) ∘ Fin.val := by rfl
@@ -262,8 +263,8 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   -- eliminate the pairing and reason only about the exponents: poly(a) - poly(z) = q(a) * (a-z)
   apply modp_eq_additive
   refine (Int.modEq_iff_dvd).2 ?_
-  let x : ℤ := (↑(UniPoly.eval a poly).val) - (↑v.val)
-  let y : ℤ := (↑(a.val) - ↑(z.val)) * ↑(UniPoly.eval a q).val
+  let x : ℤ := (↑(eval a poly).val) - (↑v.val)
+  let y : ℤ := (↑(a.val) - ↑(z.val)) * ↑(eval a q).val
   refine (Iff.mp (ZMod.intCast_eq_intCast_iff_dvd_sub (a := x) (b := y) (c := p))) ?_
   subst x y; simp
 
@@ -284,7 +285,7 @@ local instance : OracleInterface (Fin (n + 1) → ZMod p) where
   Query := ZMod p
   Response := ZMod p
   answer := fun coeffs z =>
-    let poly : UniPoly (ZMod p) := UniPoly.mk (Array.ofFn coeffs)
+    let poly : CPolynomial (ZMod p) := mk (Array.ofFn coeffs)
     poly.eval z
 
 open scoped NNReal
@@ -454,7 +455,7 @@ def erase_duplicates : List (ZMod p × ZMod p × G₁) → List (ZMod p × ZMod 
     else (αᵢ,βᵢ,pfᵢ)::erase_duplicates xs
 
 /-- step 4 b) Find i∗ ∈ {D + 2,...,L} such that βi∗ ≠ Lₒ(αi∗) -/
-def find_diversion (L₀ : UniPoly (ZMod p))
+def find_diversion (L₀ : CPolynomial (ZMod p))
   : List (ZMod p × ZMod p × G₁) → Option (ZMod p × ZMod p × G₁)
   | [] => none
   | (αᵢ,βᵢ,pfᵢ)::xs => if eval αᵢ L₀ ≠ βᵢ then some (αᵢ,βᵢ,pfᵢ) else find_diversion L₀ xs
@@ -468,7 +469,7 @@ def find_S (srs : Vector G₁ (n + 1) × Vector G₂ 2) (cm : G₁) (diversion :
   | [], _ => none
   | x::xs, prefix_acc =>
     let candidate := prefix_acc ++ [diversion] ++ xs
-    let L : UniPoly (ZMod p) := sorry -- interpolate candidate
+    let L : CPolynomial (ZMod p) := sorry -- interpolate candidate
     if commit srs.1 (fun i : Fin (n + 1) => L.coeff i) ≠ cm
     then some candidate.toFinset
     else find_S srs cm diversion xs (prefix_acc ++ [x])
@@ -485,21 +486,21 @@ def map_FB_instance_to_ARSDH_inst' {L : ℕ}
   if let some ((α₁,β₁,pf₁),(α₂,β₂,pf₂)) := find_conflict points then
     -- step 3
     let S := choose_S_conflict α₁ srs sorry
-    let Zₛ := ∏ s ∈ S, (UniPoly.X - UniPoly.C s)
+    let Zₛ := ∏ s ∈ S, (X - C s)
     let h₁ := KZG.commit srs.1 (Zₛ.coeff ∘ Fin.val)
     let h₂ : G₁ := (pf₁ / pf₂) ^ (1 /(β₂ - β₁).val)
     return (S ∪ {α₁}, h₁, h₂)
   else
     -- step 4
     let distinct_points := erase_duplicates points
-    let L₀ : UniPoly (ZMod p) := sorry -- interpolate distinct_points.take (D+1)
+    let L₀ : CPolynomial (ZMod p) := sorry -- interpolate distinct_points.take (D+1)
     let diversion ← find_diversion L₀ (distinct_points.take (n+1))
     let S_points ← find_S srs cm diversion (distinct_points.drop (n+1)) []
     let S := S_points.image Prod.fst
-    let Zₛ := ∏ s ∈ S, (UniPoly.X - UniPoly.C s)
-    let Lₛ : UniPoly (ZMod p):= sorry -- interpolate S
+    let Zₛ := ∏ s ∈ S, (X - C s)
+    let Lₛ : CPolynomial (ZMod p):= sorry -- interpolate S
     let h₁ := cm / KZG.commit srs.1 (Lₛ.coeff ∘ Fin.val)
-    let d := fun α => 1 / UniPoly.eval α (UniPoly.divByMonic Zₛ (UniPoly.X - UniPoly.C α))
+    let d := fun α => 1 / eval α (divByMonic Zₛ (X - C α))
       -- 1/(Z_{S \ {α}}(α))
     let h₂ : G₁ := ∏ ⟨α, β,pf⟩ ∈ S_points, pf ^ (d α).val
     return (S, h₁, h₂)
@@ -558,7 +559,7 @@ def reduction (L : ℕ) (AuxState : Type)
 /-- ARSDH condition for an adversary "to win" -/
 def ARSDH_cond (D : ℕ) : (ZMod p × Finset (ZMod p) × G₁ × G₁) → Prop :=
   fun (τ, S, (h₁ : G₁), h₂) =>
-    let Zₛ : UniPoly (ZMod p) := ∏ s ∈ S, (UniPoly.X - UniPoly.C s)
+    let Zₛ : CPolynomial (ZMod p) := ∏ s ∈ S, (X - C s)
     S.card = D + 1 ∧ h₁ ≠ 1 ∧ h₂ = h₁ ^ (1 / Zₛ.eval τ).val
 
 /-- Function binding condition for an adversary "to win" -/

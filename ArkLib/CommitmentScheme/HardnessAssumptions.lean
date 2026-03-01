@@ -7,7 +7,8 @@ Authors: Tobias Rothmann
 import VCVio
 import ArkLib.Data.GroupTheory.PrimeOrder
 import ArkLib.Data.Classes.Serde
-import ArkLib.Data.UniPoly.Basic
+import CompPoly.Univariate.Basic
+import CompPoly.Univariate.ToPoly
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Algebra.Order.Star.Basic
 import Mathlib.Algebra.Polynomial.FieldDivision
@@ -62,7 +63,7 @@ noncomputable def ARSDH_Experiment [∀ i, SelectableType (unifSpec.range i)] (D
     (adversary : ARSDHAdversary D (G₁ := G₁) (G₂ := G₂) (p := p))
     : ℝ≥0∞ :=
   [fun (τ,S,h₁,h₂) =>
-    letI Zₛ := ∏ s ∈ S, (UniPoly.X - UniPoly.C s)
+    letI Zₛ := ∏ s ∈ S, (X - C s)
     S.card = D + 1 ∧ h₁ ≠ 1 ∧ h₂ = h₁ ^ (1 / Zₛ.eval τ).val
   | (do
     let τ ← simulateQ randomOracle ($ᵗ(ZMod p))

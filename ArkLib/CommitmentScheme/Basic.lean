@@ -45,7 +45,7 @@ variable [O : OracleInterface Data] {n : ℕ} (pSpec : ProtocolSpec n)
 
 structure Opening where
   opening : (ComKey × VerifKey) →
-    Proof oSpec (Commitment × O.Query × O.Response) (Data × Randomness) pSpec
+    Proof oSpec (Commitment × (q : O.Query) × O.Response q) (Data × Randomness) pSpec
 
 -- abbrev Statement (Data Commitment : Type) [O : OracleInterface Data] :=
 --  Commitment × O.Query × O.Response
@@ -66,9 +66,10 @@ open scoped NNReal ENNReal
 variable [DecidableEq ι]
   {oSpec : OracleSpec ι} {Data : Type} [O : OracleInterface Data] {Randomness : Type}
   [Fintype Randomness]
-  {Commitment ComKey VerifKey : Type} [oSpec.FiniteRange] {n : ℕ} {pSpec : ProtocolSpec n}
+  {Commitment ComKey VerifKey : Type} [oSpec.Fintype] {n : ℕ}
+  {pSpec : ProtocolSpec n} [[pSpec.Challenge]ₒ.Inhabited] [[pSpec.Challenge]ₒ.Fintype]
   [∀ i, VCVCompatible (pSpec.Challenge i)]
-  [∀ i, SelectableType (pSpec.Challenge i)]
+  [∀ i, SampleableType (pSpec.Challenge i)]
   {σ : Type} (init : ProbComp σ) (impl : QueryImpl oSpec (StateT σ ProbComp))
 
 /-- A commitment scheme satisfies **correctness** with error `correctnessError` if for all
@@ -80,13 +81,18 @@ def correctness (scheme : Scheme oSpec Data Randomness Commitment ComKey VerifKe
     ∀ data : Data,
     ∀ randomness : Randomness,
     ∀ query : O.Query,
-    [fun ⟨⟨_, (prvStmtOut, witOut)⟩, stmtOut⟩ =>
+    let pImpl : QueryImpl (oSpec + [pSpec.Challenge]ₒ) (StateT σ ProbComp) :=
+      QueryImpl.addLift impl challengeQueryImpl
+    Pr[fun ⟨⟨_, (prvStmtOut, witOut)⟩, stmtOut⟩ =>
       (stmtOut, witOut) ∈ acceptRejectRel ∧ prvStmtOut = stmtOut
-    | do
-        (simulateQ (impl ++ₛₒ challengeQueryImpl : QueryImpl _ (StateT σ ProbComp)) (do
+    | OptionT.mk do
+        (simulateQ pImpl (do
           let (ck,vk) ← liftComp scheme.keygen _
-          let cm ← scheme.commit ck data randomness
-          (scheme.opening (ck,vk)).run ⟨cm, query, O.answer data query⟩ ⟨data, randomness⟩
+          let cm ← liftComp (scheme.commit ck data randomness) _
+          let proof := scheme.opening (ck,vk)
+          let stmt : Commitment × (q : O.Query) × O.Response q := (cm, ⟨query, O.answer data query⟩)
+          let wit : Data × Randomness := (data, randomness)
+          (proof.run stmt wit).run
         )).run' (← init)] ≥ 1 - correctnessError
 
 /-- A commitment scheme satisfies **perfect correctness** if it satisfies correctness with no error.
@@ -100,7 +106,7 @@ def perfectCorrectness (scheme : Scheme oSpec Data Randomness Commitment ComKey 
   malicious prover in the opening procedure). -/
 def BindingAdversary (oSpec : OracleSpec ι) (Data Commitment AuxState : Type)
     [O : OracleInterface Data] :=
-  OracleComp oSpec (Commitment × O.Query × O.Response × O.Response × AuxState)
+  OracleComp oSpec (Commitment × (q : O.Query) × O.Response q × O.Response q × AuxState)
 
 /-- A commitment scheme satisfies **(evaluation) binding** with error `bindingError` if for all
     adversaries that output a commitment `cm`, query `q`, two responses `resp₁, resp₂`, and
@@ -118,7 +124,7 @@ def binding (scheme : Scheme oSpec Data Randomness Commitment ComKey VerifKey pS
     (bindingError : ℝ≥0) : Prop :=
   ∀ AuxState : Type,
   ∀ adversary : BindingAdversary oSpec Data Commitment AuxState,
-  ∀ prover : Prover oSpec (Commitment × O.Query × O.Response) AuxState Bool Unit pSpec,
+  ∀ prover : Prover oSpec (Commitment × (q : O.Query) × O.Response q) AuxState Bool Unit pSpec,
     False
     -- [ fun ⟨x, x', b₁, b₂⟩ => x ≠ x' ∧ b₁ ∧ b₂ | do
     --     let result ← liftM adversary
@@ -138,7 +144,7 @@ def StraightlineExtractor (oSpec : OracleSpec ι) (Data Commitment : Type) :=
   query, a response value, and some auxiliary state (to be used in the opening procedure). -/
 def ExtractabilityAdversary (oSpec : OracleSpec ι) (Data Commitment AuxState : Type)
     [O : OracleInterface Data] :=
-  OracleComp oSpec (Commitment × O.Query × O.Response × AuxState)
+  OracleComp oSpec (Commitment × (q : O.Query) × O.Response q × AuxState)
 
 /-- A commitment scheme satisfies **extractability** with error `extractabilityError` if there
     exists a straightline extractor `E` such that for all adversaries that output a commitment `cm`,
@@ -158,7 +164,7 @@ def extractability (scheme : Scheme oSpec Data Randomness Commitment ComKey Veri
   ∃ extractor : StraightlineExtractor oSpec Data Commitment,
   ∀ AuxState : Type,
   ∀ adversary : ExtractabilityAdversary oSpec Data Commitment AuxState,
-  ∀ prover : Prover oSpec (Commitment × O.Query × O.Response) AuxState Bool Unit pSpec,
+  ∀ prover : Prover oSpec (Commitment × (q : O.Query) × O.Response q) AuxState Bool Unit pSpec,
     False
     -- [ fun ⟨b, d, q, r⟩ => b ∧ O.answer d q = r | do
     --     let result ← liftM (simulate loggingOracle ∅ adversary)
@@ -179,33 +185,37 @@ def extractability (scheme : Scheme oSpec Data Randomness Commitment ComKey Veri
 structure FunctionBindingAdversary (oSpec : OracleSpec ι) (Data Commitment AuxState : Type)
   [O : OracleInterface Data] (L : ℕ) {n : ℕ} (pSpec : ProtocolSpec n) (ComKey : Type)
 where
-  claim : (ComKey → OracleComp oSpec (Commitment × Vector (O.Query × O.Response × AuxState) L))
-  prover : (ComKey → Prover oSpec (Commitment × O.Query × O.Response) AuxState Bool Unit pSpec)
+  claim : (ComKey →
+    OracleComp oSpec (Commitment × Vector ( (q : O.Query) × O.Response q × AuxState) L))
+  prover : (ComKey →
+    Prover oSpec (Commitment ×  (q : O.Query) × O.Response q) AuxState Bool Unit pSpec)
 
 /-- The probabillity of breaking function binding for a specific adversary. -/
 def functionBinding_Experiment {L : ℕ} (hn : n = 1) (hpSpec : NonInteractive (hn ▸ pSpec))
     (AuxState : Type)
     [∀ i, VCVCompatible ((hn ▸ pSpec).Challenge i)]
-    [∀ i, SelectableType ((hn ▸ pSpec).Challenge i)]
+    [∀ i, SampleableType ((hn ▸ pSpec).Challenge i)]
     (scheme : Scheme oSpec Data Randomness Commitment ComKey VerifKey (hn ▸ pSpec))
     (adversary : FunctionBindingAdversary oSpec Data Commitment AuxState L (hn ▸ pSpec) ComKey)
     : ℝ≥0∞ :=
-    [fun x =>
+    Pr[fun (x : Vector ((q : O.Query) × O.Response q × Bool) L) =>
         (∀ (i : Fin x.size), x[i].2.2 = true)
         ∧ (¬ ∃ (d : Data), ∀ (i : Fin x.size), O.answer d x[i].1 = x[i].2.1)
-       | do (simulateQ (impl ++ₛₒ (challengeQueryImpl (pSpec := hn ▸ pSpec)) :
+       | OptionT.mk do (simulateQ
+          (QueryImpl.addLift impl (challengeQueryImpl (pSpec := hn ▸ pSpec)) :
           QueryImpl _ (StateT σ ProbComp)) <|
           (do
             let (ck,vk) ← liftComp scheme.keygen _
             let (cm, claims) ← liftComp (adversary.claim ck) _
             let reduction := Reduction.mk (adversary.prover ck) (scheme.opening (ck,vk)).verifier
-            claims.mapM (fun ⟨q, r, st⟩ =>
-              do
-                let ⟨_, verifier_accept⟩ ← reduction.run (cm, q, r) st
-                return (q, r, verifier_accept)
+            let opts ← claims.mapM (fun (⟨query, response, state⟩ : (q : O.Query) × O.Response q × AuxState) => do
+              let stmt : Commitment × (q : O.Query) × O.Response q := (cm, ⟨query, response⟩)
+              let result ← (reduction.run stmt state).run
+              return (result.map (fun ((_, verifier_result) : (FullTranscript (hn ▸ pSpec) × Bool × Unit) × Bool) =>
+                ((⟨query, response, verifier_result⟩ : (q : O.Query) × O.Response q × Bool))))
               )
+            pure (opts.mapM id)
           : OracleComp _ _)).run' (← init)]
-
 
 /-- A commitment scheme satisfies **function binding** with error `functionBindingError` if for all
 adversaries that output a commitment `cm`, and a vector of length `L` of queries `q_i`, claimed
@@ -225,27 +235,31 @@ prover in the opening procedure), and for all malicious provers in the opening p
   Note: This is an adaption of the function binding property introduced in https://eprint.iacr.org/2025/902 -/
 def functionBinding {L : ℕ} (hn : n = 1) (hpSpec : NonInteractive (hn ▸ pSpec)) (AuxState : Type)
     [∀ i, VCVCompatible ((hn ▸ pSpec).Challenge i)]
-    [∀ i, SelectableType ((hn ▸ pSpec).Challenge i)]
+    [∀ i, SampleableType ((hn ▸ pSpec).Challenge i)]
     (scheme : Scheme oSpec Data Randomness Commitment ComKey VerifKey (hn ▸ pSpec))
     (functionBindingError : ℝ≥0) : Prop :=
     ∀ adversary : FunctionBindingAdversary oSpec Data Commitment AuxState L (hn ▸ pSpec) ComKey,
-      [fun x =>
+      Pr[fun (x : Vector ((q : O.Query) × O.Response q × Bool) L) =>
         (∀ (i : Fin x.size), x[i].2.2 = true)
         ∧ (¬ ∃ (d : Data), ∀ (i : Fin x.size), O.answer d x[i].1 = x[i].2.1)
-       | do (simulateQ
-              (impl ++ₛₒ (challengeQueryImpl (pSpec := hn ▸ pSpec)) :
-              QueryImpl _ (StateT σ ProbComp))
-              <|
-              (do
+       | OptionT.mk do
+          (simulateQ
+            (QueryImpl.addLift impl (challengeQueryImpl (pSpec := hn ▸ pSpec)) :
+            QueryImpl _ (StateT σ ProbComp))
+            <|
+            (do
                 let (ck,vk) ← liftComp scheme.keygen _
                 let (cm, claims) ← liftComp (adversary.claim ck) _
                 let reduction := Reduction.mk (adversary.prover ck)
                   (scheme.opening (ck,vk)).verifier
-                claims.mapM (fun ⟨q, r, st⟩ =>
-                  do
-                    let ⟨_, verifier_accept⟩ ← reduction.run (cm, q, r) st
-                    return (q, r, verifier_accept)
-                  ): OracleComp _ _)
+                let opts ← claims.mapM (fun (⟨query, response, state⟩ : (q : O.Query) × O.Response q × AuxState) => do
+                  let stmt : Commitment × (q : O.Query) × O.Response q := (cm, ⟨query, response⟩)
+                  let result ← (reduction.run stmt state).run
+                  return (result.map (fun ((_, verifier_result) : (FullTranscript (hn ▸ pSpec) × Bool × Unit) × Bool) =>
+                    ((⟨query, response, verifier_result⟩ : (q : O.Query) × O.Response q × Bool))))
+                  )
+                pure (opts.mapM id)
+              : OracleComp _ _)
             ).run' (← init)] ≤ functionBindingError
 
 
@@ -253,8 +267,6 @@ def functionBinding {L : ℕ} (hn : n = 1) (hpSpec : NonInteractive (hn ▸ pSpe
 
 Note: have to put it as `hiding'` because `hiding` is already used somewhere else. -/
 def hiding' (scheme : Scheme oSpec Data Randomness Commitment ComKey VerifKey pSpec) : Prop := sorry
-
-#check seededOracle
 
 end
 
