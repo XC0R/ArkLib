@@ -97,7 +97,7 @@ theorem eval_mul' (x : R) (p q : CPolynomial R) :
     eval x (p * q) = eval x p * eval x q := by
   simp only [eval_toPoly, toPoly_mul, Polynomial.eval_mul]
 
-theorem eval_sum' {ι : Type} [DecidableEq ι] (x : R) (s : Finset ι) (f : ι → CPolynomial R) :
+theorem eval_sum' {ι : Type} (x : R) (s : Finset ι) (f : ι → CPolynomial R) :
     eval x (s.sum f) = s.sum (fun i => eval x (f i)) := by
   induction s using Finset.cons_induction with
   | empty =>
@@ -165,12 +165,16 @@ private theorem nodup_injOn_pts (pts : Vector R (n + 1))
 structure InterpPlan (R : Type) [Field R] (n : ℕ) where
   pts : Vector R (n + 1)
   invDenoms : Vector R (n + 1)
+  invDelta : Vector (Vector R (n + 1)) (n + 1)
 
 /-- Compile an interpolation plan by precomputing all inverse Lagrange denominators. -/
 def compileInterpPlan (pts : Vector R (n + 1)) : InterpPlan R n where
   pts := pts
   invDenoms := Vector.ofFn (fun i : Fin (n + 1) =>
     ((∏ j ∈ (Finset.univ.erase i), (pts[i] - pts[j])) : R)⁻¹)
+  invDelta := Vector.ofFn (fun i : Fin (n + 1) =>
+    Vector.ofFn (fun j : Fin (n + 1) =>
+      if j.1 < i.1 then (pts[i] - pts[j])⁻¹ else 0))
 
 /-- The `i`-th Lagrange basis polynomial for the given points and precomputed data. -/
 def lagrangeBasisWithPlan (plan : InterpPlan R n) (i : Fin (n + 1)) : CPolynomial R :=
@@ -185,15 +189,87 @@ private def interpPolyTermWithPlan (plan : InterpPlan R n) (vals : Vector R (n +
   C (vals[i] * plan.invDenoms[i]) *
     ∏ j ∈ (Finset.univ.erase i), (X + C (-plan.pts[j]))
 
-/-- Interpolate using a precompiled plan. -/
-def lagrangeInterpolateWithPlan (plan : InterpPlan R n) (vals : Vector R (n + 1)) :
+/-- Proof-oriented interpolation spec used by theorem statements. -/
+private def lagrangeInterpolateWithPlanSpec (plan : InterpPlan R n) (vals : Vector R (n + 1)) :
     CPolynomial R :=
   ∑ i : Fin (n + 1), interpPolyTermWithPlan plan vals i
+
+private def rawCoeffGet {α : Type} (a : Array α) (i : Nat) (d : α) : α :=
+  (a[i]?).getD d
+
+private def rawCoeffGetR (a : Array R) (i : Nat) : R :=
+  (a[i]?).getD 0
+
+private def rawPolyEval (coeffs : Array R) (x : R) : R :=
+  (coeffs.toList.reverse.foldl (fun acc a => acc * x + a) 0)
+
+private def rawPolyScale (c : R) (coeffs : Array R) : Array R :=
+  coeffs.map (fun a => c * a)
+
+private def rawPolyAdd (p q : Array R) : Array R :=
+  let m := max p.size q.size
+  Array.ofFn (fun i : Fin m => rawCoeffGetR p i.1 + rawCoeffGetR q i.1)
+
+/-- Multiply by `(X - x)` using a linear-time coefficient recurrence. -/
+private def rawPolyMulXSubC (coeffs : Array R) (x : R) : Array R :=
+  let m := coeffs.size
+  Array.ofFn (fun i : Fin (m + 1) =>
+    (if i.1 = 0 then 0 else rawCoeffGetR coeffs (i.1 - 1)) - x * rawCoeffGetR coeffs i.1)
+
+private def rawDenomInv (invDelta : Array (Array R)) (k : Nat) : R :=
+  (List.range k).foldl (fun acc j =>
+    acc * rawCoeffGetR (rawCoeffGet invDelta k #[]) j) 1
+
+private def newtonStep
+    (pts vals : Array R) (invDelta : Array (Array R)) (k : Nat)
+    (st : Array R × Array R) : Array R × Array R :=
+  let coeffs := st.1
+  let basis := st.2
+  let xk := rawCoeffGetR pts k
+  let yk := rawCoeffGetR vals k
+  let denomInv := rawDenomInv invDelta k
+  let corr := (yk - rawPolyEval coeffs xk) * denomInv
+  let coeffs' := rawPolyAdd coeffs (rawPolyScale corr basis)
+  let basis' := rawPolyMulXSubC basis xk
+  (coeffs', basis')
+
+private def newtonLoop
+    (pts vals : Array R) (invDelta : Array (Array R)) :
+    Nat → Nat → (Array R × Array R) → (Array R × Array R)
+  | _, 0, st => st
+  | k, fuel + 1, st => newtonLoop pts vals invDelta (k + 1) fuel
+      (newtonStep pts vals invDelta k st)
+
+private def lagrangeInterpolateWithPlanRawFastImpl
+    (plan : InterpPlan R n) (vals : Vector R (n + 1)) : CPolynomial.Raw R := by
+  let ptsArr : Array R := plan.pts.toArray
+  let valsArr : Array R := vals.toArray
+  let invArr : Array (Array R) := plan.invDelta.toArray.map (fun row => row.toArray)
+  let x0 := rawCoeffGetR ptsArr 0
+  let y0 := rawCoeffGetR valsArr 0
+  let initCoeffs : Array R := #[y0]
+  let initBasis : Array R := #[-x0, 1]
+  let out := newtonLoop ptsArr valsArr invArr 1 n (initCoeffs, initBasis)
+  exact out.1
+
+private def lagrangeInterpolateWithPlanFast (plan : InterpPlan R n) (vals : Vector R (n + 1)) :
+    CPolynomial R := by
+  let _ := (inferInstance : LawfulBEq R)
+  let _ := (inferInstance : Nontrivial R)
+  refine ⟨(lagrangeInterpolateWithPlanRawFastImpl plan vals).trim, ?_⟩
+  simpa using (CompPoly.CPolynomial.Raw.Trim.trim_twice
+    (lagrangeInterpolateWithPlanRawFastImpl plan vals))
+
+/-- Interpolate using a precompiled plan. -/
+@[implemented_by lagrangeInterpolateWithPlanFast]
+def lagrangeInterpolateWithPlan (plan : InterpPlan R n) (vals : Vector R (n + 1)) :
+    CPolynomial R :=
+  lagrangeInterpolateWithPlanSpec plan vals
 
 /-- Raw interpolation output (unchecked/canonical raw representation) with precompiled plan. -/
 def lagrangeInterpolateWithPlanRawFast (plan : InterpPlan R n) (vals : Vector R (n + 1)) :
     CPolynomial.Raw R :=
-  (lagrangeInterpolateWithPlan plan vals).val
+  (lagrangeInterpolateWithPlanRawFastImpl plan vals).trim
 
 /-- Raw interpolation output (unchecked/canonical raw representation). -/
 def lagrangeInterpolateRawFast (pts vals : Vector R (n + 1)) : CPolynomial.Raw R :=

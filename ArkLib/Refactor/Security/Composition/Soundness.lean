@@ -195,7 +195,19 @@ theorem rbrSoundness_implies_soundness
         (E := fun i x => flip i x)
     have h_each : ∀ i : ChallengeIndex pSpec, Pr[flip i | mx0] ≤ rbrError i := by
       intro i
-      simpa [mx0, flip] using hrbr stmtIn hstmtIn Output prover i σ0 hσ0
+      let flipTr : Transcript pSpec → Prop := fun tr =>
+        ¬ sf.toFun i.1 stmtIn (HVector.take i.1 pSpec tr) ∧
+          sf.toFun (i.1 + 1) stmtIn (HVector.take (i.1 + 1) pSpec tr)
+      have hFlipMap : Pr[flip i | mx0] = Pr[flipTr | Prod.fst <$> mx0] := by
+        rw [probEvent_map]
+        rfl
+      have hMx0 :
+          Prod.fst <$> mx0 = (do
+            let challenges ← sampleChallenges pSpec
+            Prod.fst <$> (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0) := by
+        simp [mx0, map_eq_bind_pure_comp, bind_assoc]
+      rw [hFlipMap, hMx0]
+      simpa [flipTr] using hrbr stmtIn hstmtIn Output prover i σ0 hσ0
     have h_final0_le_sum : Pr[final0 | mx0] ≤ ε := by
       calc
         Pr[final0 | mx0]

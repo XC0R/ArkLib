@@ -87,12 +87,12 @@ def rbrSoundness (langIn : Set StmtIn) (langOut : Set StmtOut)
   ∀ i : ChallengeIndex pSpec,
   ∀ σ0 : σ,
   Inv σ0 →
-    Pr[fun (tr, _) =>
+    Pr[fun tr =>
         ¬ sf.toFun i.1 stmtIn (HVector.take i.1 pSpec tr) ∧
           sf.toFun (i.1 + 1) stmtIn (HVector.take (i.1 + 1) pSpec tr)
       | do
         let challenges ← sampleChallenges pSpec
-        (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
+        Prod.fst <$> (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
     ] ≤ rbrError i
 
 class IsRBRSound (langIn : Set StmtIn) (langOut : Set StmtOut)
@@ -149,11 +149,12 @@ def rbrKnowledgeSoundness
     (ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor)
     (rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0) : Prop :=
   ∀ stmtIn : StmtIn,
-  ∀ prover : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec,
+  ∀ (Output : Type),
+  ∀ prover : Prover (OracleComp oSpec) Output pSpec,
   ∀ i : ChallengeIndex pSpec,
   ∀ σ0 : σ,
   Inv σ0 →
-    Pr[fun (tr, _) =>
+    Pr[fun tr =>
       ∃ witMid,
         ¬ ksf.toFun i.1.castSucc stmtIn
           (HVector.take i.1.castSucc pSpec tr)
@@ -163,7 +164,7 @@ def rbrKnowledgeSoundness
           (HVector.take (i.1 + 1) pSpec tr) witMid
       | do
         let challenges ← sampleChallenges pSpec
-        (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
+        Prod.fst <$> (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
     ] ≤ rbrKnowledgeError i
 
 /-! ## Bridge: RBR Knowledge Soundness → RBR Soundness -/
@@ -174,7 +175,6 @@ relations: `langIn = {s | ∃ w, (s, w) ∈ relIn}`, `langOut = {s | ∃ w, (s, 
 theorem rbrKnowledgeSoundness_implies_rbrSoundness
     {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
     {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
-    [Inhabited StmtOut] [Inhabited WitOut]
     {Inv : σ → Prop}
     {WitMid : Fin (pSpec.length + 1) → Type}
     {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
@@ -257,62 +257,39 @@ theorem rbrKnowledgeSoundness_implies_rbrSoundness
   }
   refine ⟨sf, ?_⟩
   intro stmtIn _ Output prover i σ0 hσ0
-  let dummyOut : StmtOut × WitOut := default
-  let prover' : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec :=
-    Prover.mapOutput (fun _ : Output => dummyOut) pSpec prover
-  let exp : ProbComp (Transcript pSpec × Output) := do
+  let exp : ProbComp (Transcript pSpec) := do
     let challenges ← sampleChallenges pSpec
-    (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
-  let exp' : ProbComp (Transcript pSpec × (StmtOut × WitOut)) := do
-    let challenges ← sampleChallenges pSpec
-    (simulateQ impl (Prover.run pSpec prover' challenges)).run' σ0
-  let flipSF : ChallengeIndex pSpec → (Transcript pSpec × Output) → Prop := fun j z =>
-    ¬ sf.toFun j.1 stmtIn (HVector.take j.1 pSpec z.1) ∧
-      sf.toFun (j.1 + 1) stmtIn (HVector.take (j.1 + 1) pSpec z.1)
-  let flipSF' : ChallengeIndex pSpec → (Transcript pSpec × (StmtOut × WitOut)) → Prop := fun j z =>
-    ¬ sf.toFun j.1 stmtIn (HVector.take j.1 pSpec z.1) ∧
-      sf.toFun (j.1 + 1) stmtIn (HVector.take (j.1 + 1) pSpec z.1)
-  let flipKSF : ChallengeIndex pSpec → (Transcript pSpec × (StmtOut × WitOut)) → Prop := fun j z =>
+    Prod.fst <$> (simulateQ impl (Prover.run pSpec prover challenges)).run' σ0
+  let flipSF : ChallengeIndex pSpec → Transcript pSpec → Prop := fun j tr =>
+    ¬ sf.toFun j.1 stmtIn (HVector.take j.1 pSpec tr) ∧
+      sf.toFun (j.1 + 1) stmtIn (HVector.take (j.1 + 1) pSpec tr)
+  let flipKSF : ChallengeIndex pSpec → Transcript pSpec → Prop := fun j tr =>
     ∃ witMid,
       ¬ ksf.toFun j.1.castSucc stmtIn
-        (HVector.take j.1.castSucc pSpec z.1)
+        (HVector.take j.1.castSucc pSpec tr)
         (extractor.extractMid j.1 stmtIn
-          (HVector.take (j.1 + 1) pSpec z.1) witMid) ∧
+          (HVector.take (j.1 + 1) pSpec tr) witMid) ∧
       ksf.toFun j.1.succ stmtIn
-        (HVector.take (j.1 + 1) pSpec z.1) witMid
-  have run'_map_local :
-      ∀ {α β : Type} (f : α → β) (x : StateT σ ProbComp α) (s : σ),
-        (f <$> x).run' s = f <$> x.run' s := by
-    intro α β f x s
-    change (fun x : β × σ => x.1) <$> (f <$> x).run s =
-      f <$> ((fun x : α × σ => x.1) <$> x.run s)
-    rw [StateT.run_map]
-    simp [Functor.map_map]
-  have hExpMap : exp' = (fun z : Transcript pSpec × Output => (z.1, dummyOut)) <$> exp := by
-    simp [exp', exp, prover', Prover.run_mapOutput, simulateQ_map]
-  have hFlipEq : Pr[flipSF i | exp] = Pr[flipSF' i | exp'] := by
-    rw [hExpMap, probEvent_map]
-    rfl
-  have hFlipLe : Pr[flipSF' i | exp'] ≤ Pr[flipKSF i | exp'] := by
+        (HVector.take (j.1 + 1) pSpec tr) witMid
+  have hFlipLe : Pr[flipSF i | exp] ≤ Pr[flipKSF i | exp] := by
     refine probEvent_mono ?_
-    intro z _ hz
+    intro tr _ hz
     rcases hz with ⟨hPrev, hSucc⟩
     have hiLe : i.1 ≤ pSpec.length := Nat.le_of_lt i.1.isLt
     have hiSuccLe : i.1 + 1 ≤ pSpec.length := Nat.succ_le_of_lt i.1.isLt
-    rcases (by simpa [flipSF', sf, hiSuccLe] using hSucc) with ⟨witMid, hSuccKsf⟩
+    rcases (by simpa [flipSF, sf, hiSuccLe] using hSucc) with ⟨witMid, hSuccKsf⟩
     refine ⟨witMid, ?_, ?_⟩
     · intro hPrevKsf
       have hPrevSf :
-          sf.toFun i.1 stmtIn (HVector.take i.1 pSpec z.1) := by
+          sf.toFun i.1 stmtIn (HVector.take i.1 pSpec tr) := by
         simp only [sf, hiLe, dite_true]
         exact ⟨_, hPrevKsf⟩
       exact hPrev hPrevSf
     · simpa using hSuccKsf
-  have hKsfBound : Pr[flipKSF i | exp'] ≤ rbrKnowledgeError i := by
-    simpa [flipKSF, exp', prover'] using h stmtIn prover' i σ0 hσ0
+  have hKsfBound : Pr[flipKSF i | exp] ≤ rbrKnowledgeError i := by
+    simpa [flipKSF, exp] using h stmtIn Output prover i σ0 hσ0
   calc
-    Pr[flipSF i | exp] = Pr[flipSF' i | exp'] := hFlipEq
-    _ ≤ Pr[flipKSF i | exp'] := hFlipLe
+    Pr[flipSF i | exp] ≤ Pr[flipKSF i | exp] := hFlipLe
     _ ≤ rbrKnowledgeError i := hKsfBound
 
 end ProtocolSpec

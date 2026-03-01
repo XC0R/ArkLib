@@ -176,17 +176,17 @@ def Verifier.knowledgeSoundness (relIn : Set (StmtIn × WitIn))
     (knowledgeError : ℝ≥0) : Prop :=
   ∃ extractor : Extractor.Straightline oSpec StmtIn WitIn WitOut pSpec,
   ∀ stmtIn : StmtIn,
-  ∀ prover : Prover (OracleComp oSpec) (StmtOut × WitOut) pSpec,
-    Pr[fun (verResult, (stmtOut, witOut), extractedWit) =>
-        (verResult = some stmtOut ∧ (stmtOut, witOut) ∈ relOut) ∧
+  ∀ prover : Prover (OracleComp oSpec) WitOut pSpec,
+    Pr[fun (verResult, witOut, extractedWit) =>
+        (∃ stmtOut, verResult = some stmtOut ∧ (stmtOut, witOut) ∈ relOut) ∧
           (extractedWit.isNone ∨ ∃ w, extractedWit = some w ∧ (stmtIn, w) ∉ relIn)
       | do
         let challenges ← sampleChallenges pSpec
         (simulateQ impl (do
-          let (tr, proverOut) ← Prover.run pSpec prover challenges
+          let (tr, witOut) ← Prover.run pSpec prover challenges
           let verResult ← (verifier stmtIn tr).run
-          let extractedWit ← (extractor stmtIn proverOut.2 tr).run
-          return (verResult, proverOut, extractedWit))).run' (← init)
+          let extractedWit ← (extractor stmtIn witOut tr).run
+          return (verResult, witOut, extractedWit))).run' (← init)
     ] ≤ knowledgeError
 
 class Verifier.IsKnowledgeSound (relIn : Set (StmtIn × WitIn))
