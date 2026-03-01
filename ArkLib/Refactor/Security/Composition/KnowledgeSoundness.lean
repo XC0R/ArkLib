@@ -181,6 +181,23 @@ theorem rbrKnowledgeSoundness_implies_knowledgeSoundness
     rbrSoundness_implies_soundness (init := init) (impl := impl) hInit hPres hRbrSound
   exact knowledgeSoundness_of_soundness_choose (init := init) (impl := impl) hSound
 
+theorem oracleAwareRbrKnowledgeSoundness_implies_knowledgeSoundness
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
+    {WitMid : Fin (pSpec.length + 1) → Type}
+    {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
+    {ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor}
+    {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
+    (hInit : InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) :
+    verifier.knowledgeSoundness init impl relIn relOut
+      (Finset.sum Finset.univ rbrKnowledgeError) := by
+  exact rbrKnowledgeSoundness_implies_knowledgeSoundness
+    (init := init) (impl := impl) hInit hPres h
+
 /-- Knowledge soundness of `n`-fold composition: if each copy has RBR knowledge
 soundness error `rbrKnowledgeError`, the composed protocol has total knowledge
 soundness error at most `n * Σᵢ rbrKnowledgeError(i)`. -/
@@ -212,6 +229,27 @@ theorem Verifier.knowledgeSoundness_compNth
         (n * Finset.sum Finset.univ rbrKnowledgeError) :=
     Verifier.soundness_compNth init impl hOut hState hInit hPres hRbrSound n
   exact knowledgeSoundness_of_soundness_choose (init := init) (impl := impl) hSound
+
+theorem Verifier.oracleAwareRbrKnowledgeSoundness_compNth
+    {S W : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {rel : Set (S × W)}
+    {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
+    {WitMid : Fin (pSpec.length + 1) → Type}
+    {extractor : Extractor.RoundByRound S W W pSpec WitMid}
+    {ksf : KnowledgeStateFunction impl Inv rel rel v extractor}
+    {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
+    (hOut : Verifier.OutputIndependent impl Inv v)
+    (hState : Verifier.StatePreserving impl v)
+    (hInit : InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) (n : Nat) :
+    letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+    (v.compNth n).knowledgeSoundness init impl rel rel
+      (n * Finset.sum Finset.univ rbrKnowledgeError) := by
+  exact Verifier.knowledgeSoundness_compNth
+    (init := init) (impl := impl) hOut hState hInit hPres h n
 
 end KnowledgeSoundness
 

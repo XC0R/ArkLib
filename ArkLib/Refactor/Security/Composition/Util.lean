@@ -45,6 +45,20 @@ end HVector
 
 namespace ProtocolSpec
 
+/-! ## Oracle-aware composition boundary relation -/
+
+/-- `FirstStageVerifierStep` captures one concrete first-stage verifier transition:
+starting from verifier-boundary state `σv`, stage 1 can output `mid` and end in
+state `σmid` with nonzero probability. -/
+def FirstStageVerifierStep
+    {ι : Type} {oSpec : OracleSpec ι} {σ : Type}
+    (impl : QueryImpl oSpec (StateT σ ProbComp))
+    {S₁ S₂ : Type} {pSpec₁ : ProtocolSpec}
+    (v₁ : Verifier (OracleComp oSpec) S₁ S₂ pSpec₁)
+    (stmt : S₁) (tr₁ : Transcript pSpec₁)
+    (σv σmid : σ) (mid : S₂) : Prop :=
+  (some mid, σmid) ∈ support ((simulateQ impl (v₁ stmt tr₁).run) σv)
+
 namespace Verifier
 
 /-- `OracleFree v` means `v` does not query the shared oracle: its underlying `OracleComp`

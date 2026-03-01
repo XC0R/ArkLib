@@ -327,6 +327,20 @@ private theorem soundnessFromState_of_rbr
   simpa [Verifier.soundness] using
     (hSound (Output := Output) (prover := prover) (stmtIn := stmtIn) hstmtIn)
 
+theorem oracleAwareRbrSoundness_implies_soundness
+    {StmtIn StmtOut : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {langIn : Set StmtIn} {langOut : Set StmtOut}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    {Inv : σ → Prop}
+    {rbrError : ChallengeIndex pSpec → ℝ≥0}
+    (hInit : InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrSoundness impl langIn langOut verifier Inv rbrError) :
+    verifier.soundness init impl langIn langOut
+      (Finset.sum Finset.univ rbrError) := by
+  exact rbrSoundness_implies_soundness (init := init) (impl := impl) hInit hPres h
+
 set_option maxHeartbeats 800000 in
 -- This helper performs large bind reassociations and event rewrites over `ProbComp`.
 private theorem soundness_of_soundnessFromState
@@ -1016,6 +1030,24 @@ theorem Verifier.soundness_compNth
     ChallengesSampleable.ofReplicate (pSpec := pSpec) n
   exact soundness_of_soundnessFromState (init := init) (impl := impl)
     (hInit := hInit) (hσbound := hStateNth n)
+
+theorem Verifier.oracleAwareRbrSoundness_compNth
+    {S : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {lang : Set S}
+    {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
+    {rbrError : ChallengeIndex pSpec → ℝ≥0}
+    (hOut : Verifier.OutputIndependent impl Inv v)
+    (hState : Verifier.StatePreserving impl v)
+    (hInit : InitSatisfiesInv init Inv)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    (h : rbrSoundness impl lang lang v Inv rbrError) (n : Nat) :
+    letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+    (v.compNth n).soundness init impl lang lang
+      (n * Finset.sum Finset.univ rbrError) := by
+  exact Verifier.soundness_compNth (init := init) (impl := impl)
+    hOut hState hInit hPres h n
 
 end Soundness
 

@@ -371,6 +371,48 @@ def roundStateLang (poly : CMvPolynomial n R) (D : Fin m → R) :
       st.target = trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := st.i)
         st.challenges D }
 
+/-- At the terminal round (`i = n`), `trueTarget` is just direct evaluation at the
+fixed challenge point. -/
+private lemma trueTarget_at_n
+    (poly : CMvPolynomial n R) (D : Fin m → R) (fixed : Vector R n) :
+    trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := n) fixed D =
+      CMvPolynomial.eval (fun j : Fin n => fixed.get j) poly := by
+  classical
+  unfold trueTarget
+  have hcard : Fintype.card (Fin (n - n) → Fin m) = 1 := by
+    simp
+  rcases (Fintype.card_eq_one_iff.mp hcard) with ⟨z0, hz0⟩
+  have huniv : (Finset.univ : Finset (Fin (n - n) → Fin m)) = {z0} := by
+    ext z
+    simp [hz0 z]
+  rw [huniv]
+  have heval :
+      evalPoint (R := R) (n := n) (m := m) fixed D z0 =
+        fun j : Fin n => fixed.get j := by
+    funext j
+    simp [evalPoint, Vector.get_eq_getElem]
+  simp [heval]
+
+/-- Any output-language state satisfies the round-state consistency language. -/
+private lemma outputLang_subset_roundStateLang
+    (poly : CMvPolynomial n R) (D : Fin m → R) :
+    outputLang (R := R) (n := n) poly ⊆ roundStateLang (R := R) (n := n) (m := m) poly D := by
+  intro st hOut
+  rcases hOut with ⟨rfl, hEval⟩
+  refine ⟨le_rfl, ?_⟩
+  have hEval' :
+      CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly = st.target := by
+    simpa using hEval
+  have hTrue :
+      trueTarget (R := R) (n := st.i) (m := m) (poly := poly) (i := st.i) st.challenges D =
+        CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly :=
+    trueTarget_at_n (R := R) (n := st.i) (m := m) poly D st.challenges
+  calc
+    st.target = CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly := by
+      simpa using hEval'.symm
+    _ = trueTarget (R := R) (n := st.i) (m := m) (poly := poly) (i := st.i) st.challenges D := by
+      simpa using hTrue.symm
+
 /-- The per-round soundness error: `deg / |F|`. -/
 def roundSoundnessError : ℝ≥0 :=
   ⟨deg / Fintype.card R, by positivity⟩
