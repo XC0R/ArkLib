@@ -13,35 +13,12 @@ import VCVio.EvalDist.Monad.Map
 
 Helper lemmas and definitions used by the composition theorems for completeness,
 soundness, and knowledge soundness.
-
-TODO: split these further and put into the right places (e.g. HVector lemmas into
-HVector file, Prover/Transcript lemmas into their respective files, etc.).
 -/
 
 noncomputable section
 
 open OracleComp OracleSpec ProtocolSpec
 open scoped NNReal ENNReal BigOperators
-
-namespace HVector
-
-lemma splitAt_append {α : Type*} {A : α → Type*}
-    (l₁ l₂ : List α) (v₁ : HVector A l₁) (v₂ : HVector A l₂) :
-    HVector.splitAt (A := A) l₁ (HVector.append v₁ v₂) = (v₁, v₂) := by
-  induction l₁ with
-  | nil =>
-      simp [HVector.splitAt, HVector.append]
-  | cons _ tl ih =>
-      cases v₁ with
-      | mk hd tlv =>
-          simp [HVector.splitAt, HVector.append, ih (v₁ := tlv)]
-
-@[simp] lemma cons_append {α : Type*} {A : α → Type*}
-    {hd : α} {tl₁ tl₂ : List α}
-    (x : A hd) (v₁ : HVector A tl₁) (v₂ : HVector A tl₂) :
-    HVector.cons x (HVector.append v₁ v₂) = HVector.append (HVector.cons x v₁) v₂ := rfl
-
-end HVector
 
 namespace ProtocolSpec
 
@@ -153,151 +130,6 @@ lemma oracleFree_compNth_verifier {ι : Type} {oSpec : OracleSpec ι}
 
 end Reduction
 
-namespace Transcript
-
-lemma split_join {pSpec₁ pSpec₂ : ProtocolSpec}
-    (tr₁ : Transcript pSpec₁) (tr₂ : Transcript pSpec₂) :
-    Transcript.split (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) (Transcript.join tr₁ tr₂) =
-      (tr₁, tr₂) := by
-  simp [Transcript.split, Transcript.join, HVector.splitAt_append]
-
-end Transcript
-
-namespace Prover
-
-open ProtocolSpec.Prover
-
-lemma run_comp_join {m : Type → Type} [Monad m] [LawfulMonad m]
-    {Mid Output : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
-    (prover₁ : Prover m Mid pSpec₁)
-    (f : Mid → m (Prover m Output pSpec₂))
-    (ch₁ : Challenges pSpec₁) (ch₂ : Challenges pSpec₂) :
-    (do
-      let prover ← Prover.comp (m := m) (Mid := Mid) (Output := Output) (pSpec₂ := pSpec₂)
-        pSpec₁ prover₁ f
-      Prover.run (m := m) (Output := Output) (pSpec₁ ++ pSpec₂) prover
-        (Challenges.join pSpec₁ pSpec₂ ch₁ ch₂)) =
-      (do
-        let (tr₁, mid) ← Prover.run (m := m) (Output := Mid) pSpec₁ prover₁ ch₁
-        let prover₂ ← f mid
-        let (tr₂, out) ← Prover.run (m := m) (Output := Output) pSpec₂ prover₂ ch₂
-        return (Transcript.join tr₁ tr₂, out)) := by
-  -- Induction on `pSpec₁`, mirroring the definitions of `Prover.comp` and `Prover.run`.
-  revert prover₁ ch₁
-  induction pSpec₁ with
-  | nil =>
-      intro prover₁ ch₁
-      simp [Prover.comp, Prover.run, Challenges.join, Transcript.join, HVector.append]
-  | cons r tl ih =>
-      cases r with
-      | P_to_V T oi =>
-          intro prover₁ ch₁
-          rcases prover₁ with ⟨msg, cont⟩
-          -- `P_to_V` consumes no challenges.
-          -- Both sides are `cont >>= fun next => ...`; apply the IH pointwise.
-          simp only [List.cons_append, comp, List.append_eq, Challenges.join, run, bind_pure_comp,
-            pure_bind, bind_assoc, Transcript.join, bind_map_left]
-          refine congrArg (fun k => cont >>= k) ?_
-          funext next
-          simpa [Prover.comp, Prover.run, Challenges.join, Transcript.join] using
-            congrArg (fun z =>
-              (fun a : Transcript (tl ++ pSpec₂) × Output =>
-                (Transcript.cons (r := .P_to_V T oi) msg a.1, a.2)) <$> z)
-              (ih (prover₁ := next) (ch₁ := ch₁))
-      | V_to_P T =>
-          intro prover₁ ch₁
-          -- `V_to_P` consumes one challenge from `ch₁`.
-          cases ch₁ with
-          | mk chal chTail =>
-              simp only [List.cons_append, comp, List.append_eq, Challenges.join, id_eq, run,
-                HVector.head_cons, HVector.tail_cons, bind_pure_comp, pure_bind, bind_assoc,
-                Transcript.join, bind_map_left]
-              refine congrArg (fun k => prover₁ chal >>= k) ?_
-              funext next
-              simpa [Prover.comp, Prover.run, Challenges.join, Transcript.join] using
-                congrArg (fun z =>
-                  (fun a : Transcript (tl ++ pSpec₂) × Output =>
-                    (Transcript.cons (r := .V_to_P T) chal a.1, a.2)) <$> z)
-                  (ih (prover₁ := next) (ch₁ := chTail))
-
-/-- Variant of `run_comp_join` with an extra continuation `k` after the run. -/
-lemma run_comp_join_bind {m : Type → Type} [Monad m] [LawfulMonad m]
-    {Mid Output α : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
-    (prover₁ : Prover m Mid pSpec₁)
-    (f : Mid → m (Prover m Output pSpec₂))
-    (ch₁ : Challenges pSpec₁) (ch₂ : Challenges pSpec₂)
-    (k : Transcript (pSpec₁ ++ pSpec₂) × Output → m α) :
-    (do
-      let prover ← Prover.comp (m := m) (Mid := Mid) (Output := Output) (pSpec₂ := pSpec₂)
-        pSpec₁ prover₁ f
-      let z ← Prover.run (m := m) (Output := Output) (pSpec₁ ++ pSpec₂) prover
-        (Challenges.join pSpec₁ pSpec₂ ch₁ ch₂)
-      k z) =
-      (do
-        let (tr₁, mid) ← Prover.run (m := m) (Output := Mid) pSpec₁ prover₁ ch₁
-        let prover₂ ← f mid
-        let (tr₂, out) ← Prover.run (m := m) (Output := Output) pSpec₂ prover₂ ch₂
-        k (Transcript.join tr₁ tr₂, out)) := by
-  -- Apply `>>= k` to both sides of `run_comp_join`.
-  simpa [bind_assoc] using congrArg (fun z => z >>= k) (run_comp_join (m := m)
-    (prover₁ := prover₁) (f := f) (ch₁ := ch₁) (ch₂ := ch₂))
-
-/-- Extract the first-stage prover from a prover over `pSpec₁ ++ pSpec₂`.
-Running the extracted prover over `pSpec₁` returns the residual prover for `pSpec₂`. -/
-def splitPrefix {m : Type → Type} [Monad m] {Output : Type} :
-    (pSpec₁ : ProtocolSpec) → {pSpec₂ : ProtocolSpec} →
-    Prover m Output (pSpec₁ ++ pSpec₂) → Prover m (Prover m Output pSpec₂) pSpec₁
-  | [], _, prover => prover
-  | (.P_to_V _ _) :: tl, _, prover =>
-      let (msg, cont) := prover
-      (msg, do
-        let next ← cont
-        return splitPrefix tl next)
-  | (.V_to_P _) :: tl, _, prover =>
-      fun chal => do
-        let next ← prover chal
-        return splitPrefix tl next
-
-/-- Running a prover over `pSpec₁ ++ pSpec₂` can be decomposed into:
-1) run the prefix prover `splitPrefix pSpec₁ prover` on `pSpec₁`,
-2) run the returned suffix prover on `pSpec₂`. -/
-lemma run_splitPrefix_join
-    {m : Type → Type} [Monad m] [LawfulMonad m]
-    {Output : Type} {pSpec₁ pSpec₂ : ProtocolSpec}
-    (prover : Prover m Output (pSpec₁ ++ pSpec₂))
-    (ch₁ : Challenges pSpec₁) (ch₂ : Challenges pSpec₂) :
-    Prover.run (m := m) (Output := Output) (pSpec₁ ++ pSpec₂) prover
-      (Challenges.join pSpec₁ pSpec₂ ch₁ ch₂) =
-      (do
-        let (tr₁, p₂) ← Prover.run (m := m)
-          (Output := Prover m Output pSpec₂) pSpec₁
-          (splitPrefix (m := m) (Output := Output) pSpec₁ prover) ch₁
-        let (tr₂, out) ← Prover.run (m := m) (Output := Output) pSpec₂ p₂ ch₂
-        return (Transcript.join tr₁ tr₂, out)) := by
-  revert prover ch₁
-  induction pSpec₁ with
-  | nil =>
-      intro prover ch₁
-      have hnil :
-          (fun a : Transcript pSpec₂ × Output => (HVector.append HVector.nil a.1, a.2)) = id := by
-        funext a
-        cases a
-        rfl
-      simp [splitPrefix, Prover.run, Challenges.join, Transcript.join, hnil]
-  | cons r tl ih =>
-      cases r with
-      | P_to_V T oi =>
-          intro prover ch₁
-          rcases prover with ⟨msg, cont⟩
-          simp [splitPrefix, Prover.run, Challenges.join, Transcript.join, ih, bind_assoc]
-      | V_to_P T =>
-          intro prover ch₁
-          cases ch₁ with
-          | mk chal tlCh =>
-              simp [splitPrefix, Prover.run, Challenges.join, Transcript.join, ih, bind_assoc]
-
-end Prover
-
 /-! ## Shared utility lemmas for soundness/knowledge soundness proofs -/
 
 lemma probEvent_exists_finset_le_sum
@@ -357,45 +189,5 @@ lemma probEvent_exists_finset_le_sum
           ≤ Pr[E a | mx] + Finset.sum s (fun i => Pr[E i | mx]) :=
       le_trans hor hsum
     simpa [hE, Finset.sum_insert ha, add_assoc, add_left_comm, add_comm] using this
-
-lemma cast_cons_hvector {r : Round} {l₁ l₂ : List Round}
-    (h : l₁ = l₂) (hd : r.type) (tltr : HVector Round.type l₁) :
-    (hd, cast (congrArg (fun l => HVector Round.type l) h) tltr) =
-      cast (congrArg (fun l => HVector Round.type (r :: l)) h) (hd, tltr) := by
-  cases h
-  rfl
-
-lemma hvector_take_length_eq {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
-    HVector.take pSpec.length pSpec tr = PartialTranscript.ofTranscript tr := by
-  induction pSpec with
-  | nil =>
-      cases tr
-      simp [HVector.take, PartialTranscript.ofTranscript]
-  | cons r tl ih =>
-      cases tr with
-      | mk hd tltr =>
-          simpa [HVector.take, PartialTranscript.ofTranscript, ih tltr, List.take_length]
-            using cast_cons_hvector (h := (List.take_length (l := tl)).symm) hd tltr
-
-lemma hvector_take_succ_eq_concat {pSpec : ProtocolSpec}
-    (k : Nat) (hk : k < pSpec.length) (tr : Transcript pSpec) :
-    HVector.take (k + 1) pSpec tr =
-      PartialTranscript.concat pSpec hk (HVector.take k pSpec tr)
-        (HVector.get pSpec tr ⟨k, hk⟩) := by
-  induction pSpec generalizing k with
-  | nil =>
-      cases hk
-  | cons r tl ih =>
-      cases k with
-      | zero =>
-          cases tr
-          simp [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons]
-      | succ k =>
-          cases tr with
-          | mk hd tltr =>
-              have hk' : k < tl.length := by simpa using hk
-              simpa [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons,
-                HVector.head, HVector.tail] using
-                congrArg (fun t => (hd, t)) (ih k hk' tltr)
 
 end ProtocolSpec

@@ -40,6 +40,12 @@ def join {pSpec₁ pSpec₂ : ProtocolSpec} (tr₁ : Transcript pSpec₁) (tr₂
     Transcript (pSpec₁ ++ pSpec₂) :=
   HVector.append tr₁ tr₂
 
+lemma split_join {pSpec₁ pSpec₂ : ProtocolSpec}
+    (tr₁ : Transcript pSpec₁) (tr₂ : Transcript pSpec₂) :
+    Transcript.split (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) (Transcript.join tr₁ tr₂) =
+      (tr₁, tr₂) := by
+  simp [Transcript.split, Transcript.join, HVector.splitAt_append]
+
 end Transcript
 
 /-! ## Challenges operations
@@ -143,11 +149,56 @@ def Transcript.toPartial {pSpec : ProtocolSpec}
   simp only [PartialTranscript, List.take_length]
   exact tr
 
+def PartialTranscript.ofTranscript {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
+    PartialTranscript pSpec pSpec.length := by
+  simp only [PartialTranscript, List.take_length]
+  exact tr
+
 def PartialTranscript.take {pSpec : ProtocolSpec} {n : Nat}
     (m : Nat) (tr : PartialTranscript pSpec n) :
     PartialTranscript pSpec (min m n) := by
   simp only [PartialTranscript]
   rw [← List.take_take]
   exact HVector.take m (pSpec.take n) tr
+
+private lemma cast_cons_hvector {r : Round} {l₁ l₂ : List Round}
+    (h : l₁ = l₂) (hd : r.type) (tltr : HVector Round.type l₁) :
+    (hd, cast (congrArg (fun l => HVector Round.type l) h) tltr) =
+      cast (congrArg (fun l => HVector Round.type (r :: l)) h) (hd, tltr) := by
+  cases h
+  rfl
+
+lemma hvector_take_length_eq {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
+    HVector.take pSpec.length pSpec tr = PartialTranscript.ofTranscript tr := by
+  induction pSpec with
+  | nil =>
+      cases tr
+      rfl
+  | cons r tl ih =>
+      cases tr with
+      | mk hd tltr =>
+          simpa [HVector.take, PartialTranscript.ofTranscript, ih tltr, List.take_length]
+            using cast_cons_hvector (h := (List.take_length (l := tl)).symm) hd tltr
+
+lemma hvector_take_succ_eq_concat {pSpec : ProtocolSpec}
+    (k : Nat) (hk : k < pSpec.length) (tr : Transcript pSpec) :
+    HVector.take (k + 1) pSpec tr =
+      PartialTranscript.concat pSpec hk (HVector.take k pSpec tr)
+        (HVector.get pSpec tr ⟨k, hk⟩) := by
+  induction pSpec generalizing k with
+  | nil =>
+      cases hk
+  | cons r tl ih =>
+      cases k with
+      | zero =>
+          cases tr
+          simp [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons]
+      | succ k =>
+          cases tr with
+          | mk hd tltr =>
+              have hk' : k < tl.length := by simpa using hk
+              simpa [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons,
+                HVector.head, HVector.tail] using
+                congrArg (fun t => (hd, t)) (ih k hk' tltr)
 
 end ProtocolSpec

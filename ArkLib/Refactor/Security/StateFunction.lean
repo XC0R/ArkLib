@@ -28,24 +28,6 @@ namespace ProtocolSpec
 
 /-! ## Infrastructure -/
 
-/-- Whether a round is a challenge (V_to_P) round. -/
-def Round.isChallenge : Round → Bool
-  | .V_to_P _ => true
-  | .P_to_V _ _ => false
-
-/-- Index type for challenge (V_to_P) rounds in a protocol spec. -/
-def ChallengeIndex (pSpec : ProtocolSpec) : Type :=
-  { i : Fin pSpec.length // (pSpec.get i).isChallenge = true }
-
-instance (pSpec : ProtocolSpec) : Fintype (ChallengeIndex pSpec) :=
-  Subtype.fintype _
-
-/-- Convert a full transcript to a partial transcript at `pSpec.length`. -/
-def PartialTranscript.ofTranscript {pSpec : ProtocolSpec} (tr : Transcript pSpec) :
-    PartialTranscript pSpec pSpec.length := by
-  simp only [PartialTranscript, List.take_length]
-  exact tr
-
 /-! ## State Function -/
 
 variable {StmtIn WitIn StmtOut WitOut : Type}

@@ -128,9 +128,23 @@ def drop {α : Type*} {A : α → Type*} :
 
 variable {α : Type*} {A : α → Type*}
 
+theorem splitAt_append (l₁ l₂ : List α) (v₁ : HVector A l₁) (v₂ : HVector A l₂) :
+    HVector.splitAt (A := A) l₁ (HVector.append v₁ v₂) = (v₁, v₂) := by
+  induction l₁ with
+  | nil =>
+      simp [HVector.splitAt, HVector.append]
+  | cons _ tl ih =>
+      cases v₁ with
+      | mk hd tlv =>
+          simp [HVector.splitAt, HVector.append, ih (v₁ := tlv)]
+
 @[simp] theorem head_cons {a : α} {as : List α}
     {x : A a} {xs : HVector A as} :
     (x ::ₕ xs).head = x := rfl
+
+@[simp] theorem cons_append {hd : α} {tl₁ tl₂ : List α}
+    (x : A hd) (v₁ : HVector A tl₁) (v₂ : HVector A tl₂) :
+    HVector.cons x (HVector.append v₁ v₂) = HVector.append (HVector.cons x v₁) v₂ := rfl
 
 @[simp] theorem tail_cons {a : α} {as : List α}
     {x : A a} {xs : HVector A as} :
