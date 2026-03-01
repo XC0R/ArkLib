@@ -371,6 +371,52 @@ def roundStateLang (poly : CMvPolynomial n R) (D : Fin m → R) :
       st.target = trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := st.i)
         st.challenges D }
 
+omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
+/-- At round index `0`, `trueTarget` is exactly the full-domain sum. -/
+private lemma trueTarget_at_zero
+    (poly : CMvPolynomial n R) (D : Fin m → R) :
+    trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
+      (initState (R := R) (target := (0 : R)).challenges) D
+      =
+      (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+        CMvPolynomial.eval (D ∘ z) poly) := by
+  unfold trueTarget
+  refine Finset.sum_congr rfl ?_
+  intro z _
+  congr 1
+  funext k
+  simp [evalPoint]
+
+omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
+/-- Input-language membership is equivalent to round-state consistency at initialization. -/
+private lemma inputLang_iff_initState_mem_roundStateLang
+    (poly : CMvPolynomial n R) (D : Fin m → R) (target : R) :
+    target ∈ Sumcheck.inputLang poly D ↔
+      initState (R := R) target ∈ roundStateLang (R := R) (n := n) (m := m) poly D := by
+  constructor
+  · intro hIn
+    refine ⟨Nat.zero_le _, ?_⟩
+    rcases hIn with rfl
+    change
+      (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+        CMvPolynomial.eval (D ∘ z) poly)
+        =
+      trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
+        (initState (R := R) (target := (0 : R)).challenges) D
+    symm
+    exact trueTarget_at_zero (R := R) (n := n) (m := m) poly D
+  · intro hState
+    rcases hState with ⟨_, hEq⟩
+    change target = (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+      CMvPolynomial.eval (D ∘ z) poly)
+    calc
+      target
+          = trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
+              (initState (R := R) (target := target).challenges) D := hEq
+      _ = (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
+            CMvPolynomial.eval (D ∘ z) poly) := by
+            exact trueTarget_at_zero (R := R) (n := n) (m := m) poly D
+
 /-- At the terminal round (`i = n`), `trueTarget` is just direct evaluation at the
 fixed challenge point. -/
 private lemma trueTarget_at_n
@@ -447,6 +493,12 @@ private def roundVerifierStateAsOracle (D : Fin m → R) :
       (pSpec (R := R) deg) :=
   fun st tr => OptionT.mk <| pure
     ((roundVerifierState (R := R) (deg := deg) (m := m) D st tr).run)
+
+private def generalVerifierStateAsOracle (D : Fin m → R) :
+    Verifier (OracleComp EmptySpec) (RoundState (R := R)) (RoundState (R := R))
+      (generalPSpec R deg n) :=
+  fun st tr => OptionT.mk <| pure
+    ((Verifier.compNth n (roundVerifierState (R := R) (deg := deg) (m := m) D) st tr).run)
 
 /-- The single-round per-challenge RBR error (same `deg / |F|` bound). -/
 def singleRoundRbrError : ChallengeIndex (pSpec (R := R) deg) → ℝ≥0 :=
@@ -837,6 +889,92 @@ theorem roundVerifierState_rbrSoundness
     simpa [Function.comp] using hPair
   simpa [singleRoundRbrError] using hFinal
 
+/-- Lift an RBR statement over `RoundState` input/output to the scalar-input
+sumcheck verifier via `initState` and the language bridges. -/
+private theorem generalVerifier_rbrSoundness_of_state_rbr
+    (poly : CMvPolynomial n R) (D : Fin m → R)
+    (hStateRbr :
+      rbrSoundness
+        (impl := emptyImpl)
+        (langIn := roundStateLang (R := R) (n := n) (m := m) poly D)
+        (langOut := roundStateLang (R := R) (n := n) (m := m) poly D)
+        (verifier := generalVerifierStateAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+        (Inv := fun _ : Unit => True)
+        (rbrError := rbrSoundnessError (R := R) (deg := deg) (n := n))) :
+    rbrSoundness
+      (impl := emptyImpl)
+      (langIn := Sumcheck.inputLang poly D)
+      (langOut := outputLang (R := R) (n := n) poly)
+      (verifier := generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+      (Inv := fun _ : Unit => True)
+      (rbrError := rbrSoundnessError (R := R) (deg := deg) (n := n)) := by
+  obtain ⟨sfState, hStateBound⟩ := hStateRbr
+  let sfTarget :
+      StateFunction
+        (impl := emptyImpl)
+        (Inv := fun _ : Unit => True)
+        (langIn := Sumcheck.inputLang poly D)
+        (langOut := outputLang (R := R) (n := n) poly)
+        (verifier := generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D) := {
+      toFun := fun k target tr => sfState.toFun k (initState (R := R) target) tr
+      toFun_empty := by
+        intro target
+        simpa [inputLang_iff_initState_mem_roundStateLang (R := R) (n := n) (m := m) poly D target]
+          using (sfState.toFun_empty (initState (R := R) target))
+      toFun_next := by
+        intro k hk hnon target tr hFalse msg
+        exact sfState.toFun_next k hk hnon (initState (R := R) target) tr hFalse msg
+      toFun_full := by
+        intro target tr σ0 _ hNot
+        have hStateZero' :
+            Pr[(· ∈ roundStateLang (R := R) (n := n) (m := m) poly D)
+              | OptionT.mk do
+                  (simulateQ emptyImpl
+                    ((generalVerifierStateAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+                      (initState (R := R) target) tr).run).run' σ0] = 0 :=
+          sfState.toFun_full (initState (R := R) target) tr σ0 trivial hNot
+        have hVerRunEq :
+            ((generalVerifierStateAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+              (initState (R := R) target) tr).run
+              =
+            ((generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+              target tr).run := by
+          simp [generalVerifierAsOracle, generalVerifierStateAsOracle, generalVerifier]
+        have hStateZero :
+            Pr[(· ∈ roundStateLang (R := R) (n := n) (m := m) poly D)
+              | OptionT.mk do
+                  (simulateQ emptyImpl
+                    ((generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+                      target tr).run).run' σ0] = 0 := by
+          simpa [hVerRunEq] using hStateZero'
+        have hEventMono :
+            Pr[(· ∈ outputLang (R := R) (n := n) poly)
+                | OptionT.mk do
+                    (simulateQ emptyImpl
+                      ((generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+                        target tr).run).run' σ0]
+              ≤
+            Pr[(· ∈ roundStateLang (R := R) (n := n) (m := m) poly D)
+                | OptionT.mk do
+                    (simulateQ emptyImpl
+                      ((generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
+                        target tr).run).run' σ0] := by
+          refine probEvent_mono ?_
+          intro st _ hOut
+          exact outputLang_subset_roundStateLang (R := R) (n := n) (m := m) poly D hOut
+        exact le_antisymm (le_trans hEventMono hStateZero.le) bot_le
+    }
+  refine ⟨sfTarget, ?_⟩
+  intro target hTargetNotIn Output prover i σ0 hσ0
+  have hInitNotIn :
+      initState (R := R) target ∉ roundStateLang (R := R) (n := n) (m := m) poly D := by
+    intro hInitIn
+    exact hTargetNotIn
+      ((inputLang_iff_initState_mem_roundStateLang (R := R) (n := n) (m := m) poly D target).2
+        hInitIn)
+  simpa [sfTarget] using
+    hStateBound (initState (R := R) target) hInitNotIn Output prover i σ0 hσ0
+
 /-- Round-by-round soundness of the `n`-round sumcheck verifier in the framework form. -/
 theorem generalVerifier_rbrSoundness
     (poly : CMvPolynomial n R) (D : Fin m → R)
@@ -848,6 +986,11 @@ theorem generalVerifier_rbrSoundness
       (verifier := generalVerifierAsOracle (R := R) (deg := deg) (n := n) (m := m) D)
       (Inv := fun _ : Unit => True)
       (rbrError := rbrSoundnessError (R := R) (deg := deg) (n := n)) := by
+  -- It suffices to prove the same RBR statement over `RoundState` input/output.
+  refine generalVerifier_rbrSoundness_of_state_rbr
+    (R := R) (n := n) (m := m) (deg := deg) poly D ?_
+  -- Remaining gap: compose `roundVerifierState_rbrSoundness` over `n` rounds.
+  -- This requires a generic (or sumcheck-specialized) `rbrSoundness` composition theorem.
   sorry
 
 /-! This is expected to be obtained from `generalVerifier_rbrSoundness` via the
