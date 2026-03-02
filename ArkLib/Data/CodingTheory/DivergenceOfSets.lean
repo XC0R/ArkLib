@@ -24,7 +24,7 @@ open NNReal ProximityGap
 
 namespace DivergenceOfSets
 
-open Code ReedSolomonCode ProbabilityTheory
+open Code ReedSolomon ProbabilityTheory
 
 section Defs
 
@@ -86,7 +86,7 @@ at distance exactly `δ'` from the Reed-Solomon code. -/
 lemma concentration_bounds {deg : ℕ} {domain : ι ↪ F}
   {U : AffineSubspace F (ι → F)} [Nonempty U]
   (hdiv_pos : 0 < (divergence U (RScodeSet domain deg) : ℝ≥0))
-  (hdiv_lt : (divergence U (RScodeSet domain deg) : ℝ≥0) < 1 - ReedSolomonCode.sqrtRate deg domain)
+  (hdiv_lt : (divergence U (RScodeSet domain deg) : ℝ≥0) < 1 - ReedSolomon.sqrtRate deg domain)
   : let δ' := divergence U (RScodeSet domain deg)
     Pr_{let u ← $ᵖ U}[Code.relDistFromCode u (RScodeSet domain deg) ≠ δ']
     ≤ errorBound δ' deg domain := by sorry
