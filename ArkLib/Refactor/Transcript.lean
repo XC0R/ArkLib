@@ -161,6 +161,43 @@ def PartialTranscript.take {pSpec : ProtocolSpec} {n : Nat}
   rw [← List.take_take]
   exact HVector.take m (pSpec.take n) tr
 
+/-- View a partial transcript of `pSpec₁ ++ pSpec₂` (length `k ≤ |pSpec₁|`)
+as a partial transcript of `pSpec₁`. -/
+def PartialTranscript.leftOfAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
+    (hk : k ≤ pSpec₁.length)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k) :
+    PartialTranscript pSpec₁ k := by
+  simpa [PartialTranscript, List.take_append, hk] using tr
+
+/-- Extract the full left transcript from a partial transcript of `pSpec₁ ++ pSpec₂`
+once we have seen at least `|pSpec₁|` rounds. -/
+def PartialTranscript.leftFullOfAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
+    (hk : pSpec₁.length ≤ k)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k) :
+    Transcript pSpec₁ := by
+  have htake : pSpec₁.take k = pSpec₁ := (List.take_eq_self_iff _).2 hk
+  let tr' : HVector Round.type (pSpec₁.take k ++ pSpec₂.take (k - pSpec₁.length)) := by
+    simpa [PartialTranscript, List.take_append, hk] using tr
+  let tr'' : HVector Round.type (pSpec₁ ++ pSpec₂.take (k - pSpec₁.length)) := by
+    simpa [htake] using tr'
+  exact (HVector.splitAt pSpec₁ tr'').1
+
+/-- Extract the right partial transcript from a partial transcript of `pSpec₁ ++ pSpec₂`
+once we have seen at least `|pSpec₁|` rounds. The local length is `k - |pSpec₁|`. -/
+def PartialTranscript.rightOfAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
+    (hk : pSpec₁.length ≤ k)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k) :
+    PartialTranscript pSpec₂ (k - pSpec₁.length) := by
+  have htake : pSpec₁.take k = pSpec₁ := (List.take_eq_self_iff _).2 hk
+  let tr' : HVector Round.type (pSpec₁.take k ++ pSpec₂.take (k - pSpec₁.length)) := by
+    simpa [PartialTranscript, List.take_append, hk] using tr
+  let tr'' : HVector Round.type (pSpec₁ ++ pSpec₂.take (k - pSpec₁.length)) := by
+    simpa [htake] using tr'
+  exact (HVector.splitAt pSpec₁ tr'').2
+
 private lemma cast_cons_hvector {r : Round} {l₁ l₂ : List Round}
     (h : l₁ = l₂) (hd : r.type) (tltr : HVector Round.type l₁) :
     (hd, cast (congrArg (fun l => HVector Round.type l) h) tltr) =

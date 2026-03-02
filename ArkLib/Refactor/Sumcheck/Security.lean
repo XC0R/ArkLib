@@ -522,7 +522,7 @@ theorem roundVerifierState_rbrSoundness
     fun k stmt tr =>
       match k with
       | 0 => stmt ∈ roundStateLang (R := R) (n := n) (m := m) poly D
-      | 1 => False
+      | 1 => stmt ∈ roundStateLang (R := R) (n := n) (m := m) poly D
       | 2 =>
           let p : CDegreeLE R deg := tr.head
           let r : R := tr.tail.head
@@ -548,7 +548,10 @@ theorem roundVerifierState_rbrSoundness
       cases hk_cases with
       | inl hk0 =>
           subst hk0
-          simp [toFunSR]
+          have hStmtBad :
+              stmt ∉ roundStateLang (R := R) (n := n) (m := m) poly D := by
+            simpa [toFunSR] using hFalse
+          simpa [toFunSR] using hStmtBad
       | inr hk1 =>
           exfalso
           have hch :
@@ -665,7 +668,13 @@ theorem roundVerifierState_rbrSoundness
   have hBadEq : bad = fun z =>
       toFunSR 2 stmtIn (HVector.take 2 (pSpec (R := R) deg) z.1) := by
     funext z
-    simp [bad, toFunSR]
+    apply propext
+    constructor
+    · intro hbad
+      exact hbad.2
+    · intro hbad2
+      refine ⟨?_, hbad2⟩
+      simpa [toFunSR] using hStmtIn
   let cond : Challenges (pSpec (R := R) deg) → Prop := fun ch =>
     toFunSR 2 stmtIn (HVector.take 2 (pSpec (R := R) deg) (trConst ch))
   have hmy :
@@ -855,7 +864,7 @@ theorem roundVerifierState_rbrSoundness
     · intro hbad
       refine ⟨?_, ?_⟩
       · rw [hi1]
-        simp [sf, toFunSR]
+        simpa [sf, toFunSR] using hStmtIn
       · have hbad2 : toFunSR 2 stmtIn (HVector.take 2 (pSpec (R := R) deg) z.1) := by
           simpa [bad, hBadEq] using hbad
         rw [hiSucc]

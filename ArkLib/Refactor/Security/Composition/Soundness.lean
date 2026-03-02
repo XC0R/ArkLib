@@ -977,7 +977,7 @@ private theorem Verifier.soundnessFromState_comp
 /-- Soundness of `n`-fold composition: if each copy has RBR soundness error `rbrError`,
 the composed protocol has total soundness error at most `n * Σᵢ rbrError(i)`.
 
-**Proof strategy** (currently `sorry`):
+**Proof strategy**:
 1. Apply `rbrSoundness_implies_soundness` to get single-step soundness `Σ rbrError`.
 2. Prove identity verifier has soundness 0 (base case).
 3. Prove soundness composition: `ε₁ + ε₂` bound (inductive step).
