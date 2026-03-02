@@ -52,6 +52,7 @@ import ArkLib.Data.Hash.DuplexSponge
 import ArkLib.Data.Hash.Poseidon2
 import ArkLib.Data.Matrix.Basic
 import ArkLib.Data.Matrix.Sparse
+import ArkLib.Data.Matrix.Vandermonde
 import ArkLib.Data.Misc.Basic
 import ArkLib.Data.MvPolynomial.Degrees
 import ArkLib.Data.MvPolynomial.Interpolation
