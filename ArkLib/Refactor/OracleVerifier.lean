@@ -109,25 +109,6 @@ When composing two protocols, `oracleSpecOfMessages pSpec₁` (resp. `pSpec₂`)
 embeds into `oracleSpecOfMessages (pSpec₁ ++ pSpec₂)` via left/right injection
 of indices. The range types match definitionally at each recursive step. -/
 
-namespace OracleSpec.SubSpec
-
-/-- Compose two oracle-spec embeddings. (VCVio does not currently provide a `SubSpec` trans
-  instance.) -/
-def trans {ι₁ ι₂ ι₃ : Type}
-    {spec₁ : OracleSpec ι₁} {spec₂ : OracleSpec ι₂} {spec₃ : OracleSpec ι₃}
-    (h₁ : spec₁ ⊂ₒ spec₂) (h₂ : spec₂ ⊂ₒ spec₃) : spec₁ ⊂ₒ spec₃ where
-  monadLift q := h₂.monadLift (h₁.monadLift q)
-  liftM_map q f := by
-    have h₁map := h₁.liftM_map (q := q) (f := f)
-    have h₁map' := congrArg h₂.monadLift h₁map
-    calc
-      h₂.monadLift (h₁.monadLift (f <$> q))
-          = h₂.monadLift (f <$> h₁.monadLift q) := h₁map'
-      _ = f <$> h₂.monadLift (h₁.monadLift q) := by
-          simpa using (h₂.liftM_map (q := h₁.monadLift q) (f := f))
-
-end OracleSpec.SubSpec
-
 /-- Left embedding: `msgOracles(pSpec₁) ⊂ₒ msgOracles(pSpec₁ ++ pSpec₂)`.
 For each `P_to_V` round in `pSpec₁`, the left summand of the index passes through
 unchanged, while the right summand (tail queries) recurses via the inductive hypothesis.
@@ -166,6 +147,18 @@ def subSpec_oracleSpecOfMessages_right :
       inferInstance
     OracleSpec.SubSpec.trans ih hRight
   | (.V_to_P _) :: tl, pSpec₂ => subSpec_oracleSpecOfMessages_right tl pSpec₂
+
+namespace QueryImpl
+
+/-- Build a `QueryImpl` from a `SubSpec` coercion. Each query is lifted through
+the SubSpec's `monadLift` and issued as a raw query in the super-spec. -/
+def ofSubSpec {ι₁ ι₂ : Type} {spec₁ : OracleSpec ι₁} {superSpec : OracleSpec ι₂}
+    (ss : spec₁ ⊂ₒ superSpec) : QueryImpl spec₁ (OracleComp superSpec) :=
+  fun q =>
+    letI q' := ss.monadLift ⟨q, id⟩
+    q'.2 <$> liftM (n := OracleComp superSpec) (query (spec := superSpec) q'.1)
+
+end QueryImpl
 
 namespace OracleVerifier
 
@@ -223,14 +216,88 @@ def toVerifier
     (simulateQ impl (ov.verify stmt (Transcript.toChallenges pSpec tr)) :
       OracleComp oSpec (Option StmtOut))
 
+/-- Lift queries from `[OStmt₁]ₒ + msgOracles(pSpec₁)` into a target spec that
+contains both components via given SubSpec coercions. `[OStmt₁]ₒ` queries forward
+via `ssOStmt₁`; message queries compose the left message embedding with `ssMsgTarget`. -/
+private def comp.liftOStmtMsg
+    {ι : Type} {targetSpec : OracleSpec ι}
+    {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type} [∀ i, OracleInterface (OStmt₁ i)]
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ssOStmt₁ : [OStmt₁]ₒ ⊂ₒ targetSpec)
+    (ssMsgTarget : oracleSpecOfMessages (pSpec₁ ++ pSpec₂) ⊂ₒ targetSpec) :
+    QueryImpl ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁) (OracleComp targetSpec) :=
+  let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
+  fun
+  | Sum.inl q => QueryImpl.ofSubSpec ssOStmt₁ q
+  | Sum.inr q => QueryImpl.ofSubSpec (SubSpec.trans ssL ssMsgTarget) q
+
+/-- Lift ov₁'s oracle context into the composed verify spec.
+`oSpec + [OStmt₁]ₒ` passes through; message queries embed via the left message SubSpec. -/
+private def comp.liftVerify₁
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type} [∀ i, OracleInterface (OStmt₁ i)]
+    {pSpec₁ pSpec₂ : ProtocolSpec} :
+    let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    QueryImpl (oSpec + [OStmt₁]ₒ + oracleSpecOfMessages pSpec₁) (OracleComp vSpec) :=
+  let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+  let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
+  fun
+  | Sum.inl q => liftM (query (spec := vSpec) (Sum.inl q))
+  | Sum.inr q => QueryImpl.ofSubSpec
+      (SubSpec.trans ssL (OracleQuery.subSpec_add_right (spec₁ := oSpec + [OStmt₁]ₒ))) q
+
+/-- Lift ov₂'s oracle context into the composed verify spec.
+`oSpec` passes through; `[OStmt₂]ₒ` queries are answered by running
+ov₁.simulate (lifted via `comp.liftOStmtMsg`); pSpec₂ message queries
+embed via the right message SubSpec. -/
+private def comp.liftVerify₂
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type} [∀ i, OracleInterface (OStmt₁ i)]
+    {ιₛ₂ : Type} {OStmt₂ : ιₛ₂ → Type} [∀ i, OracleInterface (OStmt₂ i)]
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ov₁_simulate : QueryImpl [OStmt₂]ₒ
+      (OracleComp ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁))) :
+    let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    QueryImpl (oSpec + [OStmt₂]ₒ + oracleSpecOfMessages pSpec₂) (OracleComp vSpec) :=
+  let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+  let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
+  fun
+  | Sum.inl (Sum.inl i) => liftM (query (spec := vSpec) (Sum.inl (Sum.inl i)))
+  | Sum.inl (Sum.inr q) =>
+      simulateQ (comp.liftOStmtMsg
+        (SubSpec.trans (OracleQuery.subSpec_add_right (spec₁ := oSpec))
+          (OracleQuery.subSpec_add_left (spec₂ := oracleSpecOfMessages (pSpec₁ ++ pSpec₂))))
+        (OracleQuery.subSpec_add_right (spec₁ := oSpec + [OStmt₁]ₒ)))
+        (ov₁_simulate q)
+  | Sum.inr q => QueryImpl.ofSubSpec
+      (SubSpec.trans ssR (OracleQuery.subSpec_add_right (spec₁ := oSpec + [OStmt₁]ₒ))) q
+
+/-- Route ov₂.simulate's queries into the composed simulate spec.
+`[OStmt₂]ₒ` queries go through ov₁.simulate (lifted via `comp.liftOStmtMsg`);
+pSpec₂ message queries embed via the right message SubSpec. -/
+private def comp.liftSimulate
+    {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type} [∀ i, OracleInterface (OStmt₁ i)]
+    {ιₛ₂ : Type} {OStmt₂ : ιₛ₂ → Type} [∀ i, OracleInterface (OStmt₂ i)]
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ov₁_simulate : QueryImpl [OStmt₂]ₒ
+      (OracleComp ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁))) :
+    let sSpec := [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
+    QueryImpl ([OStmt₂]ₒ + oracleSpecOfMessages pSpec₂) (OracleComp sSpec) :=
+  let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
+  fun
+  | Sum.inl q =>
+      simulateQ (comp.liftOStmtMsg
+        (OracleQuery.subSpec_add_left (spec₂ := oracleSpecOfMessages (pSpec₁ ++ pSpec₂)))
+        (OracleQuery.subSpec_add_right (spec₁ := [OStmt₁]ₒ)))
+        (ov₁_simulate q)
+  | Sum.inr q => QueryImpl.ofSubSpec
+      (SubSpec.trans ssR (OracleQuery.subSpec_add_right (spec₁ := [OStmt₁]ₒ))) q
+
 /-- Compose two oracle verifiers sequentially.
 
-The `verify` and `simulate` fields require routing oracle queries between the
-composed message specs via `SubSpec` coercions (left/right message spec
-embeddings). The routing for `verify` composes `ov₁.simulate` to answer
-intermediate `[OStmt₂]ₒ` queries from `ov₂`, while routing `pSpec₁`/`pSpec₂`
-message queries to the appropriate half of the combined spec.
-The `reify` field is fully implemented. -/
+The `verify` and `simulate` fields route oracle queries between the composed message
+specs via `SubSpec` coercions (see `comp.liftVerify₁`, `comp.liftVerify₂`,
+`comp.liftSimulate`). The `reify` field chains the two verifiers' reify functions. -/
 def comp
     {ι : Type} {oSpec : OracleSpec ι}
     {S₁ : Type} {ιₛ₁ : Type} {OStmt₁ : ιₛ₁ → Type}
@@ -243,70 +310,12 @@ def comp
     (ov₁ : OracleVerifier oSpec S₁ OStmt₁ S₂ OStmt₂ pSpec₁)
     (ov₂ : OracleVerifier oSpec S₂ OStmt₂ S₃ OStmt₃ pSpec₂)
     : OracleVerifier oSpec S₁ OStmt₁ S₃ OStmt₃ (pSpec₁ ++ pSpec₂) where
-  -- The composed verifier operates over `vSpec = oSpec + [OStmt₁]ₒ + msgOracles(pSpec₁ ++ pSpec₂)`.
-  -- Both ov₁ and ov₂ expect their own message oracle specs, so we re-embed queries via SubSpec.
-  -- The pattern `q'.2 <$> liftM (query ...)` maps the SubSpec continuation over the raw query
-  -- result, converting the combined spec's range type back to the component's expected range.
   verify := fun stmt ch =>
     let (ch₁, ch₂) := Challenges.split pSpec₁ pSpec₂ ch
-    let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
-    let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
-    let vSpec := oSpec + [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
-    -- Lift ov₁'s queries: oSpec and [OStmt₁]ₒ pass through; message queries embed via ssL
-    let liftV₁ : QueryImpl
-        (oSpec + [OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
-        (OracleComp vSpec) := fun
-      | Sum.inl q => liftM (query (spec := vSpec) (Sum.inl q))
-      | Sum.inr q =>
-        let q' := ssL.monadLift ⟨q, id⟩
-        q'.2 <$> liftM (query (spec := vSpec) (Sum.inr q'.1))
-    -- Lift ov₂'s queries: oSpec passes through; [OStmt₂]ₒ queries are answered by running
-    -- ov₁.simulate (which itself needs its queries lifted into vSpec via `inner`);
-    -- pSpec₂ message queries embed via ssR
-    let liftV₂ : QueryImpl
-        (oSpec + [OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
-        (OracleComp vSpec) := fun
-      | Sum.inl (Sum.inl i) => liftM (query (spec := vSpec) (Sum.inl (Sum.inl i)))
-      | Sum.inl (Sum.inr q) =>
-          let inner : QueryImpl
-              ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
-              (OracleComp vSpec) := fun
-            | Sum.inl q' => liftM (query (spec := vSpec) (Sum.inl (Sum.inr q')))
-            | Sum.inr q' =>
-              let q'' := ssL.monadLift ⟨q', id⟩
-              q''.2 <$> liftM (query (spec := vSpec) (Sum.inr q''.1))
-          simulateQ inner (ov₁.simulate q)
-      | Sum.inr q =>
-        let q' := ssR.monadLift ⟨q, id⟩
-        q'.2 <$> liftM (query (spec := vSpec) (Sum.inr q'.1))
-    OptionT.mk do
-      let mid ← simulateQ liftV₁ (ov₁.verify stmt ch₁)
-      match mid with
-      | none => pure none
-      | some s₂ => simulateQ liftV₂ (ov₂.verify s₂ ch₂)
-  -- The composed simulator answers [OStmt₃]ₒ queries by running ov₂.simulate, whose
-  -- [OStmt₂]ₒ queries are in turn answered by ov₁.simulate (lifted into the combined spec).
+    do let s₂ ← OptionT.mk (simulateQ comp.liftVerify₁ (ov₁.verify stmt ch₁))
+       OptionT.mk (simulateQ (comp.liftVerify₂ ov₁.simulate) (ov₂.verify s₂ ch₂))
   simulate := fun q =>
-    let ssL := subSpec_oracleSpecOfMessages_left pSpec₁ pSpec₂
-    let ssR := subSpec_oracleSpecOfMessages_right pSpec₁ pSpec₂
-    let sSpec := [OStmt₁]ₒ + oracleSpecOfMessages (pSpec₁ ++ pSpec₂)
-    -- Lift ov₁.simulate's oracle context into sSpec
-    let liftSim : QueryImpl
-        ([OStmt₁]ₒ + oracleSpecOfMessages pSpec₁)
-        (OracleComp sSpec) := fun
-      | Sum.inl q' => liftM (query (spec := sSpec) (Sum.inl q'))
-      | Sum.inr q' =>
-        let q'' := ssL.monadLift ⟨q', id⟩
-        q''.2 <$> liftM (query (spec := sSpec) (Sum.inr q''.1))
-    -- Route ov₂.simulate's queries: [OStmt₂]ₒ → ov₁.simulate; messages → ssR embedding
-    let liftOuter : QueryImpl
-        ([OStmt₂]ₒ + oracleSpecOfMessages pSpec₂)
-        (OracleComp sSpec) := fun
-      | Sum.inl q' => simulateQ liftSim (ov₁.simulate q')
-      | Sum.inr q' =>
-        let q'' := ssR.monadLift ⟨q', id⟩
-        q''.2 <$> liftM (query (spec := sSpec) (Sum.inr q''.1))
-    simulateQ liftOuter (ov₂.simulate q)
+    simulateQ (comp.liftSimulate ov₁.simulate) (ov₂.simulate q)
   reify := fun oStmtInData msgs => do
     let (msgs₁, msgs₂) := Messages.split pSpec₁ pSpec₂ msgs
     let oStmtMidData ← ov₁.reify oStmtInData msgs₁

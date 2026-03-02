@@ -195,6 +195,7 @@ end Reduction
 
 /-! ## Shared utility lemmas for soundness/knowledge soundness proofs -/
 
+-- TODO: remove after VCVio dependency is updated (ported to VCVio.EvalDist.Monad.Basic)
 lemma probEvent_exists_finset_le_sum
     {m : Type → Type} [Monad m] [HasEvalSPMF m]
     {α : Type} {ι : Type} (s : Finset ι) (mx : m α) (E : ι → α → Prop)

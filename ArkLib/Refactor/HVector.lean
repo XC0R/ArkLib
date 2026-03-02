@@ -98,12 +98,14 @@ instance {α : Type*} {A : α → Type*} {l₁ l₂ : List α} :
     HAppend (HVector A l₁) (HVector A l₂) (HVector A (l₁ ++ l₂)) where
   hAppend := append
 
+/-- Append a single element to the end of the vector. -/
 def snoc {α : Type*} {A : α → Type*} {a : α} {as : List α}
     (xs : HVector A as) (x : A a) : HVector A (as ++ [a]) :=
   append xs (x, PUnit.unit)
 
 /-! ## splitAt -/
 
+/-- Split a vector at a list-append boundary into left and right sub-vectors. -/
 def splitAt {α : Type*} {A : α → Type*} :
     (l₁ : List α) → {l₂ : List α} →
     HVector A (l₁ ++ l₂) → HVector A l₁ × HVector A l₂
@@ -112,12 +114,14 @@ def splitAt {α : Type*} {A : α → Type*} :
 
 /-! ## take / drop -/
 
+/-- Keep the first `n` elements of the vector. -/
 def take {α : Type*} {A : α → Type*} :
     (n : Nat) → (l : List α) → HVector A l → HVector A (l.take n)
   | 0, _, _ => PUnit.unit
   | _ + 1, [], _ => PUnit.unit
   | n + 1, _ :: tl, v => (v.1, take n tl v.2)
 
+/-- Remove the first `n` elements of the vector. -/
 def drop {α : Type*} {A : α → Type*} :
     (n : Nat) → (l : List α) → HVector A l → HVector A (l.drop n)
   | 0, _, v => v
