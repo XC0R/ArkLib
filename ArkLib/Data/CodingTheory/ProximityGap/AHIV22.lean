@@ -46,7 +46,7 @@ lemma distInterleavedCodeToCodeLB
 
 namespace ProximityToRS
 
-open ReedSolomon ReedSolomonCode NNReal
+open ReedSolomon NNReal
 
 /-- The set of points on an affine line, which are within distance `e` from a Reed-Solomon code.
 -/
