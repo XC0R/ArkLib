@@ -151,7 +151,7 @@ lemma dim_eq_deg_of_le [NeZero n] (inj : Function.Injective α) (h : n ≤ m) :
     ] <;> simp [inj, h]
 
 open Finset in
-/-- Generalized dimension formula for RS code with arbitrary finite index type `ι`. -/
+/-- Generalized dimension formula for a Reed-Solomon code with arbitrary finite index type `ι`. -/
 lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
     {n : ℕ} {α : ι ↪ F} [NeZero n] (h : n ≤ Fintype.card ι) :
   LinearCode.dim (ReedSolomon.code α n) = n := by
@@ -474,8 +474,8 @@ lemma decoded_polynomial_lt_deg (c : ReedSolomon.code domain deg) :
     have : (decode c).degree < deg := lt_of_lt_of_le hdeg_lt_card hcard_le_deg
     simpa [Polynomial.mem_degreeLT] using this
 
-/-- The linear map that maps a Reed Solomon codeword to its associated polynomial
-    of degree < deg -/
+/-- The linear map that maps a Reed-Solomon codeword to its associated polynomial of degree less
+than `deg`. -/
 noncomputable def decodeLT : (ReedSolomon.code domain deg) →ₗ[F] (Polynomial.degreeLT F deg) :=
   codRestrict
     (Polynomial.degreeLT F deg)
@@ -504,20 +504,20 @@ variable {F : Type*} [Field F] [DecidableEq F]
         {m : ℕ}
 
 /-- Definition 4.2, WHIR[ACFY24]
-  Smooth ReedSolomon Codes are ReedSolomon Codes defined over Smooth Domains, such that
-  their decoded univariate polynomials are of degree < 2ᵐ for some m ∈ ℕ. -/
+Smooth Reed-Solomon codes are Reed-Solomon codes defined over smooth domains, such that their
+decoded univariate polynomials are of degree less than `2ᵐ` for some `m ∈ ℕ`. -/
 def smoothCode
   (domain : ι ↪ F) [Smooth domain]
   (m : ℕ) : Submodule F (ι → F) := ReedSolomon.code domain (2^m)
 
-/-- The linear map that maps Smooth Reed Solomon Code words
-    to their decoded degree wise linear `m`-variate polynomial -/
+/-- The linear map that maps smooth Reed-Solomon Code words to their decoded degreewise linear
+`m`-variate polynomial. -/
 noncomputable def mVdecode :
   (smoothCode domain m) →ₗ[F] MvPolynomial (Fin m) F :=
     linearMvExtension.comp decodeLT
 
-/-- Auxiliary function to assign values to the weight polynomial variables:
-    index `0` ↦ `p.eval b`, index `j+1` ↦ `b j`. -/
+/-- Auxiliary function to assign values to the weight polynomial variables: index `0` ↦ `p.eval b`,
+index `j+1` ↦ `b j`. -/
 private def toWeightAssignment
   (p : MvPolynomial (Fin m) F)
   (b : Fin m → Fin 2) : Fin (m+1) → F :=
@@ -543,10 +543,8 @@ def constrainedCode
       weightConstraint (mVdecode (⟨f, h⟩ : smoothCode domain m)) w σ }
 
 /-- Definition 4.6, WHIR[ACFY24]
-  Multi-constrained Reed Solomon codes are smooth codes who's decoded m-variate
-  polynomial satisfies the `t` weight constraints for given `w₀,...,wₜ₋₁` and
-    `σ₀,...,σₜ₋₁`.
--/
+Multi-constrained Reed-Solomon codes are smooth codes whose decoded `m`-variate polynomial satisfies
+the `t` weight constraints for given `w₀,...,wₜ₋₁` and `σ₀,...,σₜ₋₁`. -/
 def multiConstrainedCode
   (domain : ι ↪ F) [Smooth domain] (m t : ℕ)
   (w : Fin t → MvPolynomial (Fin (m + 1)) F)
