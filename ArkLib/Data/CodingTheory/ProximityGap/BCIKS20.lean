@@ -67,9 +67,9 @@ Let `C` be a collection of affine spaces. Then `C` displays a `(δ, ε)`-proximi
 a Reed-Solomon code, where `(δ,ε)` are the proximity and error parameters defined up to the
 Johnson bound. -/
 theorem proximity_gap_RSCodes {k t : ℕ} [NeZero k] [NeZero t] {deg : ℕ} {domain : ι ↪ F}
-  (C : Fin t → (Fin k → (ι → F))) {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain)) :
+  (C : Fin t → (Fin k → (ι → F))) {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomon.sqrtRate deg domain)) :
   δ_ε_proximityGap
-    (ReedSolomonCode.toFinset domain deg)
+    (ReedSolomon.toFinset domain deg)
     (Affine.AffSpanFinsetCollection C)
     δ
     (errorBound δ deg domain) := by sorry
@@ -93,7 +93,7 @@ pair `(δ, ε)` and two words `u₀` and `u₁`, such that the probability that 
 line passing through `u₀` and `u₁` is `δ`-close to Reed-Solomon code is at most `ε`.
 Then, the words `u₀` and `u₁` have correlated agreement. -/
 theorem RS_correlatedAgreement_affineLines {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain)) :
+  (hδ : δ ≤ 1 - (ReedSolomon.sqrtRate deg domain)) :
   δ_ε_correlatedAgreementAffineLines (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) :=
   -- Do casing analysis on `hδ`
@@ -113,7 +113,7 @@ the  probability that a random point on the curve is `δ`-close to the Reed-Solo
 is at most `ε`. Then, the words `u₀, ..., uκ` have correlated agreement. -/
 theorem correlatedAgreement_affine_curves [DecidableEq ι] {k : ℕ} {u : Fin k → ι → F}
   {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ≤ 1 - ReedSolomonCode.sqrtRate deg domain) :
+  (hδ : δ ≤ 1 - ReedSolomon.sqrtRate deg domain) :
     δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
   sorry
@@ -130,7 +130,7 @@ able to isolate the affine origin from the affine span and to form a generating 
 correct size. The reason for taking an extra vector is that after isolating the affine origin,
 the affine span is formed as the span of the difference of the rest of the vector set. -/
 theorem correlatedAgreement_affine_spaces {k : ℕ} [NeZero k] {u : Fin (k + 1) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain))
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomon.sqrtRate deg domain))
   : δ_ε_correlatedAgreementAffineSpaces (k := k) (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
   sorry
@@ -559,8 +559,7 @@ theorem large_agreement_set_on_curve_implies_correlated_agreement' {l : ℕ}
 section
 open NNReal Finset Function
 
-open scoped BigOperators
-open scoped ReedSolomonCode
+open scoped BigOperators ReedSolomon
 
 variable {l : ℕ} [NeZero l]
          {ι : Type} [Fintype ι] [Nonempty ι]
@@ -581,7 +580,7 @@ every point of the underlying linear subspace `U'` is also `δ`-close to `V`.
 -/
 theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] [DecidableEq F]
   {u : Fin (l + 2) → ι → F} {k : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate (k + 1) domain))) :
+  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomon.sqrtRate (k + 1) domain))) :
   letI U' : Finset (ι → F) :=
     SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u))) |>.toFinset
   letI U : Finset (ι → F) := u 0 +ᵥ U'
@@ -642,7 +641,7 @@ noncomputable def weightedCorrelatedAgreement
       ∃ v : Fin k → ι → F, ∀ i, v i ∈ C ∧ ∀ j ∈ D', v i j = U i j
   }
 
-open ReedSolomonCode
+open ReedSolomon
 
 instance {domain : ι ↪ F} {deg : ℕ} : Nonempty (finCarrier domain deg) := by
   unfold finCarrier
@@ -666,7 +665,7 @@ theorem weighted_correlated_agreement_for_parameterized_curves
   {M : ℕ}
   {α : ℝ≥0}
   (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI sqrtRate := ReedSolomon.sqrtRate deg domain
   (hα : sqrtRate < α) →
   (hα₁ : α < 1) →
   letI ε := ProximityGap.errorBound δ deg domain
@@ -702,7 +701,7 @@ theorem weighted_correlated_agreement_for_parameterized_curves'
   (hm : 3 ≤ m)
   (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ))
   {α : ℝ≥0} :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI sqrtRate := ReedSolomon.sqrtRate deg domain
   letI S : Finset F := {
     z : F | agree_set μ (fun i ↦ ∑ j, z ^ j.1 * u j i) (finCarrier domain deg) ≥ α
   }
@@ -731,7 +730,7 @@ theorem weighted_correlated_agreement_over_affine_spaces
   {μ : ι → Set.Icc (0 : ℚ) 1}
   {M : ℕ}
   {α : ℝ≥0} :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI sqrtRate := ReedSolomon.sqrtRate deg domain
   (hα : sqrtRate < α) →
   (hα₁ : α < 1) →
   (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) →
@@ -769,7 +768,7 @@ theorem weighted_correlated_agreement_over_affine_spaces'
   {M m : ℕ}
   (hm : 3 ≤ m)
   (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI sqrtRate := ReedSolomon.sqrtRate deg domain
   letI pr :=
     Pr_{let u ←$ᵖ (u 0 +ᵥ affineSpan F (Finset.univ.image (Fin.tail u)).toSet)
     }[agree_set μ u (finCarrier domain deg) ≥ α]
