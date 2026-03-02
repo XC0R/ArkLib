@@ -22,6 +22,69 @@ open scoped NNReal ENNReal BigOperators
 
 namespace ProtocolSpec
 
+/-! ## RBR error-map combinators -/
+
+namespace ChallengeIndex
+
+/-- Combine two per-challenge error maps over appended protocols. -/
+def errorAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ε₁ : ChallengeIndex pSpec₁ → ℝ≥0)
+    (ε₂ : ChallengeIndex pSpec₂ → ℝ≥0) :
+    ChallengeIndex (pSpec₁ ++ pSpec₂) → ℝ≥0 :=
+  fun i =>
+    match ChallengeIndex.split (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) i with
+    | .inl j => ε₁ j
+    | .inr j => ε₂ j
+
+@[simp] lemma errorAppend_appendLeft
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ε₁ : ChallengeIndex pSpec₁ → ℝ≥0)
+    (ε₂ : ChallengeIndex pSpec₂ → ℝ≥0)
+    (i : ChallengeIndex pSpec₁) :
+    errorAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) ε₁ ε₂
+      (ChallengeIndex.appendLeft (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) i) = ε₁ i := by
+  simp [errorAppend]
+
+@[simp] lemma errorAppend_appendRight
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (ε₁ : ChallengeIndex pSpec₁ → ℝ≥0)
+    (ε₂ : ChallengeIndex pSpec₂ → ℝ≥0)
+    (i : ChallengeIndex pSpec₂) :
+    errorAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) ε₁ ε₂
+      (ChallengeIndex.appendRight (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) i) = ε₂ i := by
+  simp [errorAppend]
+
+/-- Replicate a base per-challenge error map over `pSpec.replicate n`. -/
+def errorReplicate
+    {pSpec : ProtocolSpec}
+    (ε : ChallengeIndex pSpec → ℝ≥0) :
+    (n : Nat) → ChallengeIndex (pSpec.replicate n) → ℝ≥0
+  | 0, i => False.elim (Fin.elim0 i.1)
+  | n + 1, i =>
+      match ChallengeIndex.splitReplicate (pSpec := pSpec) n i with
+      | .inl j => ε j
+      | .inr j => errorReplicate ε n j
+
+@[simp] lemma errorReplicate_succ_inl
+    {pSpec : ProtocolSpec}
+    (ε : ChallengeIndex pSpec → ℝ≥0) (n : Nat)
+    (i : ChallengeIndex pSpec) :
+    errorReplicate (pSpec := pSpec) ε (n + 1)
+      (ChallengeIndex.appendLeft (pSpec₁ := pSpec) (pSpec₂ := pSpec.replicate n) i) = ε i := by
+  simp [errorReplicate]
+
+@[simp] lemma errorReplicate_succ_inr
+    {pSpec : ProtocolSpec}
+    (ε : ChallengeIndex pSpec → ℝ≥0) (n : Nat)
+    (i : ChallengeIndex (pSpec.replicate n)) :
+    errorReplicate (pSpec := pSpec) ε (n + 1)
+      (ChallengeIndex.appendRight (pSpec₁ := pSpec) (pSpec₂ := pSpec.replicate n) i) =
+        errorReplicate (pSpec := pSpec) ε n i := by
+  simp [errorReplicate]
+
+end ChallengeIndex
+
 /-! ## Oracle-aware composition boundary relation -/
 
 /-- `FirstStageVerifierStep` captures one concrete first-stage verifier transition:
