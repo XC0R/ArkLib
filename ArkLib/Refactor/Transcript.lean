@@ -127,6 +127,35 @@ def Transcript.ofMessagesChallenges :
   | (.V_to_P _) :: tl, msgs, chs =>
     chs.head ::ₕ Transcript.ofMessagesChallenges tl msgs chs.tail
 
+@[simp] theorem Transcript.toMessages_ofMessagesChallenges
+    (pSpec : ProtocolSpec) (msgs : Messages pSpec) (chs : Challenges pSpec) :
+    Transcript.toMessages pSpec (Transcript.ofMessagesChallenges pSpec msgs chs) = msgs := by
+  induction pSpec with
+  | nil =>
+      rfl
+  | cons r tl ih =>
+      cases r <;> simp [Transcript.toMessages, Transcript.ofMessagesChallenges, ih]
+
+@[simp] theorem Transcript.toChallenges_ofMessagesChallenges
+    (pSpec : ProtocolSpec) (msgs : Messages pSpec) (chs : Challenges pSpec) :
+    Transcript.toChallenges pSpec (Transcript.ofMessagesChallenges pSpec msgs chs) = chs := by
+  induction pSpec with
+  | nil =>
+      rfl
+  | cons r tl ih =>
+      cases r <;> simp [Transcript.toChallenges, Transcript.ofMessagesChallenges, ih]
+
+@[simp] theorem Transcript.ofMessagesChallenges_toMessages_toChallenges
+    (pSpec : ProtocolSpec) (tr : Transcript pSpec) :
+    Transcript.ofMessagesChallenges pSpec (Transcript.toMessages pSpec tr)
+      (Transcript.toChallenges pSpec tr) = tr := by
+  induction pSpec with
+  | nil =>
+      rfl
+  | cons r tl ih =>
+      cases r <;> cases tr <;>
+        simp [Transcript.toMessages, Transcript.toChallenges, Transcript.ofMessagesChallenges, ih]
+
 /-! ## PartialTranscript operations -/
 
 def PartialTranscript.empty (pSpec : ProtocolSpec) : PartialTranscript pSpec 0 := HVector.nil

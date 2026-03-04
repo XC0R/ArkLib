@@ -1,5 +1,9 @@
 import ArkLib.Refactor.FiatShamir
 import ArkLib.Refactor.HVector
+import ArkLib.Refactor.LiftContext
+import ArkLib.Refactor.LiftContext.Lens
+import ArkLib.Refactor.LiftContext.OracleReduction
+import ArkLib.Refactor.LiftContext.Reduction
 import ArkLib.Refactor.OracleVerifier
 import ArkLib.Refactor.ProtocolSpec
 import ArkLib.Refactor.Prover
@@ -10,6 +14,7 @@ import ArkLib.Refactor.Security.Composition.KnowledgeSoundness
 import ArkLib.Refactor.Security.Composition.Soundness
 import ArkLib.Refactor.Security.Composition.Util
 import ArkLib.Refactor.Security.Defs
+import ArkLib.Refactor.Security.StateRestoration
 import ArkLib.Refactor.Security.StateFunction
 import ArkLib.Refactor.Sumcheck.Completeness
 import ArkLib.Refactor.Sumcheck.Defs

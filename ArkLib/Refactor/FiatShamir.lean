@@ -67,7 +67,7 @@ the right summand. We lift the *combined* `oSpec + fsOracleSpec acc tl` into
 `oSpec + fsOracleSpec acc (.V_to_P T :: tl)` by routing `oSpec` queries to `Sum.inl`
 and `fsOracleSpec acc tl` queries to `Sum.inr ∘ Sum.inr`. -/
 
-private def liftFSTail {ι : Type} (oSpec : OracleSpec ι)
+def liftFSTail {ι : Type} (oSpec : OracleSpec ι)
     (StmtIn : Type) (acc : List Type) (T : Type) (tl : ProtocolSpec) :
     QueryImpl (oSpec + fsOracleSpec StmtIn acc tl)
       (OracleComp (oSpec + fsOracleSpec StmtIn acc ((.V_to_P T) :: tl))) :=
