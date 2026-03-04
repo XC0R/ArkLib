@@ -179,6 +179,14 @@ lemma oracleFree_comp {ι : Type} {oSpec : OracleSpec ι}
     OptionT.run, pure_bind]
   cases g₁ stmt (Transcript.split (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) tr).1 <;> simp
 
+theorem oracleFree_compNth {ι : Type} {oSpec : OracleSpec ι}
+    {S : Type} {pSpec : ProtocolSpec}
+    {v : Verifier (OracleComp oSpec) S S pSpec}
+    (hV : OracleFree v) :
+    (n : Nat) → OracleFree (Verifier.compNth n v)
+  | 0 => ⟨fun stmt _ => some stmt, fun _ _ => rfl⟩
+  | n + 1 => oracleFree_comp hV (oracleFree_compNth hV n)
+
 end Verifier
 
 namespace Reduction

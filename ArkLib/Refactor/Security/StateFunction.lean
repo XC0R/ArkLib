@@ -375,6 +375,22 @@ def oracleAwareRbrKnowledgeSoundness
 
 namespace StateFunction
 
+/-- When the input is in the language, the state function is true at every challenge
+round, regardless of the (adversarial) transcript prefix. This property is needed for
+composing RBR soundness over multiple copies of a verifier. -/
+def InLangAtChallenges
+    {Inv : σ → Prop}
+    {langIn : Set StmtIn} {langOut : Set StmtOut}
+    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
+    (sf : StateFunction impl Inv langIn langOut verifier) : Prop :=
+  ∀ (i : ChallengeIndex pSpec) (stmt : StmtIn)
+    (ptr : PartialTranscript pSpec i.1),
+    stmt ∈ langIn → sf.toFun i.1 stmt ptr
+
+end StateFunction
+
+namespace StateFunction
+
 /-- Promote a legacy state function to an oracle-aware one by ignoring `σ0`. -/
 def toOracleAware
     {Inv : σ → Prop}

@@ -231,22 +231,19 @@ def PartialTranscript.leftFullOfAppend
           exact tr.head ::ₕ ih hk' tr.tail
 
 /-- Extract the right partial transcript from a partial transcript of `pSpec₁ ++ pSpec₂`
-once we have seen at least `|pSpec₁|` rounds. The local length is `k - |pSpec₁|`. -/
+once we have seen at least `|pSpec₁|` rounds. Returns a partial transcript of `pSpec₂`
+at the given local index `j`, with `j + |pSpec₁| = k`. -/
 def PartialTranscript.rightOfAppend
-    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
-    (hk : pSpec₁.length ≤ k)
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k j : Nat}
+    (h_eq : j + pSpec₁.length = k)
     (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k) :
-    PartialTranscript pSpec₂ (k - pSpec₁.length) := by
-  induction pSpec₁ generalizing k with
-  | nil =>
-      simpa [PartialTranscript] using tr
+    PartialTranscript pSpec₂ j := by
+  induction pSpec₁ generalizing k j with
+  | nil => subst h_eq; exact tr
   | cons r tl ih =>
       cases k with
-      | zero =>
-          exact False.elim (Nat.not_succ_le_zero _ hk)
-      | succ k =>
-          have hk' : tl.length ≤ k := Nat.succ_le_succ_iff.mp hk
-          simpa [Nat.succ_sub_succ_eq_sub] using ih hk' tr.tail
+      | zero => simp [List.length_cons] at h_eq
+      | succ k => exact ih (by simp [List.length_cons] at h_eq; omega) tr.tail
 
 private lemma cast_cons_hvector {r : Round} {l₁ l₂ : List Round}
     (h : l₁ = l₂) (hd : r.type) (tltr : HVector Round.type l₁) :
@@ -287,5 +284,80 @@ lemma hvector_take_succ_eq_concat {pSpec : ProtocolSpec}
               simpa [HVector.take, PartialTranscript.concat, HVector.get, HVector.cons,
                 HVector.head, HVector.tail] using
                 congrArg (fun t => (hd, t)) (ih k hk' tltr)
+
+/-! ## Splitting lemmas for PartialTranscript operations -/
+
+/-- Adding an element at position `k ≥ |pSpec₁|` does not change `leftFullOfAppend`. -/
+theorem PartialTranscript.leftFullOfAppend_concat
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
+    (hk₁ : pSpec₁.length ≤ k) (hk₂ : k < (pSpec₁ ++ pSpec₂).length)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k)
+    (msg : ((pSpec₁ ++ pSpec₂)[k]'hk₂).type) :
+    PartialTranscript.leftFullOfAppend (show pSpec₁.length ≤ k + 1 by omega)
+      (PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk₂ tr msg) =
+    PartialTranscript.leftFullOfAppend hk₁ tr := by
+  induction pSpec₁ generalizing k with
+  | nil => rfl
+  | cons r tl ih =>
+    cases k with
+    | zero => exact absurd hk₁ (by simp [List.length_cons])
+    | succ k =>
+      have hk₁' : tl.length ≤ k := by simp [List.length_cons] at hk₁; omega
+      have hk₂' : k < (tl ++ pSpec₂).length := by
+        simp only [List.cons_append, List.length_cons] at hk₂; omega
+      change tr.head ::ₕ _ = tr.head ::ₕ _
+      exact congrArg (tr.head ::ₕ ·) (ih hk₁' hk₂' tr.tail msg)
+
+/-- Adding an element at position `k < |pSpec₁|` in `pSpec₁ ++ pSpec₂` corresponds to
+adding it at position `k` in the left part extracted by `leftOfAppend`. -/
+theorem PartialTranscript.leftOfAppend_concat
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k : Nat}
+    (hk : k < pSpec₁.length)
+    (hk₂ : k < (pSpec₁ ++ pSpec₂).length)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k)
+    (msg : ((pSpec₁ ++ pSpec₂)[k]'hk₂).type) :
+    PartialTranscript.leftOfAppend (show k + 1 ≤ pSpec₁.length by omega)
+      (PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk₂ tr msg) =
+    PartialTranscript.concat pSpec₁ hk
+      (PartialTranscript.leftOfAppend (show k ≤ pSpec₁.length by omega) tr)
+      (cast (by
+        exact congrArg Round.type (List.getElem_append_left (h' := hk₂) hk)) msg) := by
+  induction pSpec₁ generalizing k with
+  | nil => exact absurd hk (by simp)
+  | cons r tl ih =>
+    cases k with
+    | zero => rfl
+    | succ k =>
+      have hk' : k < tl.length := by simp [List.length_cons] at hk; omega
+      have hk₂' : k < (tl ++ pSpec₂).length := by
+        simp only [List.cons_append, List.length_cons] at hk₂; omega
+      change tr.head ::ₕ _ = tr.head ::ₕ _
+      exact congrArg (tr.head ::ₕ ·) (ih hk' hk₂' tr.tail msg)
+
+/-- Adding an element at position `k ≥ |pSpec₁|` in `pSpec₁ ++ pSpec₂` corresponds to
+adding it at position `j + 1` in the right part extracted by `rightOfAppend`. -/
+theorem PartialTranscript.rightOfAppend_concat
+    {pSpec₁ pSpec₂ : ProtocolSpec} {k j : Nat}
+    (h_eq : j + pSpec₁.length = k) (hk₂ : k < (pSpec₁ ++ pSpec₂).length)
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) k)
+    (msg : ((pSpec₁ ++ pSpec₂)[k]'hk₂).type) :
+    rightOfAppend (show (j + 1) + pSpec₁.length = k + 1 by omega)
+      (concat (pSpec₁ ++ pSpec₂) hk₂ tr msg) =
+    concat pSpec₂ (show j < pSpec₂.length by
+        simp [List.length_append] at hk₂; omega)
+      (rightOfAppend h_eq tr)
+      (cast (congrArg Round.type (by
+        rw [List.getElem_append_right (h₂ := hk₂) (show pSpec₁.length ≤ k by omega)]
+        congr 1; omega)) msg) := by
+  induction pSpec₁ generalizing k j with
+  | nil => subst h_eq; rfl
+  | cons r tl ih =>
+    cases k with
+    | zero => simp [List.length_cons] at h_eq
+    | succ k =>
+        have hlen : ((r :: tl) ++ pSpec₂).length = (tl ++ pSpec₂).length + 1 := by
+          simp [List.length_append, List.length_cons]
+        exact ih (by simp [List.length_cons] at h_eq; omega)
+          (by omega) tr.tail msg
 
 end ProtocolSpec
