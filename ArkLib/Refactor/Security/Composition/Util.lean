@@ -74,6 +74,17 @@ def errorReplicate
       (ChallengeIndex.appendLeft (pSpec₁ := pSpec) (pSpec₂ := pSpec.replicate n) i) = ε i := by
   simp [errorReplicate]
 
+@[simp] lemma errorReplicate_succ_eq_errorAppend
+    {pSpec : ProtocolSpec}
+    (ε : ChallengeIndex pSpec → ℝ≥0) (n : Nat)
+    (i : ChallengeIndex (pSpec.replicate (n + 1))) :
+    errorReplicate ε (n + 1) i = errorAppend ε (errorReplicate ε n) i := by
+  have h : splitReplicate n i = split i := by simp [splitReplicate]
+  unfold errorReplicate errorAppend
+  cases heq : split i with
+  | inl j => simp [show splitReplicate n i = .inl j from h ▸ heq]
+  | inr j => simp [show splitReplicate n i = .inr j from h ▸ heq]
+
 @[simp] lemma errorReplicate_succ_inr
     {pSpec : ProtocolSpec}
     (ε : ChallengeIndex pSpec → ℝ≥0) (n : Nat)

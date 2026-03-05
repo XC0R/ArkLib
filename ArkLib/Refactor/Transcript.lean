@@ -360,4 +360,55 @@ theorem PartialTranscript.rightOfAppend_concat
         exact ih (by simp [List.length_cons] at h_eq; omega)
           (by omega) tr.tail msg
 
+/-! ## Bridge lemmas for composition -/
+
+@[simp] lemma PartialTranscript.ofTranscript_cons {r : Round} {tl : ProtocolSpec}
+    (tr : Transcript (r :: tl)) :
+    ofTranscript tr = tr.head ::ₕ ofTranscript tr.tail := by
+  cases tr with
+  | mk hd tltr =>
+    exact (cast_cons_hvector List.take_length.symm hd tltr).symm
+
+/-- At `k = pSpec₁.length`, `leftOfAppend` equals `ofTranscript (leftFullOfAppend ...)`. -/
+theorem PartialTranscript.leftOfAppend_eq_ofTranscript_leftFullOfAppend
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (tr : PartialTranscript (pSpec₁ ++ pSpec₂) pSpec₁.length) :
+    leftOfAppend le_rfl tr =
+      ofTranscript (leftFullOfAppend le_rfl tr) := by
+  induction pSpec₁ with
+  | nil => rfl
+  | cons r tl ih =>
+    simp only [leftOfAppend, leftFullOfAppend, ofTranscript_cons]
+    exact congrArg (tr.head ::ₕ ·) (ih tr.tail)
+
+/-- `leftFullOfAppend` applied to a full transcript is the first component of `split`. -/
+theorem PartialTranscript.leftFullOfAppend_ofTranscript_eq_split_fst
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    leftFullOfAppend (by simp)
+      (ofTranscript tr) =
+    (Transcript.split tr).1 := by
+  induction pSpec₁ with
+  | nil => rfl
+  | cons r tl ih =>
+    simp only [List.cons_append, ofTranscript_cons, leftFullOfAppend,
+      Transcript.split, HVector.splitAt]
+    exact congrArg (tr.head ::ₕ ·) (ih tr.tail)
+
+/-- `rightOfAppend` applied to a full transcript at local index `|pSpec₂|`
+is `ofTranscript` of the second component of `split`. -/
+theorem PartialTranscript.rightOfAppend_ofTranscript_eq_split_snd
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    rightOfAppend (show pSpec₂.length + pSpec₁.length = (pSpec₁ ++ pSpec₂).length by
+        simp [List.length_append]; omega)
+      (ofTranscript tr) =
+    ofTranscript (Transcript.split tr).2 := by
+  induction pSpec₁ with
+  | nil => rfl
+  | cons r tl ih =>
+    simp only [List.cons_append, ofTranscript_cons, rightOfAppend,
+      List.length_cons, Transcript.split, HVector.splitAt]
+    exact ih tr.tail
+
 end ProtocolSpec

@@ -586,6 +586,19 @@ theorem roundVerifierState_rbrSoundness
               ((pSpec (R := R) deg).get ⟨1, by simp [pSpec]⟩).isChallenge = false := by
             simpa [hk1] using hnon
           simp [pSpec, ProtocolSpec.Round.isChallenge] at hch
+    toFun_challenge_of_mem := by
+      intro i stmt ptr hLang
+      have hi : i.1.val = 1 := by
+        rcases i with ⟨⟨iv, hlt⟩, hchal⟩
+        simp [pSpec] at hlt
+        interval_cases iv
+        · simp [pSpec, ProtocolSpec.Round.isChallenge] at hchal
+        · rfl
+      rcases i with ⟨⟨iv, hlt⟩, hchal⟩
+      simp [pSpec] at hlt
+      interval_cases iv
+      · simp [pSpec, ProtocolSpec.Round.isChallenge] at hchal
+      · exact hLang
     toFun_full := by
       intro stmt tr σ0 _ hNot
       have hNoAccept :
@@ -926,6 +939,27 @@ theorem roundVerifierState_rbrSoundness
     simpa [Function.comp] using hPair
   simpa [singleRoundRbrError] using hFinal
 
+omit [Fintype R] [SampleableType R] in
+/-- The n-round verifier wrapping `Id`-monad composition in `pure` is the same as
+`OracleComp`-monad composition of the single-round oracle-wrapped verifier. -/
+private theorem generalVerifierStateAsOracle_eq_compNth (D : Fin m → R) (k : Nat) :
+    generalVerifierStateAsOracle (R := R) (deg := deg) (n := k) (m := m) D =
+    (roundVerifierStateAsOracle (R := R) (deg := deg) (m := m) D).compNth k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    funext st tr
+    simp only [generalVerifierStateAsOracle, Verifier.compNth, Verifier.comp,
+      roundVerifierStateAsOracle]
+    rw [show Verifier.compNth k (roundVerifierStateAsOracle D) =
+      generalVerifierStateAsOracle (R := R) (deg := deg) (n := k) D from ih.symm]
+    simp only [generalVerifierStateAsOracle]
+    apply OptionT.ext
+    simp only [OptionT.run_mk, OptionT.run_bind]
+    cases (roundVerifierState D st (Transcript.split tr).1).run with
+    | none => rfl
+    | some mid => rfl
+
 /-- RBR soundness of the composed n-round sumcheck verifier over `RoundState`. -/
 private theorem generalVerifierStateAsOracle_rbrSoundness
     (poly : CMvPolynomial n R) (D : Fin m → R)
@@ -939,61 +973,13 @@ private theorem generalVerifierStateAsOracle_rbrSoundness
       (Inv := fun _ : Unit => True)
       (rbrError := rbrSoundnessError (R := R) (deg := deg) (n := k)) := by
   intro k
-  induction k with
-  | zero =>
-      refine ⟨{
-        toFun := fun _ stmt _ => stmt ∈ roundStateLang (R := R) (n := n) (m := m) poly D
-        toFun_empty := fun stmt => Iff.rfl
-        toFun_next := fun k hk _ _ _ hFalse _ => hFalse
-        toFun_full := by
-          intro stmt tr () _ hNot
-          rw [probEvent_eq_zero_iff]
-          intro s hs hsLang
-          apply hNot
-          have : s = stmt := by
-            simp only [generalVerifierStateAsOracle, Verifier.compNth, OptionT.mk, OptionT.run,
-              simulateQ_pure, StateT.run',
-              OptionT.mem_support_iff] at hs
-            rcases hs with ⟨u, hu⟩
-            exact (Option.some.inj (by simp)).symm
-          subst this
-          exact hsLang
-      }, fun _ _ _ _ i => absurd i.1.isLt (by simp [generalPSpec, ProtocolSpec.replicate])⟩
-  | succ k ih =>
-      obtain ⟨sf_single, hBound_single⟩ :=
-        roundVerifierState_rbrSoundness (deg := deg) (m := m) poly D hTrue
-      obtain ⟨sf_tail, hBound_tail⟩ := ih
-      let pS := pSpec (R := R) deg
-      let lang := roundStateLang (R := R) (n := n) (m := m) poly D
-      let sfComp : StateFunction emptyImpl (fun _ : Unit => True) lang lang
-          (generalVerifierStateAsOracle (R := R) (deg := deg) (n := k + 1) (m := m) D) := {
-        toFun := fun (pos : Nat) stmt (ptr : PartialTranscript (pS.replicate (k + 1)) pos) =>
-          if h : pos ≤ pS.length then
-            sf_single.toFun pos stmt
-              (PartialTranscript.leftOfAppend (pSpec₁ := pS) (pSpec₂ := pS.replicate k) h ptr)
-          else
-            have h' : pS.length ≤ pos := Nat.le_of_not_le h
-            let tr₁ := PartialTranscript.leftFullOfAppend
-              (pSpec₁ := pS) (pSpec₂ := pS.replicate k) h' ptr
-            match (roundVerifierState (R := R) (deg := deg) (m := m) D stmt tr₁).run with
-            | none => False
-            | some mid =>
-                sf_tail.toFun (pos - pS.length) mid
-                  (PartialTranscript.rightOfAppend
-                    (pSpec₁ := pS) (pSpec₂ := pS.replicate k)
-                    (Nat.sub_add_cancel h') ptr)
-        toFun_empty := by
-          intro stmt
-          simp only [Nat.zero_le, dite_true, pS]
-          exact sf_single.toFun_empty stmt
-        toFun_next := by
-          intro pos hpos hnon stmt ptr hFalse msg
-          sorry
-        toFun_full := by sorry
-      }
-      refine ⟨sfComp, ?_⟩
-      intro stmtIn hStmtIn Output prover i σ0 hσ0
-      sorry
+  rw [rbrSoundnessError_eq_errorReplicate,
+      generalVerifierStateAsOracle_eq_compNth D k]
+  exact rbrSoundness_compNth (impl := emptyImpl)
+    (roundVerifierStateAsOracle_oracleFree D)
+    (QueryImpl.PreservesInv.trivial emptyImpl)
+    (roundVerifierState_rbrSoundness poly D hTrue)
+    k
 
 /-- Lift an RBR statement over `RoundState` input/output to the scalar-input
 sumcheck verifier via `initState` and the language bridges. -/
@@ -1030,6 +1016,11 @@ private theorem generalVerifier_rbrSoundness_of_state_rbr
       toFun_next := by
         intro k hk hnon target tr hFalse msg
         exact sfState.toFun_next k hk hnon (initState (R := R) target) tr hFalse msg
+      toFun_challenge_of_mem := by
+        intro i target ptr hLang
+        exact sfState.toFun_challenge_of_mem i (initState (R := R) target) ptr
+          ((inputLang_iff_initState_mem_roundStateLang (R := R) (n := n) (m := m) poly D
+            target).1 hLang)
       toFun_full := by
         intro target tr σ0 _ hNot
         have hStateZero' :

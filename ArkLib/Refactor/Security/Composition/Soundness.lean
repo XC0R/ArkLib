@@ -1049,6 +1049,72 @@ theorem Verifier.oracleAwareRbrSoundness_compNth
   exact Verifier.soundness_compNth (init := init) (impl := impl)
     hOut hState hInit hPres h n
 
+/-! ## RBR Soundness Composition -/
+
+/-- Generic RBR soundness composition: given RBR soundness for `v₁` and `v₂`, with
+`v₁` oracle-free and the query implementation preserving the state invariant,
+`Verifier.comp v₁ v₂` is RBR sound with the appended error map. -/
+theorem rbrSoundness_comp
+    {StmtIn StmtMid StmtOut : Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    [ChallengesSampleable pSpec₁] [ChallengesSampleable pSpec₂]
+    {langIn : Set StmtIn} {langMid : Set StmtMid} {langOut : Set StmtOut}
+    {v₁ : Verifier (OracleComp oSpec) StmtIn StmtMid pSpec₁}
+    {v₂ : Verifier (OracleComp oSpec) StmtMid StmtOut pSpec₂}
+    {Inv : σ → Prop}
+    (hV₁ : Verifier.OracleFree v₁)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    {e₁ : ChallengeIndex pSpec₁ → ℝ≥0}
+    {e₂ : ChallengeIndex pSpec₂ → ℝ≥0}
+    (h₁ : rbrSoundness impl langIn langMid v₁ Inv e₁)
+    (h₂ : rbrSoundness impl langMid langOut v₂ Inv e₂) :
+    letI := ChallengesSampleable.ofAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+    rbrSoundness impl langIn langOut
+      (Verifier.comp v₁ v₂) Inv (ChallengeIndex.errorAppend e₁ e₂) := by
+  sorry
+
+/-- `n`-fold RBR soundness composition using `OracleFree` and `PreservesInv`. -/
+theorem rbrSoundness_compNth
+    {S : Type}
+    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
+    {lang : Set S}
+    {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
+    (hV : Verifier.OracleFree v)
+    (hPres : QueryImpl.PreservesInv impl Inv)
+    {e : ChallengeIndex pSpec → ℝ≥0}
+    (h : rbrSoundness impl lang lang v Inv e) :
+    (n : Nat) →
+    letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+    rbrSoundness impl lang lang
+      (v.compNth n) Inv (ChallengeIndex.errorReplicate e n)
+  | 0 => by
+      refine ⟨{
+        toFun := fun _ stmt _ => stmt ∈ lang
+        toFun_empty := fun _ => Iff.rfl
+        toFun_next := fun k hk => absurd hk (by simp [ProtocolSpec.replicate])
+        toFun_challenge_of_mem := fun i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])
+        toFun_full := by
+          intro stmt tr σ0 _ hNot
+          rw [probEvent_eq_zero_iff]
+          intro s hs hsLang
+          apply hNot
+          have : s = stmt := by
+            simp only [Verifier.compNth, OptionT.mk, OptionT.run,
+              StateT.run', OptionT.mem_support_iff] at hs
+            rcases hs with ⟨u, hu⟩
+            exact (Option.some.inj (by simpa [support_pure] using hu)).symm
+          subst this; exact hsLang
+      }, fun _ _ _ _ i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])⟩
+  | n + 1 => by
+      letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
+      have h_comp := rbrSoundness_comp (impl := impl) hV hPres h
+        (rbrSoundness_compNth hV hPres h n)
+      rcases h_comp with ⟨sf, hBound⟩
+      refine ⟨sf, fun stmtIn hNotLang Output prover i σ0 hσ0 => ?_⟩
+      rw [ChallengeIndex.errorReplicate_succ_eq_errorAppend]
+      exact hBound stmtIn hNotLang Output prover i σ0 hσ0
+
 end Soundness
 
 end ProtocolSpec
