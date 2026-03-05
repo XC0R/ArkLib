@@ -72,7 +72,7 @@ theorem H_tilde'_tail_degree_lt (H : F[X][Y]) :
   classical
   cases hdeg : H.natDegree with
   | zero =>
-      simp [hdeg]
+      simp
   | succ d =>
       have hle :
           (∑ x ∈ (List.range (Nat.succ d)).toFinset,
@@ -413,39 +413,16 @@ bivariate polynomials. -/
 noncomputable def π_z_lift {H : F[X][Y]} (z : F) (root : rationalRoot (H_tilde' H) z) :
   F[X][Y] →+* F := Polynomial.evalEvalRingHom z root.1
 
-/-- `π_z_lift` annihilates `H_tilde'`. -/
-theorem pi_z_lift_H_tilde'_eq_zero {H : F[X][Y]} (z : F)
-    (root : rationalRoot (H_tilde' H) z) :
-    π_z_lift (H := H) z root (H_tilde' H) = 0 := by
-  classical
-  simpa [π_z_lift] using root.property
-
-/-- The kernel of `π_z_lift` contains the span of `H_tilde'`. -/
-theorem pi_z_lift_span_le_ker {H : F[X][Y]} (z : F)
-    (root : rationalRoot (H_tilde' H) z) :
-    Ideal.span {H_tilde' H} ≤ RingHom.ker (π_z_lift (H := H) z root) := by
-  classical
-  refine
-    (Ideal.span_singleton_le_iff_mem (I := RingHom.ker (π_z_lift (H := H) z root))
-          (x := H_tilde' H)).2 ?_
-  exact (RingHom.mem_ker).2 (pi_z_lift_H_tilde'_eq_zero (H := H) z root)
-
-/-- `π_z_lift` vanishes on the span of `H_tilde'`. -/
-theorem pi_z_lift_vanishes_on_span {H : F[X][Y]} (z : F)
-    (root : rationalRoot (H_tilde' H) z) :
-    ∀ a, a ∈ Ideal.span {H_tilde' H} → π_z_lift (H := H) z root a = 0 := by
-  intro a ha
-  have hker : a ∈ RingHom.ker (π_z_lift (H := H) z root) :=
-    (pi_z_lift_span_le_ker (H := H) z root) ha
-  exact (RingHom.mem_ker (f := π_z_lift (H := H) z root)).1 hker
-
-/-- The rational substitution map `𝒪 H →+* F` obtained by descending `π_z_lift`. -/
-noncomputable def π_z {H : F[X][Y]} (z : F) (root : rationalRoot (H_tilde' H) z) :
-    𝒪 H →+* F := by
-  classical
-  refine Ideal.Quotient.lift (Ideal.span {H_tilde' H}) (π_z_lift (H := H) z root) ?_
-  intro a ha
-  exact pi_z_lift_vanishes_on_span (H := H) z root a ha
+/-- The rational substitution `π_z` from Appendix A.3 of [BCIKS20] is a well-defined map on the
+quotient ring `𝒪`. -/
+noncomputable def π_z {H : F[X][Y]} (z : F) (root : rationalRoot (H_tilde' H) z) : 𝒪 H →+* F :=
+  Ideal.Quotient.lift (Ideal.span {H_tilde' H}) (π_z_lift z root) (by
+    intro a ha
+    rw [Ideal.mem_span_singleton] at ha
+    obtain ⟨c, rfl⟩ := ha
+    simp only [π_z_lift, map_mul]
+    rw [show (Polynomial.evalEvalRingHom z root.1) (H_tilde' H) = 0 from root.2]
+    ring)
 
 /-- The canonical representative of an element of `F[X][Y]` inside
 the ring of regular elements `𝒪`. -/
@@ -458,8 +435,7 @@ theorem canonicalRepOf𝒪_zero
   unfold BCIKS20AppendixA.canonicalRepOf𝒪
   have hq : Polynomial.Monic (H_tilde' H) := H_tilde'_monic (H := H)
   have : (((0 : 𝒪 H).out : F[X][Y] ⧸ Ideal.span {H_tilde' H}) = 0) := by
-    simpa using
-      (Ideal.Quotient.mk_out (I := Ideal.span {H_tilde' H}) (x := (0 : 𝒪 H)))
+    simp_all only [Ideal.Quotient.mk_out]
   exact
     (Polynomial.modByMonic_eq_zero_iff_quotient_eq_zero (p := (0 : 𝒪 H).out)
       (q := H_tilde' H) hq).2 this
@@ -516,7 +492,7 @@ noncomputable def polyToPowerSeries𝕃 (H : F[X][Y])
 
 theorem β_regular
     (R : F[X][X][Y])
-    (H : F[X][Y]) [Fact (Irreducible H)]
+    (H : F[X][Y])
     {D : ℕ} :
     ∀ t : ℕ, ∃ β : 𝒪 H,
         weight_Λ_over_𝒪 β D ≤ (2 * t + 1) * Bivariate.natDegreeY R * D := by
@@ -533,7 +509,6 @@ variable {F : Type} [Field F]
 
 theorem irreducible_comp_C_mul_X_iff {K : Type} [Field K] (a : K) (ha : a ≠ 0) (p : K[X]) :
     Irreducible (p.comp (Polynomial.C a * Polynomial.X)) ↔ Irreducible p := by
-  classical
   let f : K[X] →+* K[X] := Polynomial.compRingHom (Polynomial.C a * Polynomial.X)
   let g : K[X] →+* K[X] := Polynomial.compRingHom (Polynomial.C a⁻¹ * Polynomial.X)
   have hCa : (Polynomial.C a⁻¹ * Polynomial.C a : K[X]) = 1 := by
@@ -729,7 +704,7 @@ lemma weight_ξ_bound (x₀ : F) {D : ℕ} (hD : D ≥ Bivariate.totalDegree H) 
 /-- The definition of the regular elements `β` giving the numerators of the Hensel lift coefficients
 as defined in Claim A.2 of Appendix A.4 of [BCIKS20]. -/
 noncomputable def β (R : F[X][X][Y]) (t : ℕ) : 𝒪 H :=
-  (β_regular R H (D := Bivariate.totalDegree H) (hD := Nat.le_refl _) t).choose
+  (β_regular R H (D := Bivariate.totalDegree H) t).choose
 
 /-- The Hensel lift coefficients `α` are of the form as given in Claim A.2 of Appendix A.4
 of [BCIKS20]. -/
