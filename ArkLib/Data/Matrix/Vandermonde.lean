@@ -6,12 +6,7 @@ Authors: Katerina Hristova, František Silváši, Julian Sutherland
 
 import ArkLib.Data.MvPolynomial.LinearMvExtension
 import ArkLib.Data.Polynomial.Interface
-import CompPoly.Data.Polynomial.MonomialBasis
-import Mathlib.LinearAlgebra.Lagrange
-import Mathlib.RingTheory.Henselian
-import Mathlib.Data.NNReal.Defs
-import Mathlib.Data.NNReal.Basic -- for instFloorSemiring of ℝ≥0
-
+import Mathlib.LinearAlgebra.Vandermonde
 
 open Polynomial Matrix Code LinearCode
 
@@ -22,12 +17,17 @@ section
 namespace Vandermonde
 
 /-- A non-square Vandermonde matrix. -/
-def nonsquare [Semiring F] (ι' : ℕ) (α : ι → F) : Matrix ι (Fin ι') F :=
-  Matrix.of fun i j => (α i) ^ j.1
+def nonsquare [CommRing F] (ι' : ℕ) (α : ι → F) : Matrix ι (Fin ι') F :=
+  rectVandermonde α (fun _ ↦ 1) ι'
 
-lemma nonsquare_mulVecLin [CommSemiring F] {ι' : ℕ} {α₁ : ι ↪ F} {α₂ : Fin ι' → F} {i : ι} :
+lemma nonsquare_mulVecLin [CommRing F] {ι' : ℕ} {α₁ : ι ↪ F} {α₂ : Fin ι' → F} {i : ι} :
   (nonsquare ι' α₁).mulVecLin α₂ i = ∑ x, α₂ x * α₁ i ^ x.1 := by
-  simp [nonsquare, mulVec_eq_sum]
+  unfold nonsquare
+  simp only [mulVecBilin_apply, mulVec_eq_sum, op_smul_eq_smul, Finset.sum_apply, Pi.smul_apply,
+    transpose_apply, smul_eq_mul]
+  congr
+  ext x
+  simp [rectVandermonde_apply]
 
 /-- The transpose of a non-square Vandermonde matrix. -/
 def nonsquareTranspose [Field F] (ι' : ℕ) (α : ι ↪ F) : Matrix (Fin ι') ι F :=
@@ -42,20 +42,20 @@ lemma subUpFull_of_vandermonde_is_vandermonde (h : n ≤ m) :
   Matrix.vandermonde (α ∘ Fin.castLE h) =
   Matrix.subUpFull (nonsquare n α) (Fin.castLE h) := by
   ext r c
-  simp [Matrix.vandermonde, Matrix.subUpFull, nonsquare]
+  simp [Matrix.vandermonde, Matrix.subUpFull, nonsquare, rectVandermonde_apply]
 
 /-- The maximal left square submatrix of a Vandermonde matrix is a Vandermonde matrix. -/
 lemma subLeftFull_of_vandermonde_is_vandermonde (h : m ≤ n) :
   Matrix.vandermonde α = Matrix.subLeftFull (nonsquare n α) (Fin.castLE h) := by
   ext r c
-  simp [Matrix.vandermonde, Matrix.subLeftFull, nonsquare]
+  simp [Matrix.vandermonde, Matrix.subLeftFull, nonsquare, rectVandermonde_apply]
 
 section
 
 variable [IsDomain F]
 
 /-- The rank of a non-square Vandermonde matrix with more rows than columns is the number of
-  columns. -/
+columns. -/
 lemma rank_nonsquare_eq_deg_of_deg_le (inj : Function.Injective α) (h : n ≤ m) :
   (Vandermonde.nonsquare (ι' := n) α).rank = n := by
   suffices ((Vandermonde.nonsquare (ι' := n) α).subUpFull (Fin.castLE h)).rank = n by
@@ -67,7 +67,8 @@ lemma rank_nonsquare_eq_deg_of_deg_le (inj : Function.Injective α) (h : n ≤ m
   rw [@Matrix.det_vandermonde_ne_zero_iff F _ n _ (α ∘ Fin.castLE h)]
   apply Function.Injective.comp <;> aesop (add simp Fin.castLE_injective)
 
-/-- The rank of a non-square Vandermonde matrix with more columns than rows is the number of rows. -/
+/-- The rank of a non-square Vandermonde matrix with more columns than rows is the number of rows.
+-/
 lemma rank_nonsquare_eq_deg_of_ι_le (inj : Function.Injective α) (h : m ≤ n) :
   (Vandermonde.nonsquare (ι' := n) α).rank = m := by
   suffices ((Vandermonde.nonsquare (ι' := n) α).subLeftFull (Fin.castLE h)).rank = m by
