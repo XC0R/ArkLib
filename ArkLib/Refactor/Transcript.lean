@@ -411,4 +411,73 @@ theorem PartialTranscript.rightOfAppend_ofTranscript_eq_split_snd
       List.length_cons, Transcript.split, HVector.splitAt]
     exact ih tr.tail
 
+/-! ## HVector.take bridge lemmas for composition -/
+
+/-- Projecting `HVector.take k` of an appended transcript to `pSpec₁` yields
+`HVector.take k` of the split's first component, when `k ≤ |pSpec₁|`. -/
+theorem PartialTranscript.leftOfAppend_hvector_take {pSpec₁ pSpec₂ : ProtocolSpec}
+    (k : Nat) (hk : k ≤ pSpec₁.length)
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    leftOfAppend hk (HVector.take k (pSpec₁ ++ pSpec₂) tr) =
+      HVector.take k pSpec₁ (Transcript.split tr).1 := by
+  induction pSpec₁ generalizing k with
+  | nil =>
+      cases k with
+      | zero => rfl
+      | succ k => exact False.elim (Nat.not_succ_le_zero _ hk)
+  | cons r tl ih =>
+      cases k with
+      | zero => rfl
+      | succ k =>
+          have hk' : k ≤ tl.length := Nat.succ_le_succ_iff.mp hk
+          exact congrArg (tr.head ::ₕ ·) (ih k hk' tr.tail)
+
+/-- Extracting the full left part from `HVector.take k` (with `k ≥ |pSpec₁|`)
+yields the first component of `split`. -/
+theorem PartialTranscript.leftFullOfAppend_hvector_take {pSpec₁ pSpec₂ : ProtocolSpec}
+    (k : Nat) (hk : pSpec₁.length ≤ k) (hk₂ : k ≤ (pSpec₁ ++ pSpec₂).length)
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    leftFullOfAppend hk (HVector.take k (pSpec₁ ++ pSpec₂) tr) =
+      (Transcript.split tr).1 := by
+  induction pSpec₁ generalizing k with
+  | nil => rfl
+  | cons r tl ih =>
+      cases k with
+      | zero => exact False.elim (Nat.not_succ_le_zero _ hk)
+      | succ k =>
+          have hk' : tl.length ≤ k := Nat.succ_le_succ_iff.mp hk
+          have hk₂' : k ≤ (tl ++ pSpec₂).length := by
+            simp only [List.length_append, List.length_cons] at hk₂ ⊢; omega
+          simp only [leftFullOfAppend, List.length_cons, List.cons_append, HVector.take,
+            List.append_eq, List.length_nil, List.nil_append, Transcript.split, HVector.splitAt]
+          exact congrArg (tr.head ::ₕ ·) (ih k hk' hk₂' tr.tail)
+
+lemma PartialTranscript.rightOfAppend_hvector_take_aux {pSpec₁ pSpec₂ : ProtocolSpec}
+    (k j : Nat) (h_eq : j + pSpec₁.length = k) (hk₂ : k ≤ (pSpec₁ ++ pSpec₂).length)
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    PartialTranscript.rightOfAppend h_eq (HVector.take k (pSpec₁ ++ pSpec₂) tr) =
+      HVector.take j pSpec₂ (Transcript.split tr).2 := by
+  induction pSpec₁ generalizing k j with
+  | nil =>
+      subst h_eq
+      rfl
+  | cons r tl ih =>
+      cases k with
+      | zero => simp [List.length_cons] at h_eq
+      | succ k =>
+          have h_eq' : j + tl.length = k := by simp [List.length_cons] at h_eq; omega
+          have hk₂' : k ≤ (tl ++ pSpec₂).length := by
+            simp only [List.length_append, List.length_cons] at hk₂ ⊢; omega
+          exact ih k j h_eq' hk₂' tr.tail
+
+/-- Extracting the right partial transcript from `HVector.take k` (with `k ≥ |pSpec₁|`)
+yields `HVector.take (k - |pSpec₁|)` of the split's second component. -/
+theorem PartialTranscript.rightOfAppend_hvector_take {pSpec₁ pSpec₂ : ProtocolSpec}
+    (k : Nat) (hk : pSpec₁.length ≤ k) (hk₂ : k ≤ (pSpec₁ ++ pSpec₂).length)
+    (tr : Transcript (pSpec₁ ++ pSpec₂)) :
+    rightOfAppend (show (k - pSpec₁.length) + pSpec₁.length = k by omega)
+      (HVector.take k (pSpec₁ ++ pSpec₂) tr) =
+      HVector.take (k - pSpec₁.length) pSpec₂ (Transcript.split tr).2 := by
+  exact rightOfAppend_hvector_take_aux k (k - pSpec₁.length) (by omega) hk₂ tr
+
 end ProtocolSpec

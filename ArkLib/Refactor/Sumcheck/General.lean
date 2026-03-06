@@ -5,6 +5,7 @@ Authors: Quang Dao
 -/
 import ArkLib.Refactor.Sumcheck.Defs
 import ArkLib.Refactor.Sumcheck.SingleRound
+import ArkLib.Refactor.Sumcheck.PartialEval
 
 /-!
 # Multi-Round Sumcheck Protocol
@@ -120,6 +121,58 @@ def generalReduction
       (pSpec (R := R) deg) n
       (roundProverStep (R := R) (deg := deg) backend)
       out0
+  verifier := generalVerifier (R := R) (deg := deg) (n := n) (m := m) D
+
+/-! ## Symbolic prover via `HonestProver.compNth`
+
+An alternate prover that directly executes the sumcheck equation using partial evaluation
+and domain summation, composed via `Reduction.compNth`. The prover threads a `SymbolicPoly`
+witness that tracks the partially-evaluated polynomial with its current dimension. -/
+
+/-- Single-round honest prover using symbolic partial evaluation.
+Dependent pattern matching on `k + 1` gives `poly : CMvPolynomial (k + 1) R` with zero casts.
+Each round:
+1. Computes the round polynomial via `roundPoly` (variable 0 free, rest summed over D)
+2. After receiving a challenge, reduces via `partialEvalFirst` -/
+def symbolicRoundHonestProver (D : Fin m → R) :
+    HonestProver Id (RoundState (R := R)) (SymbolicPoly (R := R))
+      (RoundState (R := R)) (SymbolicPoly (R := R)) (pSpec (R := R) deg) :=
+  fun (st, sp) =>
+    match sp with
+    | ⟨k + 1, poly⟩ =>
+      let rp := CMvPolynomial.roundPoly D k poly
+      pure (⟨rp, CMvPolynomial.roundPoly_natDegree_le D poly
+        (fun mono _ => sorry)⟩, pure (fun chal =>
+        pure ({ i := st.i + 1
+                challenges := st.challenges.push chal
+                target := CPolynomial.eval chal rp },
+              ⟨k, CMvPolynomial.partialEvalFirst chal poly⟩)))
+    | ⟨0, _⟩ =>
+      pure ((⟨(0 : CPolynomial R), CMvPolynomial.CPolynomial.natDegree_zero_le deg⟩
+        : CDegreeLE R deg),
+        pure (fun _ => pure (st, sp)))
+
+/-- Single-round reduction pairing the symbolic prover with `roundVerifierState`. -/
+def symbolicRoundReduction (D : Fin m → R) :
+    Reduction Id (RoundState (R := R)) (SymbolicPoly (R := R))
+      (RoundState (R := R)) (SymbolicPoly (R := R)) (pSpec (R := R) deg) where
+  prover := symbolicRoundHonestProver D
+  verifier := roundVerifierState D
+
+/-- Multi-round symbolic reduction via `Reduction.compNth`. -/
+def symbolicReductionState (D : Fin m → R) :
+    Reduction Id (RoundState (R := R)) (SymbolicPoly (R := R))
+      (RoundState (R := R)) (SymbolicPoly (R := R)) (generalPSpec R deg n) :=
+  Reduction.compNth n (symbolicRoundReduction D)
+
+/-- Full symbolic reduction from `R` (target) to `RoundState`.
+Wraps `initState` on input and discards the `SymbolicPoly` witness on output. -/
+def symbolicGeneralReduction (poly : CMvPolynomial n R) (D : Fin m → R) :
+    Reduction Id R Unit (RoundState (R := R)) Unit (generalPSpec R deg n) where
+  prover := fun (target, ()) => do
+    let p ← (symbolicReductionState (deg := deg) D).prover
+      (initState (R := R) target, ⟨n, poly⟩)
+    pure (Prover.mapOutput (fun (st, _) => (st, ())) _ p)
   verifier := generalVerifier (R := R) (deg := deg) (n := n) (m := m) D
 
 end Sumcheck

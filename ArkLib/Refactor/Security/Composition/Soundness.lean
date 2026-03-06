@@ -1051,6 +1051,8 @@ theorem Verifier.oracleAwareRbrSoundness_compNth
 
 /-! ## RBR Soundness Composition -/
 
+set_option maxHeartbeats 4000000 in
+-- Composed state function construction and flip bound involve large bind reassociations.
 /-- Generic RBR soundness composition: given RBR soundness for `v₁` and `v₂`, with
 `v₁` oracle-free and the query implementation preserving the state invariant,
 `Verifier.comp v₁ v₂` is RBR sound with the appended error map. -/
@@ -1071,7 +1073,33 @@ theorem rbrSoundness_comp
     letI := ChallengesSampleable.ofAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
     rbrSoundness impl langIn langOut
       (Verifier.comp v₁ v₂) Inv (ChallengeIndex.errorAppend e₁ e₂) := by
-  sorry
+  classical
+  letI : ChallengesSampleable (pSpec₁ ++ pSpec₂) :=
+    ChallengesSampleable.ofAppend (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+  rcases h₁ with ⟨sf₁, hBound₁⟩
+  rcases h₂ with ⟨sf₂, hBound₂⟩
+  obtain ⟨g, hg⟩ := hV₁
+  have hv₁_pure : ∀ stmt tr, v₁ stmt tr = OptionT.mk (pure (g stmt tr)) := by
+    intro stmt tr; ext; simpa using hg stmt tr
+  refine ⟨{
+    toFun := fun k stmtIn ptr =>
+      if stmtIn ∈ langIn then True
+      else if hk : k < pSpec₁.length then
+        sf₁.toFun k stmtIn (PartialTranscript.leftOfAppend (Nat.le_of_lt hk) ptr)
+      else
+        ∃ mid : StmtMid,
+          g stmtIn (PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk) ptr) = some mid ∧
+          sf₂.toFun (k - pSpec₁.length) mid
+            (PartialTranscript.rightOfAppend
+              (show (k - pSpec₁.length) + pSpec₁.length = k by omega) ptr)
+    toFun_empty := by sorry
+    toFun_next := by sorry
+    toFun_challenge_of_mem := by intro i stmt ptr hmem; split_ifs
+    toFun_full := by sorry
+  }, ?flipBound⟩
+  case flipBound =>
+    intro stmtIn hNotLang Output prover i σ0 hσ0
+    sorry
 
 /-- `n`-fold RBR soundness composition using `OracleFree` and `PreservesInv`. -/
 theorem rbrSoundness_compNth
@@ -1103,7 +1131,7 @@ theorem rbrSoundness_compNth
             simp only [Verifier.compNth, OptionT.mk, OptionT.run,
               StateT.run', OptionT.mem_support_iff] at hs
             rcases hs with ⟨u, hu⟩
-            exact (Option.some.inj (by simpa [support_pure] using hu)).symm
+            exact (Option.some.inj rfl).symm
           subst this; exact hsLang
       }, fun _ _ _ _ i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])⟩
   | n + 1 => by

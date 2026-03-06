@@ -111,4 +111,13 @@ def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
   ⟨CPolynomial.lagrangeInterpolate evalPoints values,
     CPolynomial.lagrangeInterpolate_natDegree evalPoints values⟩
 
+/-! ## Symbolic prover state -/
+
+/-- A dependent pair packaging a multivariate polynomial with its current number of variables.
+Used as the prover's witness type: each round, `k` decreases by 1 via `partialEvalFirst`.
+The type is uniform (independent of round number), so it works with `compNth`. -/
+structure SymbolicPoly where
+  k : ℕ
+  poly : CMvPolynomial k R
+
 end Sumcheck

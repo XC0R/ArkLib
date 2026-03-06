@@ -155,6 +155,10 @@ import ArkLib.ProofSystem.Whir.ProximityGen
 import ArkLib.ProofSystem.Whir.RBRSoundness
 import ArkLib.Refactor.FiatShamir
 import ArkLib.Refactor.HVector
+import ArkLib.Refactor.LiftContext
+import ArkLib.Refactor.LiftContext.Lens
+import ArkLib.Refactor.LiftContext.OracleReduction
+import ArkLib.Refactor.LiftContext.Reduction
 import ArkLib.Refactor.OracleVerifier
 import ArkLib.Refactor.ProtocolSpec
 import ArkLib.Refactor.Prover
@@ -166,9 +170,11 @@ import ArkLib.Refactor.Security.Composition.Soundness
 import ArkLib.Refactor.Security.Composition.Util
 import ArkLib.Refactor.Security.Defs
 import ArkLib.Refactor.Security.StateFunction
+import ArkLib.Refactor.Security.StateRestoration
 import ArkLib.Refactor.Sumcheck.Completeness
 import ArkLib.Refactor.Sumcheck.Defs
 import ArkLib.Refactor.Sumcheck.General
+import ArkLib.Refactor.Sumcheck.PartialEval
 import ArkLib.Refactor.Sumcheck.PolyUtils
 import ArkLib.Refactor.Sumcheck.Security
 import ArkLib.Refactor.Sumcheck.SingleRound
