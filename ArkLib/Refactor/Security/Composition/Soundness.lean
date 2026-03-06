@@ -33,7 +33,7 @@ variable {StmtIn StmtOut : Type}
   {ι : Type} {oSpec : OracleSpec ι}
   {σ : Type} (init : ProbComp σ) (impl : QueryImpl oSpec (StateT σ ProbComp))
 
-set_option maxHeartbeats 800000 in
+set_option maxHeartbeats 300000 in
 -- This theorem performs several large dependent rewrites over `ProbComp` binds and
 -- transcript casts; the default heartbeat budget times out during elaboration.
 /-- RBR soundness implies overall soundness. The total soundness error is bounded by
@@ -343,7 +343,7 @@ theorem oracleAwareRbrSoundness_implies_soundness
       (Finset.sum Finset.univ rbrError) := by
   exact rbrSoundness_implies_soundness (init := init) (impl := impl) hInit hPres h
 
-set_option maxHeartbeats 800000 in
+set_option maxHeartbeats 300000 in
 -- This helper performs large bind reassociations and event rewrites over `ProbComp`.
 private theorem soundness_of_soundnessFromState
     {StmtIn StmtOut : Type}
@@ -459,7 +459,7 @@ private theorem Verifier.soundnessFromState_id
   exact fun ⟨s, hs, heq⟩ =>
     hstmtIn (show stmtIn ∈ lang by rwa [Option.some.inj heq])
 
-set_option maxHeartbeats 4000000 in
+set_option maxHeartbeats 300000 in
 -- Large bind reassociations and event rewrites over `ProbComp`.
 private theorem Verifier.soundnessFromState_comp
     {S : Type}
@@ -1053,8 +1053,374 @@ theorem Verifier.oracleAwareRbrSoundness_compNth
 
 /-! ## RBR Soundness Composition -/
 
-set_option maxHeartbeats 4000000 in
--- Composed state function construction and flip bound involve large bind reassociations.
+
+private def rbrSoundness_comp_sf
+    {StmtIn StmtMid StmtOut : Type}
+    {pSpec₁ pSpec₂ : ProtocolSpec}
+    {langIn : Set StmtIn} {langMid : Set StmtMid} {langOut : Set StmtOut}
+    {v₁ : Verifier (OracleComp oSpec) StmtIn StmtMid pSpec₁}
+    {v₂ : Verifier (OracleComp oSpec) StmtMid StmtOut pSpec₂}
+    {Inv : σ → Prop}
+    (sf₁ : StateFunction impl Inv langIn langMid v₁)
+    (sf₂ : StateFunction impl Inv langMid langOut v₂)
+    (g : StmtIn → Transcript pSpec₁ → Option StmtMid)
+    (hv₁_pure : ∀ stmt tr, v₁ stmt tr = OptionT.mk (pure (g stmt tr)))
+    (σw : σ) (hσw : Inv σw) :
+    StateFunction impl Inv langIn langOut (Verifier.comp v₁ v₂) := by
+  classical
+  let toFunComp : (k : Nat) → StmtIn → PartialTranscript (pSpec₁ ++ pSpec₂) k → Prop :=
+    fun k stmtIn ptr =>
+      if stmtIn ∈ langIn then True
+      else if hk : k < pSpec₁.length then
+        sf₁.toFun k stmtIn (PartialTranscript.leftOfAppend (Nat.le_of_lt hk) ptr)
+      else
+        ∃ mid : StmtMid,
+          g stmtIn (PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk) ptr) = some mid ∧
+          sf₂.toFun (k - pSpec₁.length) mid
+            (PartialTranscript.rightOfAppend
+              (show (k - pSpec₁.length) + pSpec₁.length = k by omega) ptr)
+  exact {
+    toFun := toFunComp
+    toFun_empty := by
+      intro stmt
+      constructor
+      · intro hStmt
+        simp [toFunComp, hStmt]
+      · intro hTo
+        by_cases hStmt : stmt ∈ langIn
+        · exact hStmt
+        · simp only [toFunComp, hStmt, ite_false] at hTo
+          by_cases hk : 0 < pSpec₁.length
+          · have hTo0 : sf₁.toFun 0 stmt HVector.nil := by
+              simpa [hk, PartialTranscript.leftOfAppend] using hTo
+            exact False.elim (hStmt ((sf₁.toFun_empty stmt).mpr hTo0))
+          · have hk0 : pSpec₁.length = 0 := Nat.eq_zero_of_not_pos hk
+            rcases (show ∃ mid : StmtMid,
+                  g stmt (PartialTranscript.leftFullOfAppend (pSpec₂ := pSpec₂)
+                    (Nat.le_of_not_lt hk) HVector.nil) = some mid ∧
+                    sf₂.toFun 0 mid HVector.nil from by
+                  simp only [dif_neg hk] at hTo
+                  rcases hTo with ⟨mid, hmid, hMid_raw⟩
+                  exact ⟨mid, hmid, by
+                    suffices ∀ (j : Nat) (pt : PartialTranscript pSpec₂ j),
+                        j = 0 → sf₂.toFun j mid pt → sf₂.toFun 0 mid HVector.nil by
+                      exact this _ _ (by omega) hMid_raw
+                    intro j pt hj h; subst hj; exact h⟩) with
+              ⟨mid, hmid, hMid0⟩
+            have hMidLang : mid ∈ langMid := (sf₂.toFun_empty mid).mpr hMid0
+            have hSf1False :
+                ¬ sf₁.toFun pSpec₁.length stmt
+                  (PartialTranscript.ofTranscript
+                    (PartialTranscript.leftFullOfAppend
+                      (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil)) := by
+              have hSf1False0 : ¬ sf₁.toFun 0 stmt HVector.nil := by
+                intro hSf1
+                exact hStmt ((sf₁.toFun_empty stmt).mpr hSf1)
+              suffices ∀ (n : Nat) (hn : n = 0)
+                  (pt : PartialTranscript pSpec₁ n),
+                  ¬ sf₁.toFun 0 stmt HVector.nil → ¬ sf₁.toFun n stmt pt by
+                exact this _ hk0 _ hSf1False0
+              intro n hn pt h; subst hn; exact h
+            have hZero :
+                Pr[(· ∈ langMid) | OptionT.mk do
+                  (simulateQ impl
+                    (v₁ stmt
+                      (PartialTranscript.leftFullOfAppend
+                        (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
+                      σw] = 0 :=
+              sf₁.toFun_full stmt
+                (tr := PartialTranscript.leftFullOfAppend
+                  (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil)
+                σw hσw hSf1False
+            have hMidSupport :
+                mid ∈ support (OptionT.mk do
+                  (simulateQ impl
+                    (v₁ stmt
+                      (PartialTranscript.leftFullOfAppend
+                        (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
+                      σw) := by
+              rw [OptionT.mem_support_iff]
+              simp only [OptionT.run, OptionT.mk, hv₁_pure, simulateQ_pure, StateT.run',
+                support_map, Set.mem_image]
+              exact ⟨(some mid, σw), (mem_support_pure_iff' _ _).mpr (by simp [hmid]), rfl⟩
+            have hPos :
+                Pr[(· ∈ langMid) | OptionT.mk do
+                  (simulateQ impl
+                    (v₁ stmt
+                      (PartialTranscript.leftFullOfAppend
+                        (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
+                      σw] > 0 := by
+              exact (probEvent_pos_iff).2 ⟨mid, hMidSupport, hMidLang⟩
+            rw [hZero] at hPos
+            simp at hPos
+    toFun_next := by
+      intro k hk hnon stmt tr hFalse msg
+      by_cases hStmt : stmt ∈ langIn
+      · intro hTrue
+        exact hFalse (by simp [toFunComp, hStmt])
+      · by_cases hk₁ : k < pSpec₁.length
+        · let trL : PartialTranscript pSpec₁ k :=
+            PartialTranscript.leftOfAppend (Nat.le_of_lt hk₁) tr
+          let msgL : (pSpec₁.get ⟨k, hk₁⟩).type :=
+            cast (congrArg Round.type
+              (ChallengeIndex.get_eq_left (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (i := ⟨k, hk⟩) hk₁)) msg
+          have hnon₁ : (pSpec₁.get ⟨k, hk₁⟩).isChallenge = false := by
+            rw [← ChallengeIndex.get_eq_left (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+              (i := ⟨k, hk⟩) hk₁]
+            exact hnon
+          have hFalse₁ : ¬ sf₁.toFun k stmt trL := by
+            simpa [toFunComp, hStmt, hk₁, trL] using hFalse
+          by_cases hkSucc : k + 1 < pSpec₁.length
+          · have hLeft :
+              PartialTranscript.leftOfAppend (show k + 1 ≤ pSpec₁.length by omega)
+                (PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg) =
+              PartialTranscript.concat pSpec₁ hk₁ trL msgL := by
+              simpa [trL, msgL] using
+                (PartialTranscript.leftOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                  (hk := hk₁) (hk₂ := hk) tr msg)
+            intro hTrue
+            have hTrue₁ :
+                sf₁.toFun (k + 1) stmt (PartialTranscript.concat pSpec₁ hk₁ trL msgL) := by
+              simpa [toFunComp, hStmt, hkSucc, hLeft, trL, msgL] using hTrue
+            exact (sf₁.toFun_next k hk₁ hnon₁ stmt trL hFalse₁ msgL) hTrue₁
+          · let trSucc : PartialTranscript (pSpec₁ ++ pSpec₂) (k + 1) :=
+              PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg
+            let trFull : Transcript pSpec₁ :=
+              PartialTranscript.leftFullOfAppend (show pSpec₁.length ≤ k + 1 by omega) trSucc
+            let trRight0 : PartialTranscript pSpec₂ ((k + 1) - pSpec₁.length) :=
+              PartialTranscript.rightOfAppend
+                (show ((k + 1) - pSpec₁.length) + pSpec₁.length = k + 1 by omega) trSucc
+            have hkEq : k + 1 = pSpec₁.length := by omega
+            have hLeft :
+              PartialTranscript.leftOfAppend (show k + 1 ≤ pSpec₁.length by omega) trSucc =
+              PartialTranscript.concat pSpec₁ hk₁ trL msgL := by
+              simpa [trSucc, trL, msgL] using
+                (PartialTranscript.leftOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                  (hk := hk₁) (hk₂ := hk) tr msg)
+            have hFalseFull :
+                ¬ sf₁.toFun pSpec₁.length stmt (PartialTranscript.ofTranscript trFull) := by
+              intro hFull
+              have hNotSucc := sf₁.toFun_next k hk₁ hnon₁ stmt trL hFalse₁ msgL
+              apply hNotSucc; rw [← hLeft]
+              suffices ∀ (n : Nat) (hn : n = pSpec₁.length)
+                  (tr' : PartialTranscript (pSpec₁ ++ pSpec₂) n),
+                  sf₁.toFun pSpec₁.length stmt
+                    (PartialTranscript.ofTranscript
+                      (PartialTranscript.leftFullOfAppend (hn ▸ le_rfl) tr')) →
+                  sf₁.toFun n stmt (PartialTranscript.leftOfAppend (hn ▸ le_rfl) tr') by
+                exact this (k + 1) hkEq trSucc hFull
+              intro n hn tr' h; subst hn
+              rwa [PartialTranscript.leftOfAppend_eq_ofTranscript_leftFullOfAppend]
+            intro hTrue
+            rcases (by
+              simpa [toFunComp, hStmt, hkSucc, hkEq, trSucc, trFull, trRight0] using hTrue :
+                ∃ mid : StmtMid,
+                  g stmt trFull = some mid ∧
+                  sf₂.toFun ((k + 1) - pSpec₁.length) mid trRight0) with ⟨mid, hmid, hMid0⟩
+            have hZeroIdx : ((k + 1) - pSpec₁.length : Nat) = 0 := by
+              omega
+            have hMid0' : sf₂.toFun 0 mid HVector.nil := by
+              suffices ∀ (j : Nat) (pt : PartialTranscript pSpec₂ j),
+                  j = 0 → sf₂.toFun j mid pt → sf₂.toFun 0 mid HVector.nil by
+                exact this _ _ hZeroIdx hMid0
+              intro j pt hj h; subst hj; exact h
+            have hMidLang : mid ∈ langMid := (sf₂.toFun_empty mid).mpr hMid0'
+            have hZero :
+                Pr[(· ∈ langMid) | OptionT.mk do
+                  (simulateQ impl (v₁ stmt trFull)).run' σw] = 0 :=
+              sf₁.toFun_full stmt (tr := trFull) σw hσw hFalseFull
+            have hMidSupport :
+                mid ∈ support (OptionT.mk do
+                  (simulateQ impl (v₁ stmt trFull)).run' σw) := by
+              rw [OptionT.mem_support_iff]
+              simp only [OptionT.run, OptionT.mk, hv₁_pure, simulateQ_pure, StateT.run',
+                support_map, Set.mem_image]
+              exact ⟨(some mid, σw), (mem_support_pure_iff' _ _).mpr (by simp [hmid]), rfl⟩
+            have hPos :
+                Pr[(· ∈ langMid) | OptionT.mk do
+                  (simulateQ impl (v₁ stmt trFull)).run' σw] > 0 := by
+              exact (probEvent_pos_iff).2 ⟨mid, hMidSupport, hMidLang⟩
+            rw [hZero] at hPos
+            simp at hPos
+        · let j : Nat := k - pSpec₁.length
+          let trR : PartialTranscript pSpec₂ j :=
+            PartialTranscript.rightOfAppend (show j + pSpec₁.length = k by
+              dsimp [j]
+              omega) tr
+          have hk₂ : j < pSpec₂.length := by
+            dsimp [j]
+            simpa [List.length_append] using
+              (ChallengeIndex.rightIndexLt (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁))
+          let msgR : (pSpec₂.get ⟨j, hk₂⟩).type :=
+            cast (congrArg Round.type
+              (ChallengeIndex.get_eq_right (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁))) msg
+          have hnon₂ : (pSpec₂.get ⟨j, hk₂⟩).isChallenge = false := by
+            rw [← ChallengeIndex.get_eq_right (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+              (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁)]
+            exact hnon
+          let trSucc : PartialTranscript (pSpec₁ ++ pSpec₂) (k + 1) :=
+            PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg
+          have hLeftFull :
+              PartialTranscript.leftFullOfAppend (show pSpec₁.length ≤ k + 1 by omega) trSucc =
+                PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk₁) tr := by
+            simpa [trSucc] using
+              (PartialTranscript.leftFullOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (hk₁ := Nat.le_of_not_lt hk₁) (hk₂ := hk) tr msg)
+          have hRight :
+              PartialTranscript.rightOfAppend
+                  (show (j + 1) + pSpec₁.length = k + 1 by
+                    simpa [j, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
+                      congrArg Nat.succ (Nat.sub_add_cancel (Nat.le_of_not_lt hk₁))) trSucc =
+                PartialTranscript.concat pSpec₂ hk₂ trR msgR := by
+            simpa [trSucc, trR, msgR, j] using
+              (PartialTranscript.rightOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (h_eq := by
+                  simpa [j, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
+                    (Nat.sub_add_cancel (Nat.le_of_not_lt hk₁))) (hk₂ := hk) tr msg)
+          intro hTrue
+          have hkSuccFalse : ¬ k + 1 < pSpec₁.length := by omega
+          rcases (by
+            simpa [toFunComp, hStmt, hk₁, hkSuccFalse, j, trSucc] using hTrue :
+              ∃ mid : StmtMid,
+                g stmt
+                    (PartialTranscript.leftFullOfAppend
+                      (Nat.le_of_not_lt hkSuccFalse) trSucc) = some mid ∧
+                  sf₂.toFun ((k + 1) - pSpec₁.length) mid
+                    (PartialTranscript.rightOfAppend
+                      (Nat.sub_add_cancel (Nat.le_of_not_lt hkSuccFalse))
+                        trSucc)) with
+            ⟨mid, hmidSucc, hSf₂Succ⟩
+          have hmid : g stmt
+              (PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk₁) tr) =
+                some mid := by
+            simpa [hLeftFull] using hmidSucc
+          have hSf₂False : ¬ sf₂.toFun j mid trR := by
+            intro hPrev
+            exact hFalse (by
+              simp [toFunComp, hStmt, hk₁, j, trR, hmid, hPrev])
+          have hSuccIdx : j + 1 = (k + 1) - pSpec₁.length := by
+            dsimp [j]
+            omega
+          have hSf₂SuccCast :
+              sf₂.toFun (j + 1) mid
+                (PartialTranscript.rightOfAppend (show (j + 1) + pSpec₁.length = k + 1 by omega)
+                  trSucc) := by
+            suffices ∀ (a : Nat) (ha : a = j + 1)
+                (h_add : a + pSpec₁.length = k + 1),
+                sf₂.toFun a mid (PartialTranscript.rightOfAppend h_add trSucc) →
+                sf₂.toFun (j + 1) mid
+                  (PartialTranscript.rightOfAppend
+                    (show (j + 1) + pSpec₁.length = k + 1 by omega) trSucc) by
+              exact this _ hSuccIdx.symm (by omega) hSf₂Succ
+            intro a ha h_add h; subst ha; exact h
+          have hSf₂Succ' :
+              sf₂.toFun (j + 1) mid (PartialTranscript.concat pSpec₂ hk₂ trR msgR) := by
+            simpa [hRight] using hSf₂SuccCast
+          exact (sf₂.toFun_next j hk₂ hnon₂ mid trR hSf₂False msgR) hSf₂Succ'
+    toFun_challenge_of_mem := by
+      intro i stmt ptr hmem
+      simp [toFunComp, hmem]
+    toFun_full := by
+      intro stmt tr σ0 hσ0 hFalse
+      rw [probEvent_eq_zero_iff]
+      intro stmtOut hStmtOut hLangOut
+      by_cases hStmt : stmt ∈ langIn
+      · exact hFalse (by simp [toFunComp, hStmt])
+      · let tr₁ : Transcript pSpec₁ := (Transcript.split tr).1
+        let tr₂ : Transcript pSpec₂ := (Transcript.split tr).2
+        have hFalse' :
+            ¬ ∃ mid : StmtMid,
+              g stmt tr₁ = some mid ∧
+                sf₂.toFun pSpec₂.length mid (PartialTranscript.ofTranscript tr₂) := by
+          intro hExists
+          rcases hExists with ⟨mid, hmid, hSf₂⟩
+          have hEqIdx : (pSpec₁ ++ pSpec₂).length - pSpec₁.length = pSpec₂.length := by
+            simp [List.length_append]
+          have hNotLt : ¬ (pSpec₁ ++ pSpec₂).length < pSpec₁.length := by
+            simp [List.length_append]
+          have hLeftFull :
+              PartialTranscript.leftFullOfAppend
+                (show pSpec₁.length ≤ (pSpec₁ ++ pSpec₂).length by
+                  simp [List.length_append])
+                (PartialTranscript.ofTranscript tr) = tr₁ := by
+            simpa [tr₁] using
+              (PartialTranscript.leftFullOfAppend_ofTranscript_eq_split_fst
+                (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) tr)
+          have hLen :
+              ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) + pSpec₁.length =
+                (pSpec₁ ++ pSpec₂).length := by
+            simp [List.length_append]; omega
+          have hLen₂ :
+              pSpec₂.length + pSpec₁.length = (pSpec₁ ++ pSpec₂).length := by
+            simp [List.length_append]; omega
+          have hRightTake :
+              PartialTranscript.rightOfAppend hLen (PartialTranscript.ofTranscript tr) =
+              HVector.take ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) pSpec₂
+                (Transcript.split tr).2 := by
+            simpa [hvector_take_length_eq] using
+              (PartialTranscript.rightOfAppend_hvector_take (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
+                (k := (pSpec₁ ++ pSpec₂).length)
+                (hk := by simp [List.length_append])
+                (hk₂ := le_rfl) tr)
+          have hSf₂Full :
+              sf₂.toFun ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) mid
+                (PartialTranscript.rightOfAppend hLen (PartialTranscript.ofTranscript tr)) := by
+            suffices ∀ (j : Nat) (hj : j + pSpec₁.length = (pSpec₁ ++ pSpec₂).length),
+                sf₂.toFun j mid
+                  (PartialTranscript.rightOfAppend hj
+                    (PartialTranscript.ofTranscript tr)) by
+              exact this _ hLen
+            intro j hj
+            have hEq : j = pSpec₂.length := by omega
+            subst hEq
+            rw [show hj = (show pSpec₂.length + pSpec₁.length = (pSpec₁ ++ pSpec₂).length
+              from hLen₂) from Subsingleton.elim _ _,
+              PartialTranscript.rightOfAppend_ofTranscript_eq_split_snd]
+            simpa [tr₂] using hSf₂
+          apply hFalse
+          simp only [if_true_left, hStmt, not_false_eq_true, nonempty_prop, forall_const,
+            List.length_append, add_lt_iff_neg_left, not_lt_zero, ↓reduceDIte, hLeftFull,
+            toFunComp]
+          exact ⟨mid, hmid, hSf₂Full⟩
+        cases hmid : g stmt tr₁ with
+        | none =>
+            have hRunNone :
+                (simulateQ impl ((Verifier.comp v₁ v₂) stmt tr)).run σ0 = pure (none, σ0) := by
+              simp [Verifier.comp, hv₁_pure, tr₁, hmid, simulateQ_pure,
+                OptionT.instMonad, OptionT.bind, OptionT.mk, pure_bind]
+            have hs' :
+                ∃ x, (some stmtOut, x) ∈ support
+                  ((simulateQ impl ((Verifier.comp v₁ v₂) stmt tr)).run σ0) := by
+              simpa [OptionT.mem_support_iff, OptionT.mk, OptionT.run, StateT.run'] using hStmtOut
+            have : False := by
+              rcases hs' with ⟨x, hx⟩
+              simp [hRunNone] at hx
+            exact this.elim
+        | some mid =>
+            have hStmtOut₂ : stmtOut ∈ support (OptionT.mk do
+                (simulateQ impl (v₂ mid tr₂)).run' σ0) := by
+              simpa [Verifier.comp, hv₁_pure, tr₁, tr₂, hmid, simulateQ_pure] using hStmtOut
+            have hSf₂False :
+                ¬ sf₂.toFun pSpec₂.length mid
+                  (PartialTranscript.ofTranscript tr₂) := by
+              intro hSf₂
+              exact hFalse' ⟨mid, hmid, hSf₂⟩
+            have hZero :
+                Pr[(· ∈ langOut) | OptionT.mk do
+                  (simulateQ impl (v₂ mid tr₂)).run' σ0] = 0 :=
+              sf₂.toFun_full mid tr₂ σ0 hσ0 hSf₂False
+            have hPos :
+                Pr[(· ∈ langOut) | OptionT.mk do
+                  (simulateQ impl (v₂ mid tr₂)).run' σ0] > 0 := by
+              exact (probEvent_pos_iff).2 ⟨stmtOut, hStmtOut₂, hLangOut⟩
+            rw [hZero] at hPos
+            simp at hPos
+    }
+
+set_option maxHeartbeats 300000 in
 /-- Generic RBR soundness composition: given RBR soundness for `v₁` and `v₂`, with
 `v₁` oracle-free and the query implementation preserving the state invariant,
 `Verifier.comp v₁ v₂` is RBR sound with the appended error map. -/
@@ -1096,346 +1462,7 @@ theorem rbrSoundness_comp
             sf₂.toFun (k - pSpec₁.length) mid
               (PartialTranscript.rightOfAppend
                 (show (k - pSpec₁.length) + pSpec₁.length = k by omega) ptr)
-    refine ⟨{
-      toFun := toFunComp
-      toFun_empty := by
-        intro stmt
-        constructor
-        · intro hStmt
-          simp [toFunComp, hStmt]
-        · intro hTo
-          by_cases hStmt : stmt ∈ langIn
-          · exact hStmt
-          · simp only [toFunComp, hStmt, ite_false] at hTo
-            by_cases hk : 0 < pSpec₁.length
-            · have hTo0 : sf₁.toFun 0 stmt HVector.nil := by
-                simpa [hk, PartialTranscript.leftOfAppend] using hTo
-              exact False.elim (hStmt ((sf₁.toFun_empty stmt).mpr hTo0))
-            · have hk0 : pSpec₁.length = 0 := Nat.eq_zero_of_not_pos hk
-              rcases (show ∃ mid : StmtMid,
-                    g stmt (PartialTranscript.leftFullOfAppend (pSpec₂ := pSpec₂)
-                      (Nat.le_of_not_lt hk) HVector.nil) = some mid ∧
-                      sf₂.toFun 0 mid HVector.nil from by
-                    simp only [dif_neg hk] at hTo
-                    rcases hTo with ⟨mid, hmid, hMid_raw⟩
-                    exact ⟨mid, hmid, by
-                      suffices ∀ (j : Nat) (pt : PartialTranscript pSpec₂ j),
-                          j = 0 → sf₂.toFun j mid pt → sf₂.toFun 0 mid HVector.nil by
-                        exact this _ _ (by omega) hMid_raw
-                      intro j pt hj h; subst hj; exact h⟩) with
-                ⟨mid, hmid, hMid0⟩
-              have hMidLang : mid ∈ langMid := (sf₂.toFun_empty mid).mpr hMid0
-              have hSf1False :
-                  ¬ sf₁.toFun pSpec₁.length stmt
-                    (PartialTranscript.ofTranscript
-                      (PartialTranscript.leftFullOfAppend
-                        (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil)) := by
-                have hSf1False0 : ¬ sf₁.toFun 0 stmt HVector.nil := by
-                  intro hSf1
-                  exact hStmt ((sf₁.toFun_empty stmt).mpr hSf1)
-                suffices ∀ (n : Nat) (hn : n = 0)
-                    (pt : PartialTranscript pSpec₁ n),
-                    ¬ sf₁.toFun 0 stmt HVector.nil → ¬ sf₁.toFun n stmt pt by
-                  exact this _ hk0 _ hSf1False0
-                intro n hn pt h; subst hn; exact h
-              have hZero :
-                  Pr[(· ∈ langMid) | OptionT.mk do
-                    (simulateQ impl
-                      (v₁ stmt
-                        (PartialTranscript.leftFullOfAppend
-                          (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
-                        σw] = 0 :=
-                sf₁.toFun_full stmt
-                  (tr := PartialTranscript.leftFullOfAppend
-                    (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil)
-                  σw hσw hSf1False
-              have hMidSupport :
-                  mid ∈ support (OptionT.mk do
-                    (simulateQ impl
-                      (v₁ stmt
-                        (PartialTranscript.leftFullOfAppend
-                          (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
-                        σw) := by
-                rw [OptionT.mem_support_iff]
-                simp only [OptionT.run, OptionT.mk, hv₁_pure, simulateQ_pure, StateT.run',
-                  support_map, Set.mem_image]
-                exact ⟨(some mid, σw), (mem_support_pure_iff' _ _).mpr (by simp [hmid]), rfl⟩
-              have hPos :
-                  Pr[(· ∈ langMid) | OptionT.mk do
-                    (simulateQ impl
-                      (v₁ stmt
-                        (PartialTranscript.leftFullOfAppend
-                          (pSpec₂ := pSpec₂) (Nat.le_of_not_lt hk) HVector.nil))).run'
-                        σw] > 0 := by
-                exact (probEvent_pos_iff).2 ⟨mid, hMidSupport, hMidLang⟩
-              rw [hZero] at hPos
-              simp at hPos
-      toFun_next := by
-        intro k hk hnon stmt tr hFalse msg
-        by_cases hStmt : stmt ∈ langIn
-        · intro hTrue
-          exact hFalse (by simp [toFunComp, hStmt])
-        · by_cases hk₁ : k < pSpec₁.length
-          · let trL : PartialTranscript pSpec₁ k :=
-              PartialTranscript.leftOfAppend (Nat.le_of_lt hk₁) tr
-            let msgL : (pSpec₁.get ⟨k, hk₁⟩).type :=
-              cast (congrArg Round.type
-                (ChallengeIndex.get_eq_left (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (i := ⟨k, hk⟩) hk₁)) msg
-            have hnon₁ : (pSpec₁.get ⟨k, hk₁⟩).isChallenge = false := by
-              rw [← ChallengeIndex.get_eq_left (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                (i := ⟨k, hk⟩) hk₁]
-              exact hnon
-            have hFalse₁ : ¬ sf₁.toFun k stmt trL := by
-              simpa [toFunComp, hStmt, hk₁, trL] using hFalse
-            by_cases hkSucc : k + 1 < pSpec₁.length
-            · have hLeft :
-                PartialTranscript.leftOfAppend (show k + 1 ≤ pSpec₁.length by omega)
-                  (PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg) =
-                PartialTranscript.concat pSpec₁ hk₁ trL msgL := by
-                simpa [trL, msgL] using
-                  (PartialTranscript.leftOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                    (hk := hk₁) (hk₂ := hk) tr msg)
-              intro hTrue
-              have hTrue₁ :
-                  sf₁.toFun (k + 1) stmt (PartialTranscript.concat pSpec₁ hk₁ trL msgL) := by
-                simpa [toFunComp, hStmt, hkSucc, hLeft, trL, msgL] using hTrue
-              exact (sf₁.toFun_next k hk₁ hnon₁ stmt trL hFalse₁ msgL) hTrue₁
-            · let trSucc : PartialTranscript (pSpec₁ ++ pSpec₂) (k + 1) :=
-                PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg
-              let trFull : Transcript pSpec₁ :=
-                PartialTranscript.leftFullOfAppend (show pSpec₁.length ≤ k + 1 by omega) trSucc
-              let trRight0 : PartialTranscript pSpec₂ ((k + 1) - pSpec₁.length) :=
-                PartialTranscript.rightOfAppend
-                  (show ((k + 1) - pSpec₁.length) + pSpec₁.length = k + 1 by omega) trSucc
-              have hkEq : k + 1 = pSpec₁.length := by omega
-              have hLeft :
-                PartialTranscript.leftOfAppend (show k + 1 ≤ pSpec₁.length by omega) trSucc =
-                PartialTranscript.concat pSpec₁ hk₁ trL msgL := by
-                simpa [trSucc, trL, msgL] using
-                  (PartialTranscript.leftOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                    (hk := hk₁) (hk₂ := hk) tr msg)
-              have hFalseFull :
-                  ¬ sf₁.toFun pSpec₁.length stmt (PartialTranscript.ofTranscript trFull) := by
-                intro hFull
-                have hNotSucc := sf₁.toFun_next k hk₁ hnon₁ stmt trL hFalse₁ msgL
-                apply hNotSucc; rw [← hLeft]
-                suffices ∀ (n : Nat) (hn : n = pSpec₁.length)
-                    (tr' : PartialTranscript (pSpec₁ ++ pSpec₂) n),
-                    sf₁.toFun pSpec₁.length stmt
-                      (PartialTranscript.ofTranscript
-                        (PartialTranscript.leftFullOfAppend (hn ▸ le_rfl) tr')) →
-                    sf₁.toFun n stmt (PartialTranscript.leftOfAppend (hn ▸ le_rfl) tr') by
-                  exact this (k + 1) hkEq trSucc hFull
-                intro n hn tr' h; subst hn
-                rwa [PartialTranscript.leftOfAppend_eq_ofTranscript_leftFullOfAppend]
-              intro hTrue
-              rcases (by
-                simpa [toFunComp, hStmt, hkSucc, hkEq, trSucc, trFull, trRight0] using hTrue :
-                  ∃ mid : StmtMid,
-                    g stmt trFull = some mid ∧
-                    sf₂.toFun ((k + 1) - pSpec₁.length) mid trRight0) with ⟨mid, hmid, hMid0⟩
-              have hZeroIdx : ((k + 1) - pSpec₁.length : Nat) = 0 := by
-                omega
-              have hMid0' : sf₂.toFun 0 mid HVector.nil := by
-                suffices ∀ (j : Nat) (pt : PartialTranscript pSpec₂ j),
-                    j = 0 → sf₂.toFun j mid pt → sf₂.toFun 0 mid HVector.nil by
-                  exact this _ _ hZeroIdx hMid0
-                intro j pt hj h; subst hj; exact h
-              have hMidLang : mid ∈ langMid := (sf₂.toFun_empty mid).mpr hMid0'
-              have hZero :
-                  Pr[(· ∈ langMid) | OptionT.mk do
-                    (simulateQ impl (v₁ stmt trFull)).run' σw] = 0 :=
-                sf₁.toFun_full stmt (tr := trFull) σw hσw hFalseFull
-              have hMidSupport :
-                  mid ∈ support (OptionT.mk do
-                    (simulateQ impl (v₁ stmt trFull)).run' σw) := by
-                rw [OptionT.mem_support_iff]
-                simp only [OptionT.run, OptionT.mk, hv₁_pure, simulateQ_pure, StateT.run',
-                  support_map, Set.mem_image]
-                exact ⟨(some mid, σw), (mem_support_pure_iff' _ _).mpr (by simp [hmid]), rfl⟩
-              have hPos :
-                  Pr[(· ∈ langMid) | OptionT.mk do
-                    (simulateQ impl (v₁ stmt trFull)).run' σw] > 0 := by
-                exact (probEvent_pos_iff).2 ⟨mid, hMidSupport, hMidLang⟩
-              rw [hZero] at hPos
-              simp at hPos
-          · let j : Nat := k - pSpec₁.length
-            let trR : PartialTranscript pSpec₂ j :=
-              PartialTranscript.rightOfAppend (show j + pSpec₁.length = k by
-                dsimp [j]
-                omega) tr
-            have hk₂ : j < pSpec₂.length := by
-              dsimp [j]
-              simpa [List.length_append] using
-                (ChallengeIndex.rightIndexLt (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁))
-            let msgR : (pSpec₂.get ⟨j, hk₂⟩).type :=
-              cast (congrArg Round.type
-                (ChallengeIndex.get_eq_right (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁))) msg
-            have hnon₂ : (pSpec₂.get ⟨j, hk₂⟩).isChallenge = false := by
-              rw [← ChallengeIndex.get_eq_right (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                (i := ⟨k, hk⟩) (Nat.le_of_not_lt hk₁)]
-              exact hnon
-            let trSucc : PartialTranscript (pSpec₁ ++ pSpec₂) (k + 1) :=
-              PartialTranscript.concat (pSpec₁ ++ pSpec₂) hk tr msg
-            have hLeftFull :
-                PartialTranscript.leftFullOfAppend (show pSpec₁.length ≤ k + 1 by omega) trSucc =
-                  PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk₁) tr := by
-              simpa [trSucc] using
-                (PartialTranscript.leftFullOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (hk₁ := Nat.le_of_not_lt hk₁) (hk₂ := hk) tr msg)
-            have hRight :
-                PartialTranscript.rightOfAppend
-                    (show (j + 1) + pSpec₁.length = k + 1 by
-                      simpa [j, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
-                        congrArg Nat.succ (Nat.sub_add_cancel (Nat.le_of_not_lt hk₁))) trSucc =
-                  PartialTranscript.concat pSpec₂ hk₂ trR msgR := by
-              simpa [trSucc, trR, msgR, j] using
-                (PartialTranscript.rightOfAppend_concat (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (h_eq := by
-                    simpa [j, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using
-                      (Nat.sub_add_cancel (Nat.le_of_not_lt hk₁))) (hk₂ := hk) tr msg)
-            intro hTrue
-            rcases (by
-              have hkSuccFalse : ¬ k + 1 < pSpec₁.length := by omega
-              simpa [toFunComp, hStmt, hk₁, hkSuccFalse, j, trSucc] using hTrue :
-                ∃ mid : StmtMid,
-                  g stmt
-                      (PartialTranscript.leftFullOfAppend
-                        (show pSpec₁.length ≤ k + 1 by omega) trSucc) = some mid ∧
-                    sf₂.toFun ((k + 1) - pSpec₁.length) mid
-                      (PartialTranscript.rightOfAppend
-                        (show ((k + 1) - pSpec₁.length) + pSpec₁.length = k + 1 by omega)
-                          trSucc)) with
-              ⟨mid, hmidSucc, hSf₂Succ⟩
-            have hmid : g stmt
-                (PartialTranscript.leftFullOfAppend (Nat.le_of_not_lt hk₁) tr) =
-                  some mid := by
-              simpa [hLeftFull] using hmidSucc
-            have hSf₂False : ¬ sf₂.toFun j mid trR := by
-              intro hPrev
-              exact hFalse (by
-                simp [toFunComp, hStmt, hk₁, j, trR, hmid, hPrev])
-            have hSuccIdx : j + 1 = (k + 1) - pSpec₁.length := by
-              dsimp [j]
-              omega
-            have hSf₂SuccCast :
-                sf₂.toFun (j + 1) mid
-                  (PartialTranscript.rightOfAppend (show (j + 1) + pSpec₁.length = k + 1 by omega)
-                    trSucc) := by
-              suffices ∀ (a : Nat) (ha : a = j + 1)
-                  (h_add : a + pSpec₁.length = k + 1),
-                  sf₂.toFun a mid (PartialTranscript.rightOfAppend h_add trSucc) →
-                  sf₂.toFun (j + 1) mid
-                    (PartialTranscript.rightOfAppend
-                      (show (j + 1) + pSpec₁.length = k + 1 by omega) trSucc) by
-                exact this _ hSuccIdx.symm (by omega) hSf₂Succ
-              intro a ha h_add h; subst ha; exact h
-            have hSf₂Succ' :
-                sf₂.toFun (j + 1) mid (PartialTranscript.concat pSpec₂ hk₂ trR msgR) := by
-              simpa [hRight] using hSf₂SuccCast
-            exact (sf₂.toFun_next j hk₂ hnon₂ mid trR hSf₂False msgR) hSf₂Succ'
-      toFun_challenge_of_mem := by
-        intro i stmt ptr hmem
-        simp [toFunComp, hmem]
-      toFun_full := by
-        intro stmt tr σ0 hσ0 hFalse
-        rw [probEvent_eq_zero_iff]
-        intro stmtOut hStmtOut hLangOut
-        by_cases hStmt : stmt ∈ langIn
-        · exact hFalse (by simp [toFunComp, hStmt])
-        · let tr₁ : Transcript pSpec₁ := (Transcript.split tr).1
-          let tr₂ : Transcript pSpec₂ := (Transcript.split tr).2
-          have hFalse' :
-              ¬ ∃ mid : StmtMid,
-                g stmt tr₁ = some mid ∧
-                  sf₂.toFun pSpec₂.length mid (PartialTranscript.ofTranscript tr₂) := by
-            intro hExists
-            rcases hExists with ⟨mid, hmid, hSf₂⟩
-            have hEqIdx : (pSpec₁ ++ pSpec₂).length - pSpec₁.length = pSpec₂.length := by
-              simp [List.length_append]
-            have hNotLt : ¬ (pSpec₁ ++ pSpec₂).length < pSpec₁.length := by
-              simp [List.length_append]
-            have hLeftFull :
-                PartialTranscript.leftFullOfAppend
-                  (show pSpec₁.length ≤ (pSpec₁ ++ pSpec₂).length by
-                    simp [List.length_append])
-                  (PartialTranscript.ofTranscript tr) = tr₁ := by
-              simpa [tr₁] using
-                (PartialTranscript.leftFullOfAppend_ofTranscript_eq_split_fst
-                  (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂) tr)
-            have hLen :
-                ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) + pSpec₁.length =
-                  (pSpec₁ ++ pSpec₂).length := by
-              simp [List.length_append]; omega
-            have hLen₂ :
-                pSpec₂.length + pSpec₁.length = (pSpec₁ ++ pSpec₂).length := by
-              simp [List.length_append]; omega
-            have hRightTake :
-                PartialTranscript.rightOfAppend hLen (PartialTranscript.ofTranscript tr) =
-                HVector.take ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) pSpec₂
-                  (Transcript.split tr).2 := by
-              simpa [hvector_take_length_eq] using
-                (PartialTranscript.rightOfAppend_hvector_take (pSpec₁ := pSpec₁) (pSpec₂ := pSpec₂)
-                  (k := (pSpec₁ ++ pSpec₂).length)
-                  (hk := by simp [List.length_append])
-                  (hk₂ := le_rfl) tr)
-            have hSf₂Full :
-                sf₂.toFun ((pSpec₁ ++ pSpec₂).length - pSpec₁.length) mid
-                  (PartialTranscript.rightOfAppend hLen (PartialTranscript.ofTranscript tr)) := by
-              suffices ∀ (j : Nat) (hj : j + pSpec₁.length = (pSpec₁ ++ pSpec₂).length),
-                  sf₂.toFun j mid
-                    (PartialTranscript.rightOfAppend hj
-                      (PartialTranscript.ofTranscript tr)) by
-                exact this _ hLen
-              intro j hj
-              have hEq : j = pSpec₂.length := by omega
-              subst hEq
-              rw [show hj = (show pSpec₂.length + pSpec₁.length = (pSpec₁ ++ pSpec₂).length
-                from hLen₂) from Subsingleton.elim _ _,
-                PartialTranscript.rightOfAppend_ofTranscript_eq_split_snd]
-              simpa [tr₂] using hSf₂
-            apply hFalse
-            simp only [if_true_left, hStmt, not_false_eq_true, nonempty_prop, forall_const,
-              List.length_append, add_lt_iff_neg_left, not_lt_zero, ↓reduceDIte, hLeftFull,
-              toFunComp]
-            exact ⟨mid, hmid, hSf₂Full⟩
-          cases hmid : g stmt tr₁ with
-          | none =>
-              have hRunNone :
-                  (simulateQ impl ((Verifier.comp v₁ v₂) stmt tr)).run σ0 = pure (none, σ0) := by
-                simp [Verifier.comp, hv₁_pure, tr₁, hmid, simulateQ_pure,
-                  OptionT.instMonad, OptionT.bind, OptionT.mk, pure_bind]
-              have hs' :
-                  ∃ x, (some stmtOut, x) ∈ support
-                    ((simulateQ impl ((Verifier.comp v₁ v₂) stmt tr)).run σ0) := by
-                simpa [OptionT.mem_support_iff, OptionT.mk, OptionT.run, StateT.run'] using hStmtOut
-              have : False := by
-                rcases hs' with ⟨x, hx⟩
-                simp [hRunNone] at hx
-              exact this.elim
-          | some mid =>
-              have hStmtOut₂ : stmtOut ∈ support (OptionT.mk do
-                  (simulateQ impl (v₂ mid tr₂)).run' σ0) := by
-                simpa [Verifier.comp, hv₁_pure, tr₁, tr₂, hmid, simulateQ_pure] using hStmtOut
-              have hSf₂False :
-                  ¬ sf₂.toFun pSpec₂.length mid
-                    (PartialTranscript.ofTranscript tr₂) := by
-                intro hSf₂
-                exact hFalse' ⟨mid, hmid, hSf₂⟩
-              have hZero :
-                  Pr[(· ∈ langOut) | OptionT.mk do
-                    (simulateQ impl (v₂ mid tr₂)).run' σ0] = 0 :=
-                sf₂.toFun_full mid tr₂ σ0 hσ0 hSf₂False
-              have hPos :
-                  Pr[(· ∈ langOut) | OptionT.mk do
-                    (simulateQ impl (v₂ mid tr₂)).run' σ0] > 0 := by
-                exact (probEvent_pos_iff).2 ⟨stmtOut, hStmtOut₂, hLangOut⟩
-              rw [hZero] at hPos
-              simp at hPos
-    }, ?flipBound⟩
+    refine ⟨rbrSoundness_comp_sf sf₁ sf₂ g hv₁_pure σw hσw (impl := impl), ?flipBound⟩
     case flipBound =>
       intro stmtIn hNotLang Output prover i σ0 hσ0
       let flipComp : Transcript (pSpec₁ ++ pSpec₂) → Prop := fun tr =>
@@ -2053,6 +2080,37 @@ theorem rbrSoundness_comp
     intro stmtIn hNotLang Output prover i σ0 hσ0
     exact False.elim (hNoInv σ0 hσ0)
 
+/-- Any zero-round protocol (i.e. `pSpec.replicate 0`) is trivially RBR sound: the state function
+is membership in the language, and there are no challenge rounds to bound. -/
+theorem rbrSoundness_replicate_zero
+    {S : Type}
+    {pSpec : ProtocolSpec}
+    [ChallengesSampleable pSpec]
+    {lang : Set S}
+    {v : Verifier (OracleComp oSpec) S S pSpec}
+    {Inv : σ → Prop}
+    {e : ChallengeIndex pSpec → ℝ≥0} :
+    letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) 0
+    rbrSoundness impl lang lang
+      (v.compNth 0) Inv (ChallengeIndex.errorReplicate e 0) := by
+  refine ⟨{
+    toFun := fun _ stmt _ => stmt ∈ lang
+    toFun_empty := fun _ => Iff.rfl
+    toFun_next := fun k hk => absurd hk (by simp [ProtocolSpec.replicate])
+    toFun_challenge_of_mem := fun i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])
+    toFun_full := by
+      intro stmt tr σ0 _ hNot
+      rw [probEvent_eq_zero_iff]
+      intro s hs hsLang
+      apply hNot
+      have : s = stmt := by
+        simp only [Verifier.compNth, OptionT.mk, OptionT.run,
+          StateT.run', OptionT.mem_support_iff] at hs
+        rcases hs with ⟨u, hu⟩
+        exact (Option.some.inj rfl).symm
+      subst this; exact hsLang
+  }, fun _ _ _ _ i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])⟩
+
 /-- `n`-fold RBR soundness composition using `OracleFree` and `PreservesInv`. -/
 theorem rbrSoundness_compNth
     {S : Type}
@@ -2068,24 +2126,7 @@ theorem rbrSoundness_compNth
     letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
     rbrSoundness impl lang lang
       (v.compNth n) Inv (ChallengeIndex.errorReplicate e n)
-  | 0 => by
-      refine ⟨{
-        toFun := fun _ stmt _ => stmt ∈ lang
-        toFun_empty := fun _ => Iff.rfl
-        toFun_next := fun k hk => absurd hk (by simp [ProtocolSpec.replicate])
-        toFun_challenge_of_mem := fun i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])
-        toFun_full := by
-          intro stmt tr σ0 _ hNot
-          rw [probEvent_eq_zero_iff]
-          intro s hs hsLang
-          apply hNot
-          have : s = stmt := by
-            simp only [Verifier.compNth, OptionT.mk, OptionT.run,
-              StateT.run', OptionT.mem_support_iff] at hs
-            rcases hs with ⟨u, hu⟩
-            exact (Option.some.inj rfl).symm
-          subst this; exact hsLang
-      }, fun _ _ _ _ i => absurd i.1.isLt (by simp [ProtocolSpec.replicate])⟩
+  | 0 => rbrSoundness_replicate_zero impl
   | n + 1 => by
       letI := ChallengesSampleable.ofReplicate (pSpec := pSpec) n
       have h_comp := rbrSoundness_comp (impl := impl) hV hPres h
