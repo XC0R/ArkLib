@@ -1110,6 +1110,8 @@ theorem generalVerifier_soundness
     trivial
   · exact generalVerifier_rbrSoundness (R := R) (n := n) (m := m) (deg := deg) poly D hTrue
 
+#print axioms generalVerifier_rbrSoundness
+
 end Soundness
 
 end Sumcheck

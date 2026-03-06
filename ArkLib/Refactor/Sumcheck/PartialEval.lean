@@ -23,6 +23,8 @@ definitions to `CMvPolynomial.eval` and `CPolynomial.eval`.
 
 open CompPoly CPoly Std
 
+attribute [local instance] instDecidableEqOfLawfulBEq
+
 namespace CPoly.CMvPolynomial
 
 variable {n : ℕ} {R : Type} [CommSemiring R] [BEq R] [LawfulBEq R]
@@ -55,8 +57,6 @@ def sumOverLast (D : Fin m → R) (p : CMvPolynomial (n + 1) R) : CMvPolynomial 
 
 /-! ## Conversion to univariate -/
 
-variable [DecidableEq R]
-
 /-- Convert a single-variable multivariate polynomial to a univariate `CPolynomial`.
 Each term `c · X₀^e` maps to `c · X^e`. -/
 def toUnivariate (p : CMvPolynomial 1 R) : CPolynomial R :=
@@ -85,7 +85,6 @@ def roundPoly (D : Fin m → R) (k : ℕ) (p : CMvPolynomial (k + 1) R) : CPolyn
 These relate the computable operations to `CMvPolynomial.eval` and `CPolynomial.eval`,
 establishing that the symbolic operations faithfully implement partial evaluation. -/
 
-omit [DecidableEq R] in
 /-- `partialEvalFirst a p` correctly implements partial evaluation:
 evaluating the result at `v` equals evaluating `p` at `Fin.cons a v`. -/
 theorem partialEvalFirst_eval (a : R) (p : CMvPolynomial (n + 1) R) (v : Fin n → R) :
@@ -116,7 +115,6 @@ theorem partialEvalFirst_eval (a : R) (p : CMvPolynomial (n + 1) R) (v : Fin n �
   simp only [Fin.cons_zero, Fin.cons_succ]
   ring
 
-omit [DecidableEq R] in
 /-- `partialEvalLast a p` correctly implements partial evaluation of the last variable:
 evaluating the result at `v` equals evaluating `p` at `Fin.snoc v a`. -/
 theorem partialEvalLast_eval (a : R) (p : CMvPolynomial (n + 1) R) (v : Fin n → R) :
@@ -153,7 +151,6 @@ theorem partialEvalLast_eval (a : R) (p : CMvPolynomial (n + 1) R) (v : Fin n �
   simp only [Fin.snoc_castSucc, Fin.snoc_last]
   ring
 
-omit [DecidableEq R] in
 /-- `sumOverLast` evaluates correctly: sums the polynomial over the domain in the last
 variable. -/
 theorem sumOverLast_eval (D : Fin m → R) (p : CMvPolynomial (n + 1) R) (v : Fin n → R) :
@@ -172,7 +169,7 @@ theorem sumOverLast_eval (D : Fin m → R) (p : CMvPolynomial (n + 1) R) (v : Fi
 
 /-! ## Degree bound lemmas -/
 
-omit [LawfulBEq R] [DecidableEq R] in
+omit [LawfulBEq R] in
 theorem CPolynomial.natDegree_zero_le (d : ℕ) :
     (0 : CPolynomial R).natDegree ≤ d := by
   suffices h : (0 : CPolynomial R).natDegree = 0 from h ▸ Nat.zero_le d
@@ -184,12 +181,55 @@ theorem CPolynomial.natDegree_zero_le (d : ℕ) :
     have hsz : (↑(0 : CompPoly.CPolynomial R) : CompPoly.CPolynomial.Raw R).size = 0 := rfl
     exact absurd i.isLt (by omega)
 
+end CPoly.CMvPolynomial
+
+/-! ## Degree bound lemmas
+
+These require `CommRing R` for the `natDegree_toPoly` bridge. -/
+
+namespace CPoly.CMvPolynomial
+
+variable {n m : ℕ} {R : Type} [CommRing R] [BEq R] [LawfulBEq R]
+
+/-- `toUnivariate` preserves degree bounds: if every monomial of `p : CMvPolynomial 1 R`
+has `mono.get 0 ≤ deg`, then `(toUnivariate p).natDegree ≤ deg`. -/
+theorem toUnivariate_natDegree_le {deg : ℕ}
+    (p : CMvPolynomial 1 R)
+    (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
+    (toUnivariate p).natDegree ≤ deg := by
+  sorry
+
+/-- `partialEvalFirst` preserves the degree bound in variable 0: if every monomial of `p` has
+  `mono.get 0 ≤ deg`, then every monomial of `partialEvalFirst a p` also has `mono.get 0 ≤ deg`. -/
+theorem partialEvalFirst_monomials_get0_le {deg : ℕ} (a : R)
+    (p : CMvPolynomial (n + 2) R)
+    (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
+    ∀ mono ∈ Lawful.monomials (partialEvalFirst a p), mono.get 0 ≤ deg := by
+  sorry
+
+/-- `sumOverLast` preserves the degree bound in variable 0. -/
+theorem sumOverLast_monomials_get0_le {deg : ℕ} (D : Fin m → R)
+    (p : CMvPolynomial (n + 2) R)
+    (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
+    ∀ mono ∈ Lawful.monomials (sumOverLast D p), mono.get 0 ≤ deg := by
+  sorry
+
+/-- `sumAllButFirst` preserves the degree bound in variable 0. -/
+theorem sumAllButFirst_monomials_get0_le {deg : ℕ} (D : Fin m → R) (k : ℕ)
+    (p : CMvPolynomial (k + 1) R)
+    (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
+    ∀ mono ∈ Lawful.monomials (sumAllButFirst D k p), mono.get 0 ≤ deg := by
+  induction k with
+  | zero => exact hDeg
+  | succ k ih => exact ih (sumOverLast D p) (sumOverLast_monomials_get0_le D p hDeg)
+
 /-- The round polynomial has degree at most `deg` when the original polynomial has
 individual degree at most `deg` in variable 0. -/
 theorem roundPoly_natDegree_le {deg : ℕ} (D : Fin m → R) {k : ℕ}
     (p : CMvPolynomial (k + 1) R)
     (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
-    (roundPoly D k p).natDegree ≤ deg := by
-  sorry
+    (roundPoly D k p).natDegree ≤ deg :=
+  toUnivariate_natDegree_le (sumAllButFirst D k p)
+    (sumAllButFirst_monomials_get0_le D k p hDeg)
 
 end CPoly.CMvPolynomial
