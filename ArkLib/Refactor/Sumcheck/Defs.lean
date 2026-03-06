@@ -3,7 +3,7 @@ Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
-import ArkLib.Refactor.Sumcheck.PolyUtils
+import ArkLib.Refactor.Sumcheck.PartialEval
 import ArkLib.Refactor.Reduction
 
 /-!
@@ -113,11 +113,13 @@ def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
 
 /-! ## Symbolic prover state -/
 
-/-- A dependent pair packaging a multivariate polynomial with its current number of variables.
-Used as the prover's witness type: each round, `k` decreases by 1 via `partialEvalFirst`.
-The type is uniform (independent of round number), so it works with `compNth`. -/
-structure SymbolicPoly where
+/-- A dependent pair packaging a multivariate polynomial with its current number of variables,
+together with a witness that every remaining variable still has individual degree at most `deg`.
+Used as the prover's witness type: each round, `k` decreases by 1 via `partialEvalFirst`,
+and the degree witness is preserved by `partialEvalFirst_individualDegreeLE`. -/
+structure SymbolicPoly (deg : ℕ) where
   k : ℕ
   poly : CMvPolynomial k R
+  hDegree : CMvPolynomial.IndividualDegreeLE (R := R) deg poly
 
 end Sumcheck

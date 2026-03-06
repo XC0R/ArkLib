@@ -5,6 +5,7 @@ Authors: Quang Dao
 -/
 import ArkLib.Refactor.Sumcheck.PolyUtils
 import CompPoly.Multivariate.Rename
+import Mathlib.Algebra.Polynomial.BigOperators
 
 /-!
 # Partial Evaluation and Domain Summation for CMvPolynomial
@@ -169,6 +170,11 @@ theorem sumOverLast_eval (D : Fin m → R) (p : CMvPolynomial (n + 1) R) (v : Fi
 
 /-! ## Degree bound lemmas -/
 
+/-- `p` has individual degree at most `deg` when every monomial exponent is bounded by `deg`
+in every coordinate. This is the invariant preserved by symbolic `partialEvalFirst`. -/
+def IndividualDegreeLE {n : ℕ} (deg : ℕ) (p : CMvPolynomial n R) : Prop :=
+  ∀ i : Fin n, ∀ mono ∈ Lawful.monomials p, mono.get i ≤ deg
+
 omit [LawfulBEq R] in
 theorem CPolynomial.natDegree_zero_le (d : ℕ) :
     (0 : CPolynomial R).natDegree ≤ d := by
@@ -191,28 +197,231 @@ namespace CPoly.CMvPolynomial
 
 variable {n m : ℕ} {R : Type} [CommRing R] [BEq R] [LawfulBEq R]
 
+omit [BEq R] [LawfulBEq R] in
+private lemma coeff_ne_zero_of_mem_monomials {k : ℕ} {p : CMvPolynomial k R}
+    {mono : CMvMonomial k} (hmono : mono ∈ Lawful.monomials p) :
+    coeff mono p ≠ 0 :=
+  Lawful.getD_getElem?_ne_zero_of_mem ((Lawful.mem_monomials_iff).1 hmono)
+
+omit [BEq R] [LawfulBEq R] in
+private lemma mem_monomials_of_coeff_ne_zero {k : ℕ} {p : CMvPolynomial k R}
+    {mono : CMvMonomial k} (hcoeff : coeff mono p ≠ 0) :
+    mono ∈ Lawful.monomials p := by
+  apply (Lawful.mem_monomials_iff).2
+  rw [Lawful.mem_iff]
+  unfold coeff at hcoeff
+  cases hlookup : p.1[mono]? with
+  | none =>
+      simp [hlookup] at hcoeff
+  | some c =>
+      refine ⟨c, ?_, ?_⟩
+      · simpa [hlookup] using hcoeff
+      · rfl
+
+private lemma coeff_eq_zero_of_not_mem_monomials {k : ℕ} {p : CMvPolynomial k R}
+    {mono : CMvMonomial k} (hmono : mono ∉ Lawful.monomials p) :
+    coeff mono p = 0 := by
+  by_contra hcoeff
+  exact hmono (mem_monomials_of_coeff_ne_zero hcoeff)
+
+private theorem fromCMvPolynomial_partialEvalFirst (a : R) (p : CMvPolynomial (n + 1) R) :
+    fromCMvPolynomial (partialEvalFirst a p) =
+      Finsupp.sum (fromCMvPolynomial p) (fun μ c =>
+        MvPolynomial.monomial
+          (CMvMonomial.toFinsupp
+            (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.succ))
+          (c * a ^ (CMvMonomial.ofFinsupp μ).get 0)) := by
+  unfold partialEvalFirst
+  rw [foldl_add_comm' (fun mono c =>
+    CMvPolynomial.monomial (Vector.ofFn fun j : Fin n => mono.get j.succ)
+      (c * a ^ mono.get 0)) p.1]
+  rw [foldl_eq_sum, fromCMvPolynomial_finsupp_sum]
+  simp only [Function.comp_def, fromCMvPolynomial_monomial]
+
+private theorem fromCMvPolynomial_partialEvalLast (a : R) (p : CMvPolynomial (n + 1) R) :
+    fromCMvPolynomial (partialEvalLast a p) =
+      Finsupp.sum (fromCMvPolynomial p) (fun μ c =>
+        MvPolynomial.monomial
+          (CMvMonomial.toFinsupp
+            (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.castSucc))
+          (c * a ^ (CMvMonomial.ofFinsupp μ).get (Fin.last n))) := by
+  unfold partialEvalLast
+  rw [foldl_add_comm' (fun mono c =>
+    CMvPolynomial.monomial (Vector.ofFn fun j : Fin n => mono.get j.castSucc)
+      (c * a ^ mono.get (Fin.last n))) p.1]
+  rw [foldl_eq_sum, fromCMvPolynomial_finsupp_sum]
+  simp only [Function.comp_def, fromCMvPolynomial_monomial]
+
+private lemma exists_source_of_mem_partialEvalFirst
+    (a : R) (p : CMvPolynomial (n + 1) R) {mono : CMvMonomial n}
+    (hmono : mono ∈ Lawful.monomials (partialEvalFirst a p)) :
+    ∃ src ∈ Lawful.monomials p,
+      Vector.ofFn (fun j : Fin n => src.get j.succ) = mono := by
+  have hmono_support : CMvMonomial.toFinsupp mono ∈
+      (fromCMvPolynomial (partialEvalFirst a p)).support := by
+    rw [MvPolynomial.mem_support_iff, coeff_eq]
+    simpa [CMvMonomial.ofFinsupp_toFinsupp] using coeff_ne_zero_of_mem_monomials hmono
+  rw [fromCMvPolynomial_partialEvalFirst] at hmono_support
+  have hmono_biUnion :
+      CMvMonomial.toFinsupp mono ∈
+        ((fromCMvPolynomial p).support).biUnion (fun μ =>
+          (MvPolynomial.monomial
+            (CMvMonomial.toFinsupp
+              (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.succ))
+            ((fromCMvPolynomial p).coeff μ * a ^ (CMvMonomial.ofFinsupp μ).get 0)).support) := by
+    exact (MvPolynomial.support_sum (s := (fromCMvPolynomial p).support)
+      (f := fun μ =>
+        MvPolynomial.monomial
+          (CMvMonomial.toFinsupp
+            (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.succ))
+          ((fromCMvPolynomial p).coeff μ * a ^ (CMvMonomial.ofFinsupp μ).get 0)))
+      (by simpa [Finsupp.sum] using hmono_support)
+  rcases Finset.mem_biUnion.mp hmono_biUnion with ⟨μ, hμ, hμmono⟩
+  have hsingleton :
+      CMvMonomial.toFinsupp mono ∈
+        {CMvMonomial.toFinsupp
+          (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.succ)} :=
+    MvPolynomial.support_monomial_subset hμmono
+  refine ⟨CMvMonomial.ofFinsupp μ, ?_, ?_⟩
+  · apply mem_monomials_of_coeff_ne_zero
+    rw [← coeff_eq (a := p) (m := μ)]
+    exact MvPolynomial.mem_support_iff.mp hμ
+  · apply CMvMonomial.injective_toFinsupp
+    exact (Finset.mem_singleton.mp hsingleton).symm
+
+private lemma exists_source_of_mem_partialEvalLast
+    (a : R) (p : CMvPolynomial (n + 1) R) {mono : CMvMonomial n}
+    (hmono : mono ∈ Lawful.monomials (partialEvalLast a p)) :
+    ∃ src ∈ Lawful.monomials p,
+      Vector.ofFn (fun j : Fin n => src.get j.castSucc) = mono := by
+  have hmono_support : CMvMonomial.toFinsupp mono ∈
+      (fromCMvPolynomial (partialEvalLast a p)).support := by
+    rw [MvPolynomial.mem_support_iff, coeff_eq]
+    simpa [CMvMonomial.ofFinsupp_toFinsupp] using coeff_ne_zero_of_mem_monomials hmono
+  rw [fromCMvPolynomial_partialEvalLast] at hmono_support
+  have hmono_biUnion :
+      CMvMonomial.toFinsupp mono ∈
+        ((fromCMvPolynomial p).support).biUnion (fun μ =>
+          (MvPolynomial.monomial
+            (CMvMonomial.toFinsupp
+              (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.castSucc))
+            ((fromCMvPolynomial p).coeff μ
+              * a ^ (CMvMonomial.ofFinsupp μ).get (Fin.last n))).support) := by
+    exact (MvPolynomial.support_sum (s := (fromCMvPolynomial p).support)
+      (f := fun μ =>
+        MvPolynomial.monomial
+          (CMvMonomial.toFinsupp
+            (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.castSucc))
+          ((fromCMvPolynomial p).coeff μ
+            * a ^ (CMvMonomial.ofFinsupp μ).get (Fin.last n))))
+      (by simpa [Finsupp.sum] using hmono_support)
+  rcases Finset.mem_biUnion.mp hmono_biUnion with ⟨μ, hμ, hμmono⟩
+  have hsingleton :
+      CMvMonomial.toFinsupp mono ∈
+        {CMvMonomial.toFinsupp
+          (Vector.ofFn fun j : Fin n => (CMvMonomial.ofFinsupp μ).get j.castSucc)} :=
+    MvPolynomial.support_monomial_subset hμmono
+  refine ⟨CMvMonomial.ofFinsupp μ, ?_, ?_⟩
+  · apply mem_monomials_of_coeff_ne_zero
+    rw [← coeff_eq (a := p) (m := μ)]
+    exact MvPolynomial.mem_support_iff.mp hμ
+  · apply CMvMonomial.injective_toFinsupp
+    exact (Finset.mem_singleton.mp hsingleton).symm
+
+private lemma exists_summand_of_mem_monomials_sum {k : ℕ} {α : Type}
+    (s : Finset α) (f : α → CMvPolynomial k R) {mono : CMvMonomial k}
+    (hmono : mono ∈ Lawful.monomials (∑ x ∈ s, f x)) :
+    ∃ x ∈ s, mono ∈ Lawful.monomials (f x) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+      simp only [Finset.sum_empty] at hmono
+      exact (Lawful.not_mem_zero (x := mono) ((Lawful.mem_monomials_iff).1 hmono)).elim
+  | @insert a s ha ih =>
+      let tail : CMvPolynomial k R := ∑ x ∈ s, f x
+      have hcoeff_sum : coeff mono (∑ x ∈ insert a s, f x) ≠ 0 := by
+        convert coeff_ne_zero_of_mem_monomials hmono
+      have hcoeff_add :
+          coeff mono (f a) + coeff mono tail ≠ 0 := by
+        simpa [tail, Finset.sum_insert, ha, coeff_add] using hcoeff_sum
+      by_cases hfa : mono ∈ Lawful.monomials (f a)
+      · exact ⟨a, Finset.mem_insert_self a s, hfa⟩
+      · have hsum : coeff mono tail ≠ 0 := by
+          intro hsum_zero
+          apply hcoeff_add
+          simp [tail, coeff_eq_zero_of_not_mem_monomials hfa, hsum_zero]
+        obtain ⟨x, hx, hmono_fx⟩ := ih (by
+          simpa [tail] using mem_monomials_of_coeff_ne_zero hsum)
+        exact ⟨x, Finset.mem_insert_of_mem hx, hmono_fx⟩
+
 /-- `toUnivariate` preserves degree bounds: if every monomial of `p : CMvPolynomial 1 R`
 has `mono.get 0 ≤ deg`, then `(toUnivariate p).natDegree ≤ deg`. -/
 theorem toUnivariate_natDegree_le {deg : ℕ}
     (p : CMvPolynomial 1 R)
     (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
     (toUnivariate p).natDegree ≤ deg := by
-  sorry
+  rw [CompPoly.CPolynomial.natDegree_toPoly]
+  let q : Polynomial R :=
+    Finset.sum (fromCMvPolynomial p).support (fun μ =>
+      Polynomial.monomial ((CMvMonomial.ofFinsupp μ).get 0)
+        ((fromCMvPolynomial p).coeff μ))
+  have hToPoly : (toUnivariate p).toPoly = q := by
+    unfold q
+    unfold toUnivariate
+    rw [foldl_add_comm' (fun mono c => CPolynomial.monomial (mono.get 0) c) p.1]
+    rw [foldl_eq_sum, Finsupp.sum]
+    let s : Finset (Fin 1 →₀ ℕ) := (fromCMvPolynomial p).support
+    change
+        (∑ x ∈ s,
+          CPolynomial.monomial ((CMvMonomial.ofFinsupp x).get 0)
+            ((fromCMvPolynomial p).coeff x)).toPoly
+      =
+        ∑ x ∈ s,
+          Polynomial.monomial ((CMvMonomial.ofFinsupp x).get 0) ((fromCMvPolynomial p).coeff x)
+    induction s using Finset.cons_induction with
+    | empty =>
+        change CompPoly.CPolynomial.toPoly (0 : CPolynomial R) = (0 : Polynomial R)
+        change CompPoly.CPolynomial.Raw.toPoly (0 : CompPoly.CPolynomial.Raw R) = (0 : Polynomial R)
+        simpa using (CompPoly.CPolynomial.Raw.toPoly_zero (R := R))
+    | cons μ s hμ ih =>
+        simp [hμ, CompPoly.CPolynomial.toPoly_add',
+          CompPoly.CPolynomial.monomial_toPoly, ih]
+  rw [hToPoly]
+  unfold q
+  apply Polynomial.natDegree_sum_le_of_forall_le
+  intro μ hμ
+  exact _root_.le_trans
+    (Polynomial.natDegree_monomial_le ((fromCMvPolynomial p).coeff μ)
+      (m := (CMvMonomial.ofFinsupp μ).get 0))
+    (hDeg (CMvMonomial.ofFinsupp μ) (by
+      apply mem_monomials_of_coeff_ne_zero
+      rw [← coeff_eq (a := p) (m := μ)]
+      exact MvPolynomial.mem_support_iff.mp hμ))
 
-/-- `partialEvalFirst` preserves the degree bound in variable 0: if every monomial of `p` has
-  `mono.get 0 ≤ deg`, then every monomial of `partialEvalFirst a p` also has `mono.get 0 ≤ deg`. -/
-theorem partialEvalFirst_monomials_get0_le {deg : ℕ} (a : R)
-    (p : CMvPolynomial (n + 2) R)
-    (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
-    ∀ mono ∈ Lawful.monomials (partialEvalFirst a p), mono.get 0 ≤ deg := by
-  sorry
+/-- `partialEvalFirst` preserves individual degree bounds by shifting output variable `j`
+to input variable `j.succ`. -/
+theorem partialEvalFirst_individualDegreeLE {deg : ℕ} (a : R)
+    (p : CMvPolynomial (n + 1) R)
+    (hDeg : IndividualDegreeLE (R := R) deg p) :
+    IndividualDegreeLE (R := R) deg (partialEvalFirst a p) := by
+  intro j mono hmono
+  obtain ⟨src, hsrc, hEq⟩ := exists_source_of_mem_partialEvalFirst a p hmono
+  rw [← hEq, Vector.get_ofFn]
+  exact hDeg j.succ src hsrc
 
 /-- `sumOverLast` preserves the degree bound in variable 0. -/
 theorem sumOverLast_monomials_get0_le {deg : ℕ} (D : Fin m → R)
     (p : CMvPolynomial (n + 2) R)
     (hDeg : ∀ mono ∈ Lawful.monomials p, mono.get 0 ≤ deg) :
     ∀ mono ∈ Lawful.monomials (sumOverLast D p), mono.get 0 ≤ deg := by
-  sorry
+  intro mono hmono
+  obtain ⟨j, -, hj⟩ := exists_summand_of_mem_monomials_sum
+    (s := (Finset.univ : Finset (Fin m)))
+    (f := fun j => partialEvalLast (D j) p)
+    (by simpa [sumOverLast] using hmono)
+  obtain ⟨src, hsrc, hEq⟩ := exists_source_of_mem_partialEvalLast (D j) p hj
+  rw [← hEq, Vector.get_ofFn]
+  simpa using hDeg src hsrc
 
 /-- `sumAllButFirst` preserves the degree bound in variable 0. -/
 theorem sumAllButFirst_monomials_get0_le {deg : ℕ} (D : Fin m → R) (k : ℕ)
