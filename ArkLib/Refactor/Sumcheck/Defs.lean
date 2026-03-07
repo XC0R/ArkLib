@@ -3,7 +3,7 @@ Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
-import ArkLib.Refactor.Sumcheck.PartialEval
+import ArkLib.Refactor.Sumcheck.PolyUtils
 import ArkLib.Refactor.Reduction
 
 /-!
@@ -52,13 +52,13 @@ structure RoundState where
   challenges : Vector R i
   target : R
 
-/-- The oracle statement: the multivariate polynomial being summed.
-No degree-bound subtype — degree bounds are enforced by the relation instead. -/
-abbrev OStmt (n : ℕ) := CMvPolynomial n R
-
 /-! ## Protocol spec -/
 
 variable (deg : ℕ)
+
+/-- The oracle statement: the multivariate polynomial being summed, bundled with an
+individual-degree witness. -/
+abbrev OStmt (deg n : ℕ) := CMvDegreeLE R n deg
 
 /-- The per-round protocol spec: the prover sends a degree-bounded univariate polynomial,
 then the verifier sends a field element as a challenge. -/
@@ -67,24 +67,20 @@ then the verifier sends a field element as a challenge. -/
 
 /-! ## Relations -/
 
-variable {R}
+variable {R} {deg}
 
 /-- The input language for the full sumcheck protocol: the set of valid target sums.
 `target ∈ inputLang poly D` iff `target` equals the sum of `poly` over the full
 domain `D^n`. -/
-def inputLang {n m : ℕ} (poly : CMvPolynomial n R) (D : Fin m → R) : Set R :=
+def inputLang {n m : ℕ} (poly : OStmt R deg n) (D : Fin m → R) : Set R :=
   { target | target = (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-    CMvPolynomial.eval (D ∘ z) poly) }
+    CMvPolynomial.eval (D ∘ z) poly.val) }
 
 /-- The input relation for the full sumcheck protocol (with trivial witness). -/
-def inputRelation {n m : ℕ} (poly : CMvPolynomial n R) (D : Fin m → R) : Set (R × Unit) :=
+def inputRelation {n m : ℕ} (poly : OStmt R deg n) (D : Fin m → R) : Set (R × Unit) :=
   { p | p.1 ∈ inputLang poly D }
 
-variable (R)
-
 /-! ## Computing the round polynomial -/
-
-variable {R} {deg}
 
 /-- Compute the round polynomial using the evaluate-and-interpolate strategy.
 
@@ -95,7 +91,7 @@ and interpolates them into a univariate polynomial of degree ≤ `deg`.
 The partial sum at point `t` is:
   `∑ z ∈ D^(remaining vars), poly(prevChallenges ++ [t] ++ z)` -/
 def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
-    (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
+    (poly : OStmt R deg n) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) : CDegreeLE R deg :=
   let values : Vector R (deg + 1) := evalPoints.map (fun t =>
     (Finset.univ : Finset (Fin (n - i - 1) → Fin m)).sum (fun z =>
@@ -107,19 +103,16 @@ def computeRoundPoly {n : ℕ} {m : ℕ} {i : ℕ}
             let remaining := k.val - i - 1
             if h₂ : remaining < n - i - 1 then D (z ⟨remaining, h₂⟩)
             else 0)
-        poly))
+        poly.val))
   ⟨CPolynomial.lagrangeInterpolate evalPoints values,
     CPolynomial.lagrangeInterpolate_natDegree evalPoints values⟩
 
 /-! ## Symbolic prover state -/
 
-/-- A dependent pair packaging a multivariate polynomial with its current number of variables,
-together with a witness that every remaining variable still has individual degree at most `deg`.
-Used as the prover's witness type: each round, `k` decreases by 1 via `partialEvalFirst`,
-and the degree witness is preserved by `partialEvalFirst_individualDegreeLE`. -/
+/-- A dependent pair packaging the current residual multivariate polynomial with its number of
+variables. The residual polynomial stays bundled with its individual-degree witness. -/
 structure SymbolicPoly (deg : ℕ) where
   k : ℕ
-  poly : CMvPolynomial k R
-  hDegree : CMvPolynomial.IndividualDegreeLE (R := R) deg poly
+  poly : CMvDegreeLE R k deg
 
 end Sumcheck

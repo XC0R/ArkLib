@@ -31,7 +31,7 @@ variable {n m : ℕ} {deg : ℕ}
 Computes the round polynomial via evaluate-and-interpolate, sends it, and
 when given a challenge `r`, produces the output statement with new target `p(r)`. -/
 def prover {i : ℕ}
-    (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
+    (poly : OStmt R deg n) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     Prover Id (StmtOut R) (pSpec R deg) :=
   let roundPoly := computeRoundPoly poly prevChallenges D evalPoints
@@ -66,17 +66,17 @@ section OracleVerifier
 variable {ι : Type} {oSpec : OracleSpec ι}
 
 private noncomputable def queryRoundPoly (x : R) :
-    OracleComp (oSpec + [fun (_ : Unit) => OStmt R n]ₒ +
+    OracleComp (oSpec + [fun (_ : Unit) => OStmt R deg n]ₒ +
       oracleSpecOfMessages (pSpec R deg)) R := by
   change OracleComp _ (oracleSpecOfMessages (pSpec R deg) (Sum.inl x))
   exact OracleComp.lift (OracleQuery.query (spec :=
-    oSpec + [fun (_ : Unit) => OStmt R n]ₒ + oracleSpecOfMessages (pSpec R deg))
+    oSpec + [fun (_ : Unit) => OStmt R deg n]ₒ + oracleSpecOfMessages (pSpec R deg))
     (Sum.inr (Sum.inl x)))
 
 noncomputable def oracleVerifier (D : Fin m → R) :
     OracleVerifier oSpec
-      (StmtIn R) (fun (_ : Unit) => OStmt R n)
-      (StmtOut R) (fun (_ : Unit) => OStmt R n)
+      (StmtIn R) (fun (_ : Unit) => OStmt R deg n)
+      (StmtOut R) (fun (_ : Unit) => OStmt R deg n)
       (pSpec R deg) where
   verify := fun target challenges => do
     let evals ← (List.finRange m).mapM (fun i =>
@@ -86,7 +86,7 @@ noncomputable def oracleVerifier (D : Fin m → R) :
     let newTarget ← OptionT.lift (queryRoundPoly chal)
     pure { target := newTarget, challenge := chal }
   simulate := fun q =>
-    liftM (query (spec := [fun (_ : Unit) => OStmt R n]ₒ +
+    liftM (query (spec := [fun (_ : Unit) => OStmt R deg n]ₒ +
       oracleSpecOfMessages (pSpec R deg)) (Sum.inl q))
   reify := fun oStmtData _ => some oStmtData
 
@@ -99,7 +99,7 @@ end OracleVerifier
 The witness carries the multivariate polynomial, previously fixed challenges,
 domain, and evaluation points needed by the prover. -/
 def singleRoundReduction {i : ℕ}
-    (poly : CMvPolynomial n R) (prevChallenges : Vector R i)
+    (poly : OStmt R deg n) (prevChallenges : Vector R i)
     (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
     Reduction Id (StmtIn R) Unit (StmtOut R) Unit (pSpec R deg) where
   prover := fun (_, _) => pure <|

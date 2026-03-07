@@ -27,6 +27,19 @@ No dependency on the IOP framework (`ProtocolSpec`, `Prover`, etc.).
 open CompPoly CPoly
 open scoped BigOperators
 
+/-! ## Multivariate individual-degree bounds -/
+
+namespace CPoly.CMvPolynomial
+
+variable {n : ℕ} {R : Type} [CommSemiring R] [BEq R] [LawfulBEq R]
+
+/-- `p` has individual degree at most `deg` when every monomial exponent is bounded by `deg`
+in every coordinate. This is the natural multivariate analogue of `natDegree ≤ deg`. -/
+def IndividualDegreeLE (deg : ℕ) (p : CMvPolynomial n R) : Prop :=
+  ∀ i : Fin n, ∀ mono ∈ Lawful.monomials p, mono.get i ≤ deg
+
+end CPoly.CMvPolynomial
+
 /-! ## OracleInterface instances -/
 
 section OracleInterface
@@ -53,12 +66,17 @@ instance instOracleInterfaceCPolynomial :
 
 end OracleInterface
 
-/-! ## Degree-bounded computable univariate polynomial -/
+/-! ## Degree-bounded computable polynomial wrappers -/
 
 /-- A computable univariate polynomial with `natDegree ≤ d`. Used as the message type
 for sumcheck rounds (the prover sends a degree-bounded polynomial). -/
 def CDegreeLE (R : Type) [BEq R] [Semiring R] [LawfulBEq R] (d : ℕ) :=
   { p : CPolynomial R // p.natDegree ≤ d }
+
+/-- A computable `n`-variate polynomial with individual degree at most `d` in every
+coordinate. This is the bundled statement type for sumcheck instances. -/
+def CMvDegreeLE (R : Type) [BEq R] [CommSemiring R] [LawfulBEq R] (n d : ℕ) :=
+  { p : CMvPolynomial n R // CMvPolynomial.IndividualDegreeLE (R := R) d p }
 
 namespace CDegreeLE
 
@@ -74,6 +92,21 @@ instance : OracleInterface (CDegreeLE R d) where
 def eval (x : R) (p : CDegreeLE R d) : R := CPolynomial.eval x p.val
 
 end CDegreeLE
+
+namespace CMvDegreeLE
+
+variable {R : Type} [Field R] [BEq R] [LawfulBEq R] [Nontrivial R] {n d : ℕ}
+
+instance : OracleInterface (CMvDegreeLE R n d) where
+  Query := Fin n → R
+  toOC := {
+    spec := (Fin n → R) →ₒ R
+    impl := fun point => do return CMvPolynomial.eval point (← read).val
+  }
+
+def eval (x : Fin n → R) (p : CMvDegreeLE R n d) : R := CMvPolynomial.eval x p.val
+
+end CMvDegreeLE
 
 /-! ## CPolynomial toPoly preservation lemmas
 

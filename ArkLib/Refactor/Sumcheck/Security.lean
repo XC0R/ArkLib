@@ -5,7 +5,6 @@ Authors: Quang Dao
 -/
 import ArkLib.Refactor.Sumcheck.Defs
 import ArkLib.Refactor.Sumcheck.General
-import ArkLib.Refactor.Sumcheck.Completeness
 import ArkLib.Refactor.Security.Composition
 import ArkLib.Refactor.Security.StateFunction
 
@@ -61,7 +60,7 @@ it using `Reduction.run` which pairs the prover and verifier. -/
 If `target = ∑_{x ∈ D^n} poly(x)`, then for any challenge sequence, running the
 honest prover against `generalVerifier` yields `some` (acceptance). -/
 theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
-    (poly : CMvPolynomial n R) (D : Fin m → R) (evalPoints : Vector R (deg + 1))
+    (poly : OStmt R deg n) (D : Fin m → R) (evalPoints : Vector R (deg + 1))
     (backend : ∀ i : ℕ, Vector R i → CDegreeLE R deg)
     (h_sum : ∀ i (fixed : Vector R i),
       (Finset.univ : Finset (Fin m)).sum (fun j =>
@@ -95,12 +94,12 @@ theorem generalReduction_perfectCompleteness_of_backend [DecidableEq R]
     -- (This is the only place we use that the initial `fixed` vector is empty.)
     change
       (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-          CMvPolynomial.eval (D ∘ z) poly) =
+          CMvPolynomial.eval (D ∘ z) poly.val) =
         (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
           CMvPolynomial.eval
             (evalPoint (R := R) (n := n) (m := m)
               (fixed := (⟨#[], rfl⟩ : Vector R 0)) D z)
-            poly)
+            poly.val)
     -- goal: two sums over `Fin n → Fin m` match pointwise
     refine Finset.sum_congr rfl ?_
     intro z _
@@ -222,41 +221,6 @@ an individual-degree bound on `poly`; here we assume it abstractly to avoid enta
 the proof with polynomial-degree development.
 -/
 
-/-- Existence of a degree-`deg` polynomial realizing the true round function. -/
-def TrueRoundPolyExists (poly : CMvPolynomial n R) (D : Fin m → R) : Prop :=
-  ∀ (i : ℕ) (_hi : i < n) (fixed : Vector R i),
-    ∃ q : CDegreeLE R deg,
-      (∀ t : R,
-        CPolynomial.eval t q.val =
-          trueRoundValue (R := R) (n := n) (m := m) (poly := poly) (i := i) fixed D t)
-      ∧
-      ((Finset.univ : Finset (Fin m)).sum (fun a =>
-          CPolynomial.eval (D a) q.val) =
-        trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := i) fixed D)
-
-omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
-/-- The true target after pushing one challenge equals the true round value. -/
-private lemma trueTarget_push_eq_trueRoundValue
-    (poly : CMvPolynomial n R) (D : Fin m → R) (i : ℕ) (fixed : Vector R i) (r : R) :
-    trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := i + 1) (fixed.push r) D =
-      trueRoundValue (R := R) (n := n) (m := m) (poly := poly) (i := i) fixed D r := by
-  unfold trueTarget trueRoundValue
-  refine Finset.sum_congr rfl ?_
-  intro z _
-  congr 1
-  funext k
-  by_cases hk : k.1 < i
-  · have hk' : k.1 < i + 1 := Nat.lt_trans hk (Nat.lt_succ_self i)
-    simp [evalPoint, hk, hk']
-  · have hki : i ≤ k.1 := Nat.le_of_not_lt hk
-    by_cases hEq : k.1 = i
-    · have hk' : k.1 < i + 1 := by omega
-      simp [evalPoint, hEq]
-    · have hlt : ¬ k.1 < i + 1 := by omega
-      have hsub : k.1 - (i + 1) = k.1 - i - 1 := by omega
-      have hsubN : n - (i + 1) = n - i - 1 := by omega
-      simp [evalPoint, hk, hEq, hlt, hsub, hsubN]
-
 /-! ### Univariate Schwartz–Zippel (via root counting) -/
 
 set_option linter.unusedDecidableInType false in
@@ -353,113 +317,7 @@ private lemma prob_eval_eq_le_of_ne
 
 /-! ### Languages and error parameters -/
 
-/-- Output language for the reduced claim after `n` rounds.
-
-Since sumcheck is modeled as a **reduction**, the verifier outputs the random point
-`r` (the sampled challenges) together with the final value `v`. The remaining
-obligation is the evaluation relation `poly(r) = v`. -/
-def outputLang (poly : CMvPolynomial n R) : Set (RoundState (R := R)) :=
-  { st | ∃ h : st.i = n,
-      CMvPolynomial.eval (fun i : Fin n => (by
-        cases h
-        simpa using st.challenges.get i)) poly = st.target }
-
-/-- State-consistency language for a single sumcheck round step. -/
-def roundStateLang (poly : CMvPolynomial n R) (D : Fin m → R) :
-    Set (RoundState (R := R)) :=
-  { st | st.i ≤ n ∧
-      st.target = trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := st.i)
-        st.challenges D }
-
-omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
-/-- At round index `0`, `trueTarget` is exactly the full-domain sum. -/
-private lemma trueTarget_at_zero
-    (poly : CMvPolynomial n R) (D : Fin m → R) :
-    trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
-      (initState (R := R) (target := (0 : R)).challenges) D
-      =
-      (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-        CMvPolynomial.eval (D ∘ z) poly) := by
-  unfold trueTarget
-  refine Finset.sum_congr rfl ?_
-  intro z _
-  congr 1
-  funext k
-  simp [evalPoint]
-
-omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
-/-- Input-language membership is equivalent to round-state consistency at initialization. -/
-private lemma inputLang_iff_initState_mem_roundStateLang
-    (poly : CMvPolynomial n R) (D : Fin m → R) (target : R) :
-    target ∈ Sumcheck.inputLang poly D ↔
-      initState (R := R) target ∈ roundStateLang (R := R) (n := n) (m := m) poly D := by
-  constructor
-  · intro hIn
-    refine ⟨Nat.zero_le _, ?_⟩
-    rcases hIn with rfl
-    change
-      (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-        CMvPolynomial.eval (D ∘ z) poly)
-        =
-      trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
-        (initState (R := R) (target := (0 : R)).challenges) D
-    symm
-    exact trueTarget_at_zero (R := R) (n := n) (m := m) poly D
-  · intro hState
-    rcases hState with ⟨_, hEq⟩
-    change target = (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-      CMvPolynomial.eval (D ∘ z) poly)
-    calc
-      target
-          = trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := 0)
-              (initState (R := R) (target := target).challenges) D := hEq
-      _ = (Finset.univ : Finset (Fin n → Fin m)).sum (fun z =>
-            CMvPolynomial.eval (D ∘ z) poly) := by
-            exact trueTarget_at_zero (R := R) (n := n) (m := m) poly D
-
-omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
-/-- At the terminal round (`i = n`), `trueTarget` is just direct evaluation at the
-fixed challenge point. -/
-private lemma trueTarget_at_n
-    (poly : CMvPolynomial n R) (D : Fin m → R) (fixed : Vector R n) :
-    trueTarget (R := R) (n := n) (m := m) (poly := poly) (i := n) fixed D =
-      CMvPolynomial.eval (fun j : Fin n => fixed.get j) poly := by
-  classical
-  unfold trueTarget
-  have hcard : Fintype.card (Fin (n - n) → Fin m) = 1 := by
-    simp
-  rcases (Fintype.card_eq_one_iff.mp hcard) with ⟨z0, hz0⟩
-  have huniv : (Finset.univ : Finset (Fin (n - n) → Fin m)) = {z0} := by
-    ext z
-    simp [hz0 z]
-  rw [huniv]
-  have heval :
-      evalPoint (R := R) (n := n) (m := m) fixed D z0 =
-        fun j : Fin n => fixed.get j := by
-    funext j
-    simp [evalPoint, Vector.get_eq_getElem]
-  simp [heval]
-
-omit [BEq R] [LawfulBEq R] [Fintype R] [SampleableType R] [DecidableEq R] in
-/-- Any output-language state satisfies the round-state consistency language. -/
-private lemma outputLang_subset_roundStateLang
-    (poly : CMvPolynomial n R) (D : Fin m → R) :
-    outputLang (R := R) (n := n) poly ⊆ roundStateLang (R := R) (n := n) (m := m) poly D := by
-  intro st hOut
-  rcases hOut with ⟨rfl, hEval⟩
-  refine ⟨le_rfl, ?_⟩
-  have hEval' :
-      CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly = st.target := by
-    simpa using hEval
-  have hTrue :
-      trueTarget (R := R) (n := st.i) (m := m) (poly := poly) (i := st.i) st.challenges D =
-        CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly :=
-    trueTarget_at_n (R := R) (n := st.i) (m := m) poly D st.challenges
-  calc
-    st.target = CMvPolynomial.eval (fun j : Fin st.i => st.challenges.get j) poly := by
-      simpa using hEval'.symm
-    _ = trueTarget (R := R) (n := st.i) (m := m) (poly := poly) (i := st.i) st.challenges D := by
-      simpa using hTrue.symm
+/-! ### Languages and error parameters -/
 
 /-- The per-round soundness error: `deg / |F|`. -/
 def roundSoundnessError : ℝ≥0 :=
@@ -534,8 +392,7 @@ theorem rbrSoundnessError_eq_errorReplicate :
 
 /-- Round-by-round soundness for a single lifted sumcheck round. -/
 theorem roundVerifierState_rbrSoundness
-    (poly : CMvPolynomial n R) (D : Fin m → R)
-    (hTrue : TrueRoundPolyExists (R := R) (n := n) (m := m) (deg := deg) poly D) :
+    (poly : OStmt R deg n) (D : Fin m → R) :
     rbrSoundness
       (impl := emptyImpl)
       (langIn := roundStateLang (R := R) (n := n) (m := m) poly D)
@@ -544,6 +401,8 @@ theorem roundVerifierState_rbrSoundness
       (Inv := fun _ : Unit => True)
       (rbrError := singleRoundRbrError (R := R) (deg := deg)) := by
   classical
+  have hTrue : TrueRoundPolyExists (R := R) (n := n) (m := m) poly D :=
+    trueRoundPolyExists_of_ostmt (R := R) (n := n) (m := m) poly D
   let toFunSR :
       (k : Nat) → RoundState (R := R) →
       PartialTranscript (pSpec (R := R) deg) k → Prop :=
@@ -962,8 +821,7 @@ private theorem generalVerifierStateAsOracle_eq_compNth (D : Fin m → R) (k : N
 
 /-- RBR soundness of the composed n-round sumcheck verifier over `RoundState`. -/
 private theorem generalVerifierStateAsOracle_rbrSoundness
-    (poly : CMvPolynomial n R) (D : Fin m → R)
-    (hTrue : TrueRoundPolyExists (R := R) (n := n) (m := m) (deg := deg) poly D) :
+    (poly : OStmt R deg n) (D : Fin m → R) :
     ∀ (k : Nat),
     rbrSoundness
       (impl := emptyImpl)
@@ -978,13 +836,13 @@ private theorem generalVerifierStateAsOracle_rbrSoundness
   exact rbrSoundness_compNth (impl := emptyImpl)
     (roundVerifierStateAsOracle_oracleFree D)
     (QueryImpl.PreservesInv.trivial emptyImpl)
-    (roundVerifierState_rbrSoundness poly D hTrue)
+    (roundVerifierState_rbrSoundness poly D)
     k
 
 /-- Lift an RBR statement over `RoundState` input/output to the scalar-input
 sumcheck verifier via `initState` and the language bridges. -/
 private theorem generalVerifier_rbrSoundness_of_state_rbr
-    (poly : CMvPolynomial n R) (D : Fin m → R)
+    (poly : OStmt R deg n) (D : Fin m → R)
     (hStateRbr :
       rbrSoundness
         (impl := emptyImpl)
@@ -1074,8 +932,7 @@ private theorem generalVerifier_rbrSoundness_of_state_rbr
 
 /-- Round-by-round soundness of the `n`-round sumcheck verifier in the framework form. -/
 theorem generalVerifier_rbrSoundness
-    (poly : CMvPolynomial n R) (D : Fin m → R)
-    (hTrue : TrueRoundPolyExists (R := R) (n := n) (m := m) (deg := deg) poly D) :
+    (poly : OStmt R deg n) (D : Fin m → R) :
     rbrSoundness
       (impl := emptyImpl)
       (langIn := Sumcheck.inputLang poly D)
@@ -1086,14 +943,13 @@ theorem generalVerifier_rbrSoundness
   -- It suffices to prove the same RBR statement over `RoundState` input/output.
   refine generalVerifier_rbrSoundness_of_state_rbr
     (R := R) (n := n) (m := m) (deg := deg) poly D ?_
-  exact generalVerifierStateAsOracle_rbrSoundness (deg := deg) (m := m) poly D hTrue n
+  exact generalVerifierStateAsOracle_rbrSoundness (deg := deg) (m := m) poly D n
 
 /-! This is expected to be obtained from `generalVerifier_rbrSoundness` via the
 framework theorem `rbrSoundness_implies_soundness`. -/
 /-- Soundness of the general sumcheck verifier in framework form. -/
 theorem generalVerifier_soundness
-    (poly : CMvPolynomial n R) (D : Fin m → R)
-    (hTrue : TrueRoundPolyExists (R := R) (n := n) (m := m) (deg := deg) poly D) :
+    (poly : OStmt R deg n) (D : Fin m → R) :
     Verifier.soundness
       (init := (pure () : ProbComp Unit))
       (impl := emptyImpl)
@@ -1108,9 +964,7 @@ theorem generalVerifier_soundness
     trivial
   · intro t σ0 _ z hz
     trivial
-  · exact generalVerifier_rbrSoundness (R := R) (n := n) (m := m) (deg := deg) poly D hTrue
-
-#print axioms generalVerifier_rbrSoundness
+  · exact generalVerifier_rbrSoundness (R := R) (n := n) (m := m) (deg := deg) poly D
 
 end Soundness
 
