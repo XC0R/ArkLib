@@ -8,6 +8,7 @@ import VCVio
 import ArkLib.ToVCVio.SimOracle
 import CompPoly.Data.MvPolynomial.Notation
 import Mathlib.Algebra.Polynomial.Roots
+import ArkLib.Data.MvPolynomial.Interpolation
 -- import ArkLib.Data.MlPoly.Basic
 
 /-!
@@ -368,6 +369,59 @@ theorem distanceLE_polynomial_degreeLE :
 theorem distanceLE_mvPolynomial_degreeLE {σ : Type} [Fintype σ] [DecidableEq σ] :
     distanceLE (instMvPolynomialDegreeLE R d σ)
       (Fintype.card σ * d * Fintype.card R ^ (Fintype.card σ - 1)) := by
-  sorry
+  intro a b hNe
+  set p := a.val - b.val with hp_def
+  have hp : p ≠ 0 := sub_ne_zero.mpr (Subtype.val_injective.ne hNe)
+  have hDeg : ∀ i : σ, p.degreeOf i ≤ d := by
+    intro i
+    refine (MvPolynomial.degreeOf_sub_le i _ _).trans (max_le ?_ ?_)
+    · exact (MvPolynomial.mem_restrictDegree_iff_degreeOf_le _ d).mp a.property i
+    · exact (MvPolynomial.mem_restrictDegree_iff_degreeOf_le _ d).mp b.property i
+  change (Finset.univ.filter fun q =>
+      MvPolynomial.eval q a.val = MvPolynomial.eval q b.val).card ≤ _
+  have hSubset : (Finset.univ.filter fun q =>
+      MvPolynomial.eval q a.val = MvPolynomial.eval q b.val) ⊆
+    (Finset.univ : Finset (σ → R)).filter (fun q => MvPolynomial.eval q p = 0) := by
+    intro q
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    intro h
+    have : MvPolynomial.eval q (a.val - b.val) = 0 := by
+      rw [map_sub, sub_eq_zero]; exact h
+    rwa [← hp_def] at this
+  have sz := MvPolynomial.schwartz_zippel_of_fintype hp (fun _ : σ => Finset.univ)
+  simp only [Fintype.piFinset_univ, Finset.card_univ, Finset.prod_const] at sz
+  suffices h : ((Finset.univ.filter
+      (fun q => MvPolynomial.eval q p = 0)).card : ℚ≥0) ≤
+      ((Fintype.card σ * d * Fintype.card R ^ (Fintype.card σ - 1) : ℕ) : ℚ≥0) from
+    le_trans (Finset.card_le_card hSubset) (Nat.cast_le.mp h)
+  have hR_pos : (0 : ℚ≥0) < (Fintype.card R : ℚ≥0) ^ Fintype.card σ := by positivity
+  rw [div_le_iff₀ hR_pos] at sz
+  calc ((Finset.univ.filter
+          (fun q => MvPolynomial.eval q p = 0)).card : ℚ≥0)
+      ≤ (∑ i : σ, ((p.degreeOf i : ℚ≥0) / (Fintype.card R : ℚ≥0))) *
+          ((Fintype.card R : ℚ≥0) ^ Fintype.card σ) := sz
+    _ ≤ ((Fintype.card σ : ℚ≥0) * (d : ℚ≥0) / (Fintype.card R : ℚ≥0)) *
+          ((Fintype.card R : ℚ≥0) ^ Fintype.card σ) := by
+        gcongr
+        calc ∑ i : σ, ((p.degreeOf i : ℚ≥0) / (Fintype.card R : ℚ≥0))
+            ≤ ∑ _i : σ, ((d : ℚ≥0) / (Fintype.card R : ℚ≥0)) := by
+              gcongr with i; exact_mod_cast hDeg i
+          _ = (Fintype.card σ : ℚ≥0) * ((d : ℚ≥0) / (Fintype.card R : ℚ≥0)) := by
+              rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+          _ = (Fintype.card σ : ℚ≥0) * (d : ℚ≥0) / (Fintype.card R : ℚ≥0) :=
+              mul_div_assoc' _ _ _
+    _ ≤ ((Fintype.card σ * d * Fintype.card R ^ (Fintype.card σ - 1) : ℕ) : ℚ≥0) := by
+        rcases Nat.eq_zero_or_pos (Fintype.card σ) with hn | hn
+        · simp [hn]
+        · have hR_ne : (Fintype.card R : ℚ≥0) ≠ 0 :=
+            Nat.cast_ne_zero.mpr Fintype.card_ne_zero
+          have hpow : (Fintype.card R : ℚ≥0) ^ Fintype.card σ =
+              (Fintype.card R : ℚ≥0) *
+              (Fintype.card R : ℚ≥0) ^ (Fintype.card σ - 1) := by
+            conv_lhs =>
+              rw [show Fintype.card σ = (Fintype.card σ - 1) + 1 from by omega]
+            rw [pow_succ']
+          push_cast
+          rw [hpow, ← mul_assoc, div_mul_cancel₀ (h := hR_ne)]
 
 end PolynomialDistance
