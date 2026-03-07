@@ -7,6 +7,11 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib.Data.Fintype.Sets
+import ArkLib.Data.Probability.Notation
+import ArkLib.Data.Probability.Instances
+import Mathlib.Algebra.Group.Pointwise.Finset.Scalar
+import Mathlib.Logic.Equiv.Basic
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -58,19 +63,407 @@ noncomputable def errorBound (δ : ℝ≥0) (deg : ℕ) (domain : ι ↪ F) : �
             ⟨(deg ^ 2 : ℝ≥0) / ((2 * m) ^ 7 * (Fintype.card F : ℝ)), by positivity⟩
        else 0
 
+noncomputable instance instFintype_affineSpan_image {k : ℕ} [NeZero k]
+  (U : Fin k → (ι → F)) :
+  Fintype (SetLike.coe (affineSpan F (Finset.univ.image U : Set (ι → F)))) := by
+  classical
+  exact Fintype.ofFinite _
 
-/-- Theorem 1.2 (Proximity Gaps for Reed-Solomon codes) in [BCIKS20].
+noncomputable instance instFintype_spanPoints_image {k : ℕ} [NeZero k]
+  (U : Fin k → (ι → F)) :
+  Fintype (spanPoints F (Finset.univ.image U : Set (ι → F))) := by
+  classical
+  exact Fintype.ofFinite _
 
-Let `C` be a collection of affine spaces. Then `C` displays a `(δ, ε)`-proximity gap with respect to
-a Reed-Solomon code, where `(δ,ε)` are the proximity and error parameters defined up to the
-Johnson bound. -/
-theorem proximity_gap_RSCodes {k t : ℕ} [NeZero k] [NeZero t] {deg : ℕ} {domain : ι ↪ F}
-  (C : Fin t → (Fin k → (ι → F))) {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain)) :
+
+theorem affSpanFinset_eq_toFinset_affineSpan_image {k : ℕ} [NeZero k] (U : Fin k → (ι → F)) :
+  (SetLike.coe (affineSpan F (Finset.univ.image U : Set (ι → F))) |>.toFinset) =
+    (Affine.AffSpanFinset (F := F) (ι := ι) U) := by
+  classical
+  ext x
+  simp [Affine.AffSpanFinset, Affine.AffSpanSet]
+  rfl
+
+theorem affSpanFinset_eq_toFinset_spanPoints_image {k : ℕ} [NeZero k] (U : Fin k → (ι → F)) :
+  (spanPoints F (Finset.univ.image U : Set (ι → F))).toFinset =
+    (Affine.AffSpanFinset (F := F) (ι := ι) U) := by
+  classical
+  simpa using
+    (affSpanFinset_eq_toFinset_affineSpan_image (F := F) (ι := ι) (U := U))
+
+theorem affineSpan_range_eq_mk'_span_vsub {k : ℕ} [NeZero k] (U : Fin k → (ι → F)) :
+  let u0 : (ι → F) := U 0
+  affineSpan F (Set.range U) =
+    AffineSubspace.mk' u0 (Submodule.span F (Set.range fun i : Fin k => U i - u0)) := by
+  classical
+  -- unfold the `let u0 := U 0`
+  simp
+  have hu0 : U 0 ∈ affineSpan F (Set.range U) :=
+    mem_affineSpan (k := F) (hp := Set.mem_range_self (0 : Fin k))
+  have hu0' :
+      U 0 ∈
+        AffineSubspace.mk' (U 0)
+          (Submodule.span F (Set.range fun i : Fin k => U i - U 0)) := by
+    simp
+  apply (AffineSubspace.eq_iff_direction_eq_of_mem hu0 hu0').2
+  -- compare directions
+  simpa [direction_affineSpan, vsub_eq_sub] using
+    (vectorSpan_range_eq_span_range_vsub_right (k := F) (p := U) (i0 := (0 : Fin k)))
+
+theorem finset_univ_image_fin_cases_eq {α : Type} [DecidableEq α] {k : ℕ} [NeZero k] (U : Fin k → α) :
+  (Finset.univ.image (fun i : Fin (k + 1) => Fin.cases (U 0) U i)) = Finset.univ.image U := by
+  classical
+  ext y
+  constructor
+  · intro hy
+    rcases Finset.mem_image.1 hy with ⟨i, hi, rfl⟩
+    -- hi : i ∈ (Finset.univ : Finset (Fin (k+1)))
+    -- goal: Fin.cases (U 0) U i ∈ Finset.univ.image U
+    -- split i by cases
+    refine Fin.cases ?h0 ?hs i
+    · -- i = 0
+      -- show U 0 in image U
+      refine Finset.mem_image.2 ?_
+      refine ⟨0, by simp, rfl⟩
+    · intro j
+      -- i = succ j
+      refine Finset.mem_image.2 ?_
+      refine ⟨j, by simp, rfl⟩
+  · intro hy
+    rcases Finset.mem_image.1 hy with ⟨j, hj, rfl⟩
+    -- show U j in image of cases
+    refine Finset.mem_image.2 ?_
+    refine ⟨Fin.succ j, by simp, ?_⟩
+    simp
+
+
+open scoped ProbabilityTheory in
+theorem prob_uniform_eq_of_equiv {α β : Type} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
+  (e : α ≃ β) (P : β → Prop) [DecidablePred P] :
+  Pr_{let a ← $ᵖ α}[P (e a)] = Pr_{let b ← $ᵖ β}[P b] := by
+  classical
+  -- Expand the probability expressions to explicit finite sums.
+  simp [Bind.bind, Pure.pure, PMF.bind_apply, PMF.pure_apply, PMF.uniformOfFintype_apply,
+    tsum_fintype]
+
+  -- Rewrite the left sum over `α` as a sum over `β` using the equivalence `e`.
+  have hsum : (∑ a : α, if P (e a) then (↑(Fintype.card α) : ENNReal)⁻¹ else 0) =
+      ∑ b : β, if P b then (↑(Fintype.card α) : ENNReal)⁻¹ else 0 := by
+    refine Fintype.sum_equiv e
+      (fun a : α => if P (e a) then (↑(Fintype.card α) : ENNReal)⁻¹ else 0)
+      (fun b : β => if P b then (↑(Fintype.card α) : ENNReal)⁻¹ else 0) ?_
+    intro a
+    rfl
+
+  -- The uniform weights agree since `e` is a bijection.
+  have hcard : Fintype.card α = Fintype.card β := Fintype.card_congr e
+  have hc : ((↑(Fintype.card α) : ENNReal)⁻¹) = ((↑(Fintype.card β) : ENNReal)⁻¹) := by
+    simpa [hcard]
+
+  -- Finish.
+  calc
+    (∑ a : α, if P (e a) then (↑(Fintype.card α) : ENNReal)⁻¹ else 0)
+        = ∑ b : β, if P b then (↑(Fintype.card α) : ENNReal)⁻¹ else 0 := hsum
+    _ = ∑ b : β, if P b then (↑(Fintype.card β) : ENNReal)⁻¹ else 0 := by
+      simp [hc]
+
+
+open scoped ProbabilityTheory in
+theorem prob_uniform_eq_one_of_forall {α : Type} [Fintype α] [Nonempty α]
+  (P : α → Prop) [DecidablePred P]
+  (hP : ∀ a, P a) :
+  Pr_{let a ← $ᵖ α}[P a] = (1 : ENNReal) := by
+  classical
+  rw [prob_uniform_eq_card_filter_div_card (F := α) (P := P)]
+  have hfilter : (Finset.filter (α := α) P Finset.univ) = Finset.univ := by
+    ext a
+    simp [hP a]
+  -- after rewriting the filter to `univ`, the ratio is `|α| / |α|`
+  simp [hfilter, ENNReal.div_self, Fintype.card_ne_zero]
+
+theorem relDistFromCode_smul_eq {C : Submodule F (ι → F)} {z : F} (hz : z ≠ 0) (x : ι → F) :
+  δᵣ(z • x, (C : Set (ι → F))) = δᵣ(x, (C : Set (ι → F))) := by
+  classical
+  -- `hammingDist` (hence `relHammingDist`) is invariant under scaling by a nonzero scalar.
+  have hzregF : IsSMulRegular F z := by
+    intro a b hab
+    -- On `F`, scalar multiplication is just multiplication.
+    exact mul_left_cancel₀ hz (by simpa [smul_eq_mul] using hab)
+
+  have hrel : ∀ a b : ι → F, Code.relHammingDist (z • a) (z • b) = Code.relHammingDist a b := by
+    intro a b
+    unfold Code.relHammingDist
+    have hHam : hammingDist (z • a) (z • b) = hammingDist a b := by
+      simpa using
+        (hammingDist_smul (α := F) (β := fun _ : ι => F) (k := z) (x := a) (y := b)
+          (hk := fun _ => hzregF))
+    simpa [hHam]
+
+  -- Unfold the definition of distance-to-code and show the sets of admissible upper bounds coincide.
+  unfold Code.relDistFromCode
+  congr 1
+  ext d
+  constructor
+  · rintro ⟨v, hvC, hvdist⟩
+    refine ⟨z⁻¹ • v, C.smul_mem z⁻¹ hvC, ?_⟩
+    -- Rewrite the distance using scaling-invariance.
+    have hcast : (Code.relHammingDist (z • x) (z • (z⁻¹ • v)) : ENNReal) =
+        Code.relHammingDist x (z⁻¹ • v) :=
+      congrArg (fun q : ℚ≥0 => (q : ENNReal)) (hrel x (z⁻¹ • v))
+    have hdist_eq : (Code.relHammingDist x (z⁻¹ • v) : ENNReal) =
+        Code.relHammingDist (z • x) v := by
+      -- use `z • (z⁻¹ • v) = v`
+      simpa [smul_inv_smul₀ hz] using hcast.symm
+    simpa [hdist_eq] using hvdist
+  · rintro ⟨v, hvC, hvdist⟩
+    refine ⟨z • v, C.smul_mem z hvC, ?_⟩
+    have hdist_eq : (Code.relHammingDist (z • x) (z • v) : ENNReal) =
+        Code.relHammingDist x v :=
+      congrArg (fun q : ℚ≥0 => (q : ENNReal)) (hrel x v)
+    simpa [hdist_eq] using hvdist
+
+open scoped Pointwise in
+theorem zero_vadd_finset (s : Finset (ι → F)) : (0 : ι → F) +ᵥ s = s := by
+  classical
+  ext x
+  simp [Finset.mem_vadd_finset]
+
+section
+open NNReal Finset Function
+
+open scoped BigOperators
+open scoped ReedSolomonCode
+
+variable {l : ℕ} [NeZero l]
+         {ι : Type} [Fintype ι] [Nonempty ι]
+         {F : Type} [Field F] [Fintype F] [DecidableEq F]
+
+open scoped Pointwise in
+open scoped ProbabilityTheory in
+open Uniform in
+/--
+Lemma 6.3 in [BCIKS20].
+
+Let `V` be a Reed–Solomon code of rate `ρ`, and let `U` be an affine subspace obtained by
+translating a linear subspace `U'`.  For a proximity parameter `δ` below the Johnson/Guruswami–Sudan
+list-decoding bound (`0 < δ < 1 - √ρ`), suppose that a random point `u` sampled uniformly from `U`
+is `δ`-close to `V` with probability strictly larger than the proximity-gap error bound `ε`.  Then
+every point of the underlying linear subspace `U'` is also `δ`-close to `V`.
+-/
+theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] [DecidableEq F]
+  {u : Fin (l + 2) → ι → F} {k : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate (k + 1) domain))) :
+  letI U' : Finset (ι → F) :=
+    SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u))) |>.toFinset
+  letI U : Finset (ι → F) := u 0 +ᵥ U'
+  haveI : Nonempty U := by
+    apply Finset.Nonempty.to_subtype
+    apply Finset.Nonempty.vadd_finset
+    rw [Set.toFinset_nonempty]
+    exact Set.Nonempty.mono (subset_affineSpan F _)
+      (Finset.coe_nonempty.mpr (Finset.univ_nonempty.image _))
+  letI ε : ℝ≥0 := ProximityGap.errorBound δ (k + 1) domain
+  letI V := ReedSolomon.code domain (k + 1)
+  Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε → ∀ u' ∈ U', δᵣ(u', V) ≤ δ := by
+  sorry
+
+end
+
+open scoped ProbabilityTheory in
+open scoped Pointwise in
+theorem affSpanFinset_all_close_of_prob_gt {k : ℕ} [NeZero k] {deg : ℕ} [NeZero deg] {domain : ι ↪ F}
+  (U : Fin k → (ι → F)) {δ : ℝ≥0}
+  [Nonempty (Affine.AffSpanFinset (F := F) (ι := ι) U)]
+  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate deg domain)))
+  (hprob :
+    Pr_{let x ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) U)}[
+      δᵣ(x.val, (ReedSolomonCode.toFinset domain deg)) ≤ δ
+    ] > (errorBound δ deg domain)) :
+  ∀ x ∈ (Affine.AffSpanFinset (F := F) (ι := ι) U),
+    δᵣ(x, (ReedSolomonCode.toFinset domain deg)) ≤ δ := by
+  classical
+  -- Define an auxiliary family `u : Fin (k+2) → ι → F` whose tail has the same image as `U`.
+  let u : Fin (k + 2) → (ι → F) :=
+    fun i =>
+      Fin.cases (0 : ι → F)
+        (fun j : Fin (k + 1) => Fin.cases (U 0) U j) i
+
+  -- The finset `U'` from Lemma 6.3 in BCIKS20, specialized to our `u`.
+  let U' : Finset (ι → F) :=
+    (SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u) : Set (ι → F))) |>.toFinset)
+
+  -- The translated affine space `u 0 +ᵥ U'`; here `u 0 = 0` so this is just `U'`.
+  let Uspace : Finset (ι → F) := u 0 +ᵥ U'
+
+  -- First, show that `Finset.univ.image (Fin.tail u)` is the same as `Finset.univ.image U`.
+  have htail : (Fin.tail u) = (fun i : Fin (k + 1) => Fin.cases (U 0) U i) := by
+    funext i
+    rfl
+  have himage : (Finset.univ.image (Fin.tail u)) = Finset.univ.image U := by
+    simpa [htail] using (finset_univ_image_fin_cases_eq (U := U))
+
+  -- Rewrite `U'` as the affine span finset of `U`.
+  have hU' : U' = (Affine.AffSpanFinset (F := F) (ι := ι) U) := by
+    have :
+        (SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u) : Set (ι → F))) |>.toFinset) =
+          (SetLike.coe (affineSpan F (Finset.univ.image U : Set (ι → F))) |>.toFinset) := by
+      simpa [himage]
+    calc
+      U' = (SetLike.coe (affineSpan F (Finset.univ.image U : Set (ι → F))) |>.toFinset) := by
+        simpa [U', this]
+      _ = (Affine.AffSpanFinset (F := F) (ι := ι) U) := by
+        simpa using (affSpanFinset_eq_toFinset_affineSpan_image (U := U))
+
+  have hu0 : u 0 = (0 : ι → F) := by
+    rfl
+
+  have hUeq : Uspace = (Affine.AffSpanFinset (F := F) (ι := ι) U) := by
+    simp [Uspace, hu0, zero_vadd_finset, hU']
+
+  -- Provide `Nonempty` for `Uspace` by transporting it from `Affine.AffSpanFinset U`.
+  haveI : Nonempty (Uspace : Type _) := by
+    simpa [hUeq] using
+      (inferInstance : Nonempty (Affine.AffSpanFinset (F := F) (ι := ι) U))
+
+  -- Rewrite the original probability hypothesis to use the set `ReedSolomon.code`.
+  have hprob_set :
+      Pr_{let x ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) U)}[
+        δᵣ(x.val, (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ
+      ] > (errorBound δ deg domain) := by
+    simpa [ReedSolomonCode.toFinset, ReedSolomonCode.RScodeSet] using hprob
+
+  -- Transport `hprob_set` from `Affine.AffSpanFinset U` to `Uspace` using an equivalence.
+  have hprob' :
+      Pr_{let x ← $ᵖ (Uspace)}[
+        δᵣ(x.val, (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ
+      ] > (errorBound δ deg domain) := by
+    -- Equivalence induced by the equality of the underlying finsets.
+    let e : (Uspace : Type _) ≃ (Affine.AffSpanFinset (F := F) (ι := ι) U : Type _) :=
+      Equiv.subtypeEquivRight
+        (p := fun x : (ι → F) => x ∈ Uspace)
+        (q := fun x : (ι → F) => x ∈ (Affine.AffSpanFinset (F := F) (ι := ι) U))
+        (fun x => by simpa [hUeq])
+
+    let P : (Affine.AffSpanFinset (F := F) (ι := ι) U : Type _) → Prop := fun x =>
+      δᵣ(x.val, (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ
+
+    have hEq :
+        Pr_{let a ← $ᵖ (Uspace : Type _)}[P (e a)] =
+          Pr_{let b ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) U : Type _)}[P b] :=
+      prob_uniform_eq_of_equiv (α := (Uspace : Type _))
+        (β := (Affine.AffSpanFinset (F := F) (ι := ι) U : Type _)) e P
+
+    have hRHS :
+        Pr_{let b ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) U : Type _)}[P b]
+          > (errorBound δ deg domain) := by
+      simpa [P] using hprob_set
+
+    have hLHS :
+        Pr_{let a ← $ᵖ (Uspace : Type _)}[P (e a)] > (errorBound δ deg domain) :=
+      lt_of_lt_of_eq hRHS hEq.symm
+
+    -- `e` is the identity on underlying values, so `P (e a)` is the desired predicate on `a`.
+    simpa [P, e] using hLHS
+
+  -- Prepare the `hδ` hypothesis in the form expected by Lemma 6.3 (degree written as `k+1`).
+  have hdeg1 : (deg - 1) + 1 = deg := by
+    have h1 : 1 ≤ deg := Nat.succ_le_iff.mpr (NeZero.pos deg)
+    simpa using (Nat.sub_add_cancel h1)
+
+  have hδ' : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate ((deg - 1) + 1) domain)) := by
+    simpa [hdeg1] using hδ
+
+  -- Apply Lemma 6.3 from BCIKS20.
+  have hcloseU' : ∀ x ∈ U', δᵣ(x, (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ := by
+    have hmain :=
+      (average_proximity_implies_proximity_of_linear_subspace (F := F) (ι := ι)
+        (l := k) (u := u) (k := deg - 1) (domain := domain) (δ := δ) hδ')
+
+    have hprob'' :
+        Pr_{let x ← $ᵖ (Uspace)}[
+          δᵣ(x.val, (ReedSolomon.code domain ((deg - 1) + 1) : Set (ι → F))) ≤ δ
+        ] > (errorBound δ ((deg - 1) + 1) domain) := by
+      simpa [hdeg1] using hprob'
+
+    have hres := hmain hprob''
+    simpa [U', hdeg1] using hres
+
+  -- Finish: rewrite `U'` back to `Affine.AffSpanFinset U`.
+  intro x hx
+  have hx' : x ∈ U' := by
+    simpa [hU'] using hx
+  have hxclose := hcloseU' x hx'
+  simpa [ReedSolomonCode.toFinset, ReedSolomonCode.RScodeSet] using hxclose
+
+open scoped ProbabilityTheory in
+open scoped Pointwise in
+theorem proximity_gap_RSCodes {k t : ℕ} [NeZero k] [NeZero t] {deg : ℕ} [NeZero deg] {domain : ι ↪ F}
+  (C : Fin t → (Fin k → (ι → F))) {δ : ℝ≥0}
+  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate deg domain)))
+  (hε : (errorBound δ deg domain : ENNReal) < 1) :
   δ_ε_proximityGap
     (ReedSolomonCode.toFinset domain deg)
     (Affine.AffSpanFinsetCollection C)
     δ
-    (errorBound δ deg domain) := by sorry
+    (errorBound δ deg domain) := by
+  classical
+  unfold δ_ε_proximityGap
+  intro S hS
+  intro hS_nonempty
+  rcases hS with ⟨i, rfl⟩
+  -- abbreviate
+  set P : Finset (ι → F) := ReedSolomonCode.toFinset domain deg
+  set ε : ℝ≥0 := errorBound δ deg domain
+  set pr : ENNReal :=
+    Pr_{let x ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) (C i))}[
+      δᵣ(x.val, P) ≤ δ
+    ]
+  by_cases hpr : pr ≤ ε
+  · -- small probability case
+    rw [xor_def]
+    refine Or.inr ?_
+    refine ⟨hpr, ?_⟩
+    intro hpr1
+    have h1 : (1 : ENNReal) ≤ (ε : ENNReal) := by
+      simpa [pr, ε, hpr1] using hpr
+    exact (not_le_of_gt hε) h1
+  · -- large probability case
+    have hpr_gt : pr > ε := lt_of_not_ge hpr
+    have hall :
+        ∀ x ∈ (Affine.AffSpanFinset (F := F) (ι := ι) (C i)),
+          δᵣ(x, P) ≤ δ := by
+      -- apply proximity gap lemma
+      have :=
+        affSpanFinset_all_close_of_prob_gt (ι := ι) (F := F) (k := k) (deg := deg)
+          (domain := domain) (U := C i) (δ := δ) (hδ := hδ)
+          (hprob := by
+            -- rewrite pr
+            simpa [pr, P, ε] using hpr_gt)
+      simpa [P] using this
+    have hforall :
+        ∀ x : (Affine.AffSpanFinset (F := F) (ι := ι) (C i)),
+          δᵣ(x.val, P) ≤ δ := by
+      intro x
+      exact hall x.val x.property
+    have pr_eq_one :
+        Pr_{let x ← $ᵖ (Affine.AffSpanFinset (F := F) (ι := ι) (C i))}[
+          δᵣ(x.val, P) ≤ δ
+        ] = (1 : ENNReal) := by
+      -- use uniform probability lemma
+      -- define predicate
+      let Q : (Affine.AffSpanFinset (F := F) (ι := ι) (C i)) → Prop :=
+        fun x => δᵣ(x.val, P) ≤ δ
+      have hQ : ∀ x, Q x := by
+        intro x
+        exact hforall x
+      simpa [Q] using (prob_uniform_eq_one_of_forall (α := (Affine.AffSpanFinset (F := F) (ι := ι) (C i))) Q hQ)
+    rw [xor_def]
+    refine Or.inl ?_
+    refine ⟨?_, hpr⟩
+    · -- show pr = 1
+      simpa [pr] using pr_eq_one
+
+
 
 set_option linter.style.commandStart false
 
@@ -609,48 +1002,6 @@ theorem large_agreement_set_on_curve_implies_correlated_agreement' {l : ℕ}
   ∃ (v : Fin l → Fin n → F),
   ∀ i, v i ∈ V ∧
   (1 - δ) * n ≤ ({x : Fin n | ∀ i, u i x = v i x} : Finset _).card := sorry
-
-section
-open NNReal Finset Function
-
-open scoped BigOperators
-open scoped ReedSolomonCode
-
-variable {l : ℕ} [NeZero l]
-         {ι : Type} [Fintype ι] [Nonempty ι]
-         {F : Type} [Field F] [Fintype F] [DecidableEq F]
-
-
-open scoped Pointwise in
-open scoped ProbabilityTheory in
-open Uniform in
-/--
-Lemma 6.3 in [BCIKS20].
-
-Let `V` be a Reed–Solomon code of rate `ρ`, and let `U` be an affine subspace obtained by
-translating a linear subspace `U'`.  For a proximity parameter `δ` below the Johnson/Guruswami–Sudan
-list-decoding bound (`0 < δ < 1 - √ρ`), suppose that a random point `u` sampled uniformly from `U`
-is `δ`-close to `V` with probability strictly larger than the proximity-gap error bound `ε`.  Then
-every point of the underlying linear subspace `U'` is also `δ`-close to `V`.
--/
-theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] [DecidableEq F]
-  {u : Fin (l + 2) → ι → F} {k : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate (k + 1) domain))) :
-  letI U' : Finset (ι → F) :=
-    SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u))) |>.toFinset
-  letI U : Finset (ι → F) := u 0 +ᵥ U'
-  haveI : Nonempty U := by
-    apply Finset.Nonempty.to_subtype
-    apply Finset.Nonempty.vadd_finset
-    rw [Set.toFinset_nonempty]
-    exact Set.Nonempty.mono (subset_affineSpan F _)
-      (Finset.coe_nonempty.mpr (Finset.univ_nonempty.image _))
-  letI ε : ℝ≥0 := ProximityGap.errorBound δ (k + 1) domain
-  letI V := ReedSolomon.code domain (k + 1)
-  Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε → ∀ u' ∈ U', δᵣ(u', V) ≤ δ := by
-  sorry
-
-end
 
 end BCIKS20ProximityGapSection6
 
