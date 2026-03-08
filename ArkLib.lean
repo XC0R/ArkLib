@@ -4,6 +4,7 @@ import ArkLib.CommitmentScheme.Fold
 import ArkLib.CommitmentScheme.HardnessAssumptions
 import ArkLib.CommitmentScheme.InductiveMerkleTree
 import ArkLib.CommitmentScheme.KZG
+import ArkLib.CommitmentScheme.KZGDivision
 import ArkLib.CommitmentScheme.MerkleTree
 import ArkLib.CommitmentScheme.SimpleRO
 import ArkLib.CommitmentScheme.Tensor

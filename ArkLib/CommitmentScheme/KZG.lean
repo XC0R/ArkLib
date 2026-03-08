@@ -6,6 +6,7 @@ Authors: Tobias Rothmann and Quang Dao
 
 
 import ArkLib.CommitmentScheme.Basic
+import ArkLib.CommitmentScheme.KZGDivision
 import ArkLib.CommitmentScheme.HardnessAssumptions
 import ArkLib.AGM.Basic
 import CompPoly.Univariate.Basic
@@ -120,57 +121,22 @@ theorem commit_eq {a : ZMod p} (hpG1 : Nat.card G₁ = p)
     intro x
     exact mul_comm _ _
 
-omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] in
+omit [Module (ZMod p) (Additive G₁)] [DecidableEq G₁] [Fact (0 < p)] in
 /-- The commitment to a computable polynomial (CPolynomial) `poly` of
-maximum degree `n+1` is equal to `g₁ ^ (poly.eval a).val`. -/
+maximum degree `n` is equal to `g₁ ^ (poly.eval a).val`. -/
 theorem commit_eq_CPolynomial {a : ZMod p} (hpG1 : Nat.card G₁ = p)
-    (poly : CPolynomial (ZMod p)) (hn : poly.degree ≤ n + 1) :
+    (poly : CPolynomial (ZMod p)) (hn : poly.degree ≤ n) :
     commit (towerOfExponents g₁ a n)
     ((coeff poly) ∘ Fin.val)
   = g₁ ^ (poly.eval a).val := by
-  sorry
-  /-
-  have {g₁ : G₁} (a b : ℕ) : g₁^a = g₁^b ↔ g₁^(a : ℤ) = g₁^(b : ℤ) := by
-    simp only [zpow_natCast]
-  simp only [commit, towerOfExponents, Fin.getElem_fin, Vector.getElem_ofFn]
-  simp_rw [← pow_mul, Finset.prod_pow_eq_pow_sum,
-      ←eval_toPoly_eq_eval,
-      eval_eq_sum,
-      this,
-      ←orderOf_dvd_sub_iff_zpow_eq_zpow]
-
-  have hordg₁ : g₁ = 1 ∨ orderOf g₁ = p := by
-    have ord_g₁_dvd : orderOf g₁ ∣ p := by rw [← hpG1]; apply orderOf_dvd_natCard
-    rw [Nat.dvd_prime hp.out, orderOf_eq_one_iff] at ord_g₁_dvd
-    exact ord_g₁_dvd
-
-  let f := fun e a_1 ↦ a_1 * a ^ e
-  have hf : ∀ (i : ℕ), f i 0 = 0 := by
-    intro i
-    simp_all only [zero_mul, f]
-  have hs : poly.toPoly.support ⊆ Finset.range (n + 1) := by
-    have hnatDeg : poly.toPoly.natDegree < (n+1) := by
-      by_cases hcoeff: ∃ i, poly.coeff i ≠ 0
-      · calc poly.toPoly.natDegree = poly.degree - 1 := by simp_rw [degree_toPoly' hcoeff]
-        _ ≤ n := by exact Nat.sub_le_sub_right hn 1
-        _ < n + 1 := Nat.lt_succ_self n
-      · have hcoeff: ∀i, poly.toPoly.coeff i = 0 := by
-          simp_all [coeff_toPoly]
-        have hpoly: poly.toPoly = 0 := by
-          ext n; exact hcoeff n
-        simp [hpoly]
-    simp_rw [Polynomial.supp_subset_range hnatDeg]
-
-  rcases hordg₁ with ord1 | ordp
-  · simp [ord1]
-  · simp [ordp, ←ZMod.intCast_eq_intCast_iff_dvd_sub]
-    rw [Polynomial.sum_eq_of_subset
-      (R := ZMod p) (S := ZMod p) (p := poly.toPoly)
-      f hf (s := Finset.range (n + 1)) hs]
-    simp_rw [f, coeff_toPoly, Array.getD_eq_getD_getElem?]
-    simp only [mul_comm]
-    rw [Fin.sum_univ_eq_sum_range (fun x => a ^ x * poly[x]?.getD 0) (n+1)]
-  -/
+  have h_mem : poly.toPoly ∈ Polynomial.degreeLT (ZMod p) (n + 1) := by
+    rw [Polynomial.mem_degreeLT, ← degree_toPoly]
+    exact lt_of_le_of_lt hn (WithBot.coe_lt_coe.mpr (Nat.lt_succ_self n))
+  rw [show poly.eval a = poly.toPoly.eval a from eval_toPoly a poly]
+  rw [show ((coeff poly) ∘ Fin.val : Fin (n + 1) → ZMod p) =
+      Polynomial.degreeLTEquiv (ZMod p) (n + 1) ⟨poly.toPoly, h_mem⟩ from by
+    ext i; simp only [Function.comp_apply, Polynomial.degreeLTEquiv]; exact coeff_toPoly poly i]
+  exact commit_eq hpG1 ⟨poly.toPoly, h_mem⟩
 
 /-- To generate an opening proving that a polynomial `poly` has a certain evaluation at `z`,
   we return the commitment to the polynomial `q(X) = (poly(X) - poly.eval z) / (X - z)` -/
@@ -190,9 +156,15 @@ def verifyOpening (verifySrs : Vector G₂ 2) (commitment : G₁) (opening : G�
   pairing (commitment / g₁ ^ v.val) (verifySrs[0]) =
     pairing opening (verifySrs[1] / g₂ ^ z.val)
 
+-- Helper: toPoly commutes with divByMonic for monic divisors
+private theorem toPoly_divByMonic {p : ℕ} [Fact (Nat.Prime p)]
+    (f q : CPolynomial (ZMod p)) (hq : q.toPoly.Monic) :
+    (f.divByMonic q).toPoly = f.toPoly /ₘ q.toPoly :=
+  KZGDivision.toPoly_divByMonic f q hq
+
 -- p(a) - p(z) = q(a) * (a - z)
 -- e ( C / g₁ ^ v , g₂ ) = e ( O , g₂ ^ a / g₂ ^ z)
-omit [DecidableEq G₁] in
+omit [DecidableEq G₁] [Fact (0 < p)] in
 theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   (coeffs : Fin (n + 1) → ZMod p) (z : ZMod p) :
   let poly : CPolynomial (ZMod p) :=
@@ -205,60 +177,58 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   intro poly v
   unfold verifyOpening generateSrs
   simp only [decide_eq_true_eq]
-  sorry
-  /-
+
   -- helper facts for the proof
 
   -- coeffs is the finite coefficients map of poly
   have hcoeffs : coeffs = (coeff poly) ∘ Fin.val := by
     simp_all only [poly]
     ext x : 1
-    simp only [Function.comp_apply]
-    simp only [Array.getD_eq_getD_getElem?, Array.size_ofFn, Fin.is_lt, getElem?_pos,
-    Array.getElem_ofFn, Fin.eta, Option.getD_some]
+    simp only [Function.comp_apply, coeff]
+    rw [Raw.Trim.coeff_eq_coeff]
+    simp [Raw.coeff]
 
-  -- the (mathematical) degree of poly is less than n+1
-  have hpdeg : degree poly ≤ n+1 := by
-    simp_rw [←Trim.size_eq_degree]
-    apply le_trans (Trim.size_le_size (p := poly))
-    simp_rw [poly]
-    simp
+  -- the (mathematical) degree of poly is at most n
+  have hpdeg : degree poly ≤ n := by
+    unfold degree Raw.degree
+    cases h : poly.val.lastNonzero with
+    | none => exact bot_le
+    | some k =>
+      simp only [Nat.cast_le]
+      have hsz : poly.val.size ≤ n + 1 := by
+        change (Raw.mk (Array.ofFn coeffs)).trim.size ≤ n + 1
+        exact le_trans (Raw.Trim.size_le_size _) (by simp [Array.size_ofFn])
+      omega
 
   -- expansion of (a-z) to Polynomial form
   have haz : (a-z) = eval a (X - C z) := by
-    simp_rw [←eval_toPoly_eq_eval, toPoly_sub, eval_sub,
-    eval_toPoly_eq_eval]
-    simp only [eval_X, eval_C]
+    rw [eval_toPoly, toPoly_sub, Polynomial.eval_sub, X_toPoly, C_toPoly,
+      Polynomial.eval_X, Polynomial.eval_C]
 
   -- the polynomial form of (a-z) is monic
-  have hmonic : monic (X - C z) := by
-    simp only [monic_X_sub_C]
+  have hmonic : Polynomial.Monic ((X : CPolynomial (ZMod p)) - C z).toPoly := by
+    rw [toPoly_sub, X_toPoly, C_toPoly]
+    exact Polynomial.monic_X_sub_C z
 
   -- the proof
 
   -- restate the commitment as the evaluation of poly at a (C => g₁^poly(a))
-  simp_rw [hcoeffs, commit_eq_UniPoly hpG1 poly hpdeg]
+  simp_rw [hcoeffs, commit_eq_CPolynomial hpG1 poly hpdeg]
 
   -- define q(X) := (poly(X) - poly(z)) / (X-z)
   -- and restate the opening as the evaluation of q at a (opening => g₁^q(a))
   simp_rw [generateOpening, ←hcoeffs]
-  set q := (mk poly - C (eval z (mk poly))).divByMonic (X - C z)
-  have hqdeg : degree q ≤ n+1 := by
-    calc
-      degree q ≤ degree (mk poly - C (eval z (mk poly))) := by
-        simp [q, degree_divByMonic hmonic]
-      _ ≤ max (degree (mk poly)) (degree (C (eval z (mk poly)))) :=
-        degree_sub _ _
-      _ ≤ max (n+1) 1 := by
-        apply max_le_max
-        · exact hpdeg
-        · by_cases h0 : eval z (mk poly) = 0
-          · simp only [h0, degree_C_zero, zero_le]
-          · simp [degree_C (x := eval z (mk poly)) (by simpa using h0)]
-      _ = n+1 := by
-        simp only [Nat.succ_le_succ (Nat.zero_le n), sup_of_le_left]
+  set q := (poly - C (eval z poly)).divByMonic (X - C z)
+  have hqdeg : degree q ≤ n := by
+    rw [degree_toPoly, toPoly_divByMonic _ _ hmonic]
+    apply le_trans (Polynomial.degree_divByMonic_le _ _)
+    rw [toPoly_sub, C_toPoly]
+    apply le_trans (Polynomial.degree_sub_le _ _)
+    apply max_le
+    · rw [← degree_toPoly]; exact hpdeg
+    · exact le_trans Polynomial.degree_C_le (by exact_mod_cast Nat.zero_le n)
   have hfun: (fun i ↦ q.coeff ↑i : Fin (n+1) → ZMod p) = (coeff q) ∘ Fin.val := by rfl
-  simp_rw [hfun, commit_eq_UniPoly hpG1 q hqdeg]
+  simp_rw [hfun, commit_eq_CPolynomial hpG1 q hqdeg]
 
   -- evaluate the pairing linearly.
   -- e (g₁^poly(a) / g₂^poly(z), g₂)= e (g₁^q(a), g₂^a / g₂^(z))
@@ -272,17 +242,19 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
   let x : ℤ := (↑(eval a poly).val) - (↑v.val)
   let y : ℤ := (↑(a.val) - ↑(z.val)) * ↑(eval a q).val
   refine (Iff.mp (ZMod.intCast_eq_intCast_iff_dvd_sub (a := x) (b := y) (c := p))) ?_
-  subst x y; simp
+  subst x y; simp only [ZMod.natCast_val, Int.cast_sub, ZMod.intCast_cast, ZMod.cast_id', id_eq,
+    Int.cast_mul]
 
   -- unfold q to obtain the self canceling goal:
   -- poly(a) - poly(z) = (poly(a) - poly(z)) / (a-z) * (a-z)
   -- prove the goal using the eval isomorphism to mathlib Polynomials
   subst v q
   simp_rw [haz]
-  simp_rw [←eval_toPoly_eq_eval, toPoly_divByMonic hmonic,toPoly_sub, ←eval_mul, toPoly_C, toPoly_X]
-  simp_rw [X_sub_C_mul_divByMonic_eq_sub_modByMonic, modByMonic_X_sub_C_eq_C_eval]
-  simp only [eval_sub, Polynomial.eval_C, sub_self, map_zero, sub_zero]
-  -/
+  simp_rw [eval_toPoly, toPoly_divByMonic _ _ hmonic, toPoly_sub,
+    ←Polynomial.eval_mul, C_toPoly, X_toPoly]
+  simp_rw [Polynomial.X_sub_C_mul_divByMonic_eq_sub_modByMonic,
+    Polynomial.modByMonic_X_sub_C_eq_C_eval]
+  simp only [Polynomial.eval_sub, Polynomial.eval_C, sub_self, map_zero, sub_zero]
 
 open Commitment
 
