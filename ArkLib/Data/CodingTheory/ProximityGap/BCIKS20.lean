@@ -521,26 +521,484 @@ lemma solution_gamma_matches_word_if_subset_large
     (Polynomial.C <| u₀ x) + u₁ x • Polynomial.X
   := by sorry
 
-/-- Claim 5.11 from [BCIKS20].
-    There exists a set of points `{x₀,...,x_{k+1}}`
-    such that the sets S_{x_j} satisfy the condition
-    in the claim 5.10.
--/
-lemma exists_points_with_large_matching_subset
-  {ωs : Fin n ↪ F}
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  {x : Fin n}
-  {D : ℕ}
-  (hD : D ≥ Bivariate.totalDegree (H k δ x₀ h_gs))
-  :
+theorem card_filter_gt_of_sum_gt {n : ℕ} (f : Fin n → ℕ) (M T k : ℕ)
+  (hTM : T ≤ M)
+  (hf : ∀ x, f x ≤ M)
+  (hsum : (Finset.univ.sum f) > k * M + (n - k) * T) :
+  (Finset.univ.filter (fun x : Fin n => f x > T)).card ≥ k + 1 := by
+  classical
+  by_cases hkn : n ≤ k
+  · -- If `n ≤ k`, then the inequality on the sum is impossible.
+    exfalso
+    have hsum_le_nM : (Finset.univ.sum f) ≤ n * M := by
+      -- Bound each term by `M`.
+      simpa [Nat.nsmul_eq_mul, Finset.card_univ] using
+        (Finset.sum_le_card_nsmul (s := (Finset.univ : Finset (Fin n))) (f := f) (n := M)
+          (by
+            intro x hx
+            exact hf x))
+    have hnM_le_kM : n * M ≤ k * M := Nat.mul_le_mul_right M hkn
+    have hle : (Finset.univ.sum f) ≤ k * M + (n - k) * T := by
+      simpa [Nat.sub_eq_zero_of_le hkn, Nat.mul_zero, Nat.add_zero] using
+        (le_trans hsum_le_nM hnM_le_kM)
+    exact (Nat.not_lt_of_ge hle) hsum
+  · have hklt : k < n := Nat.lt_of_not_ge hkn
+    have hk_le_n : k ≤ n := Nat.le_of_lt hklt
+
+    -- Good indices are those where `f x > T`.
+    let Good : Finset (Fin n) := Finset.univ.filter (fun x : Fin n => f x > T)
+    let Bad : Finset (Fin n) := Finset.univ.filter (fun x : Fin n => ¬ f x > T)
+
+    have hGood_le_n : Good.card ≤ n := by
+      simpa [Good, Finset.card_univ] using
+        (Finset.card_filter_le (s := (Finset.univ : Finset (Fin n))) (p := fun x : Fin n => f x > T))
+
+    have hsplit : (Finset.univ.sum f) = Good.sum f + Bad.sum f := by
+      -- Split the sum over `Good` and its complement.
+      simpa [Good, Bad] using
+        (Finset.sum_filter_add_sum_filter_not (s := (Finset.univ : Finset (Fin n)))
+          (p := fun x : Fin n => f x > T) (f := f)).symm
+
+    have hGoodSum : Good.sum f ≤ Good.card * M := by
+      -- Upper bound each term on `Good` by `M`.
+      simpa [Nat.nsmul_eq_mul] using
+        (Finset.sum_le_card_nsmul (s := Good) (f := f) (n := M)
+          (by
+            intro x hx
+            exact hf x))
+
+    have hBadSum : Bad.sum f ≤ Bad.card * T := by
+      have hle : ∀ x ∈ Bad, f x ≤ T := by
+        intro x hx
+        have hx' : ¬ f x > T := (Finset.mem_filter.mp hx).2
+        exact le_of_not_gt hx'
+      simpa [Nat.nsmul_eq_mul] using
+        (Finset.sum_le_card_nsmul (s := Bad) (f := f) (n := T) hle)
+
+    have hcard_partition : Good.card + Bad.card = n := by
+      -- Cardinalities of the filtered set and its complement add to `n`.
+      simpa [Good, Bad, Finset.card_univ] using
+        (Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin n)))
+          (p := fun x : Fin n => f x > T))
+
+    have hBad_card : Bad.card = n - Good.card := Nat.eq_sub_of_add_eq' hcard_partition
+
+    have hsum_le : (Finset.univ.sum f) ≤ Good.card * M + (n - Good.card) * T := by
+      calc
+        Finset.univ.sum f
+            = Good.sum f + Bad.sum f := hsplit
+        _ ≤ Good.card * M + Bad.card * T := Nat.add_le_add hGoodSum hBadSum
+        _ = Good.card * M + (n - Good.card) * T := by simp [hBad_card]
+
+    -- A rewriting lemma for the upper bound on the sum.
+    have rewrite :
+        ∀ a : ℕ, a ≤ n → a * M + (n - a) * T = a * (M - T) + n * T := by
+      intro a ha
+      have hMul : a * M = a * (M - T) + a * T := by
+        calc
+          a * M = a * ((M - T) + T) := by
+            simp [Nat.sub_add_cancel hTM]
+          _ = a * (M - T) + a * T := by
+            simp [Nat.mul_add]
+      have hT : a * T + (n - a) * T = (a + (n - a)) * T := by
+        simpa using (Nat.add_mul a (n - a) T).symm
+      calc
+        a * M + (n - a) * T
+            = (a * (M - T) + a * T) + (n - a) * T := by
+                simpa [hMul, Nat.add_assoc]
+        _ = a * (M - T) + (a * T + (n - a) * T) := by
+                simp [Nat.add_assoc]
+        _ = a * (M - T) + (a + (n - a)) * T := by
+                simp [hT]
+        _ = a * (M - T) + n * T := by
+                simp [Nat.add_sub_of_le ha]
+
+    have hGood_ge : Good.card ≥ k + 1 := by
+      by_contra hge
+      have hGood_le_k : Good.card ≤ k := by
+        have : Good.card < k + 1 := Nat.lt_of_not_ge hge
+        exact Nat.le_of_lt_succ this
+
+      have hGood_rw : Good.card * M + (n - Good.card) * T = Good.card * (M - T) + n * T :=
+        rewrite Good.card hGood_le_n
+
+      have hk_rw : k * M + (n - k) * T = k * (M - T) + n * T :=
+        rewrite k hk_le_n
+
+      have hcompare : Good.card * M + (n - Good.card) * T ≤ k * M + (n - k) * T := by
+        -- Rewrite both sides as `(_)*(M-T) + n*T`.
+        rw [hGood_rw, hk_rw]
+        exact Nat.add_le_add_right (Nat.mul_le_mul_right (M - T) hGood_le_k) (n * T)
+
+      have hle_final : (Finset.univ.sum f) ≤ k * M + (n - k) * T := le_trans hsum_le hcompare
+      exact (Nat.not_lt_of_ge hle_final) hsum
+
+    simpa [Good] using hGood_ge
+
+theorem hammingDist_le_floor_of_relHammingDist_le {n : ℕ} {F : Type} [Field F] [DecidableEq F] (u v : Fin n → F) (δ : ℚ)
+  (hn : n ≠ 0) (h : (δᵣ(u, v) : ℚ) ≤ δ) :
+  Δ₀(u, v) ≤ Nat.floor (δ * n) := by
+  classical
+  have hnpos : 0 < n := Nat.pos_of_ne_zero hn
+  haveI : Nonempty (Fin n) := ⟨⟨0, hnpos⟩⟩
+  have hdiv : (Δ₀(u, v) : ℚ) / n ≤ δ := by
+    simpa [Code.relHammingDist] using h
+  have hnposQ : (0 : ℚ) < n := by
+    exact_mod_cast hnpos
+  have hmul : (Δ₀(u, v) : ℚ) ≤ δ * n := (div_le_iff₀ hnposQ).1 hdiv
+  have hδnonneg : (0 : ℚ) ≤ δ := by
+    exact le_trans (NNRat.cast_nonneg (δᵣ(u, v))) h
+  have ha : (0 : ℚ) ≤ δ * n := by
+    have hnnonneg : (0 : ℚ) ≤ n := by
+      exact_mod_cast (Nat.zero_le n)
+    exact mul_nonneg hδnonneg hnnonneg
+  exact (Nat.le_floor_iff (α := ℚ) (n := Δ₀(u, v)) (a := δ * n) ha).2 hmul
+
+theorem hammingDist_Pz_le_floor {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (z : F) (hz : z ∈ matching_set k ωs δ u₀ u₁ h_gs) :
+  Δ₀(u₀ + z • u₁,
+    (Pz (matching_set_is_a_sub_of_coeffs_of_close_proximity (F := F) k h_gs hz)).eval ∘ ωs)
+    ≤ Nat.floor (δ * n) := by
+  classical
+  by_cases hn : n = 0
+  · subst hn
+    simp
+    ext i
+    cases i with
+    | mk val isLt =>
+      cases isLt
+  ·
+    let hzS : z ∈ coeffs_of_close_proximity (F := F) k ωs δ u₀ u₁ :=
+      (matching_set_is_a_sub_of_coeffs_of_close_proximity (F := F) k h_gs) hz
+    have hδr :
+        (δᵣ(u₀ + z • u₁,
+            (Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hzS).eval ∘ ωs) : ℚ) ≤
+          δ := by
+      simpa [Pz, hzS] using
+        (exists_Pz_of_coeffs_of_close_proximity (n := n) (k := k) (ωs := ωs) (δ := δ)
+              (u₀ := u₀) (u₁ := u₁) hzS).choose_spec.2
+    have hΔ :=
+      hammingDist_le_floor_of_relHammingDist_le (n := n) (F := F) (u := u₀ + z • u₁)
+        (v :=
+          (Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hzS).eval ∘
+            ωs)
+        δ hn hδr
+    simpa [hzS] using hΔ
+
+noncomputable def matching_set_at_x_fixed (k : ℕ) (δ : ℚ)
+  {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (x : Fin n) : Finset F :=
+  (matching_set k ωs δ u₀ u₁ h_gs).filter (fun z =>
+    if hz : z ∈ matching_set k ωs δ u₀ u₁ h_gs then
+      u₀ x + z * u₁ x =
+        (Pz (matching_set_is_a_sub_of_coeffs_of_close_proximity (F := F) k h_gs hz)).eval (ωs x)
+    else False
+  )
+
+theorem matching_set_at_x_fixed_subset_matching_set {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (x : Fin n) :
+  matching_set_at_x_fixed k δ h_gs x ⊆ matching_set k ωs δ u₀ u₁ h_gs := by
+  intro z hz
+  dsimp [matching_set_at_x_fixed] at hz ⊢
+  exact (Finset.mem_filter.mp hz).1
+
+theorem matching_set_at_x_fixed_card_le_matching_set_card {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (x : Fin n) :
+  (matching_set_at_x_fixed k δ h_gs x).card ≤ (matching_set k ωs δ u₀ u₁ h_gs).card := by
+  -- Immediate from subset lemma and `Finset.card_le_card`
+  exact Finset.card_le_card (matching_set_at_x_fixed_subset_matching_set (k := k) (δ := δ) h_gs x)
+
+
+theorem mem_matching_set_at_x_fixed_iff {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (x : Fin n) (z : F) (hz : z ∈ matching_set k ωs δ u₀ u₁ h_gs) :
+  z ∈ matching_set_at_x_fixed k δ h_gs x ↔
+    u₀ x + z * u₁ x =
+      (Pz (matching_set_is_a_sub_of_coeffs_of_close_proximity (F := F) k h_gs hz)).eval (ωs x) := by
+  classical
+  simp [matching_set_at_x_fixed, hz]
+
+theorem matching_set_at_x_fixed_count_ge {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (z : F) (hz : z ∈ matching_set k ωs δ u₀ u₁ h_gs) :
+  (Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).card
+    ≥ n - Nat.floor (δ * n) := by
+  classical
+  -- Abbreviate the comparison function and the agreement predicate
+  let Pfun : Fin n → F :=
+    (Pz
+        (matching_set_is_a_sub_of_coeffs_of_close_proximity (F := F) k h_gs hz)).eval ∘
+      ωs
+  let agree : Fin n → Prop := fun x : Fin n => (u₀ + z • u₁) x = Pfun x
+
+  -- Bad positions: where the two functions disagree
+  let Bad : Finset (Fin n) := Finset.univ.filter (fun x : Fin n => ¬ agree x)
+
+  have hBad_card : Bad.card = Δ₀(u₀ + z • u₁, Pfun) := by
+    -- `Δ₀` is `hammingDist`, which is the card of the set of indices where the functions differ
+    simp [Bad, agree, Pfun, hammingDist]
+
+  have hBad_le : Bad.card ≤ Nat.floor (δ * n) := by
+    have hdist : Δ₀(u₀ + z • u₁, Pfun) ≤ Nat.floor (δ * n) := by
+      simpa [Pfun] using (hammingDist_Pz_le_floor (F := F) (k := k) (δ := δ) h_gs z hz)
+    simpa [hBad_card] using hdist
+
+  have hgood_eq : (Finset.univ.filter agree).card = n - Bad.card := by
+    have hsum :
+        (Finset.univ.filter agree).card +
+            (Finset.univ.filter (fun x : Fin n => ¬ agree x)).card =
+          (Finset.univ : Finset (Fin n)).card := by
+      simpa using
+        (Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin n))) (p := agree))
+    have hsum' : (Finset.univ.filter agree).card + Bad.card = (Finset.univ : Finset (Fin n)).card := by
+      simpa [Bad] using hsum
+    have := congrArg (fun t => t - Bad.card) hsum'
+    -- `(a + b) - b = a` and `#(Finset.univ : Finset (Fin n)) = n`
+    simpa [Finset.card_univ] using this
+
+  have hgood_ge : (Finset.univ.filter agree).card ≥ n - Nat.floor (δ * n) := by
+    have hsub : n - Nat.floor (δ * n) ≤ n - Bad.card :=
+      Nat.sub_le_sub_left hBad_le n
+    -- rewrite `n - Bad.card` using `hgood_eq`
+    simpa [← hgood_eq] using hsub
+
+  -- Rewrite the filter predicate using `mem_matching_set_at_x_fixed_iff`
+  have hfilter :
+      Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x) =
+        Finset.univ.filter agree := by
+    ext x
+    simp [agree, Pfun,
+      mem_matching_set_at_x_fixed_iff (F := F) (k := k) (δ := δ) (h_gs := h_gs) (x := x)
+        (z := z) (hz := hz)]
+
+  simpa [hfilter] using hgood_ge
+
+theorem sum_matching_set_at_x_fixed_card_eq_sum_count {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card))
+    =
+  (matching_set k ωs δ u₀ u₁ h_gs).sum
+    (fun z : F => (Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).card) := by
+  classical
+  let S : Finset F := matching_set k ωs δ u₀ u₁ h_gs
+  have hfilter_eq :
+      ∀ x : Fin n,
+        S.filter (fun z : F => z ∈ matching_set_at_x_fixed k δ h_gs x) =
+          matching_set_at_x_fixed k δ h_gs x := by
+    intro x
+    ext z
+    constructor
+    · intro hz
+      exact (Finset.mem_filter.mp hz).2
+    · intro hz
+      have hzS : z ∈ S := by
+        have hsub :=
+          matching_set_at_x_fixed_subset_matching_set
+            (k := k) (δ := δ) (h_gs := h_gs) (x := x)
+        have : z ∈ matching_set k ωs δ u₀ u₁ h_gs := hsub hz
+        simpa [S] using this
+      exact Finset.mem_filter.mpr ⟨hzS, hz⟩
+  have hcard_eq :
+      ∀ x : Fin n,
+        (matching_set_at_x_fixed k δ h_gs x).card =
+          S.sum (fun z : F =>
+            if z ∈ matching_set_at_x_fixed k δ h_gs x then (1 : ℕ) else 0) := by
+    intro x
+    have hx :
+        (matching_set_at_x_fixed k δ h_gs x).card =
+          (S.filter (fun z : F => z ∈ matching_set_at_x_fixed k δ h_gs x)).card := by
+      have := congrArg Finset.card (hfilter_eq x)
+      exact this.symm
+    have hfilter :
+        (S.filter (fun z : F => z ∈ matching_set_at_x_fixed k δ h_gs x)).card =
+          S.sum (fun z : F =>
+            if z ∈ matching_set_at_x_fixed k δ h_gs x then (1 : ℕ) else 0) := by
+      simpa using
+        (Finset.card_filter (s := S)
+          (p := fun z : F => z ∈ matching_set_at_x_fixed k δ h_gs x))
+    exact hx.trans hfilter
+  calc
+    (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card)) =
+        Finset.univ.sum
+          (fun x : Fin n =>
+            S.sum (fun z : F =>
+              if z ∈ matching_set_at_x_fixed k δ h_gs x then (1 : ℕ) else 0)) := by
+          refine Finset.sum_congr rfl ?_
+          intro x hx
+          simpa using hcard_eq x
+    _ =
+        S.sum (fun z : F =>
+          Finset.univ.sum (fun x : Fin n =>
+            if z ∈ matching_set_at_x_fixed k δ h_gs x then (1 : ℕ) else 0)) := by
+          simpa using
+            (Finset.sum_comm (s := (Finset.univ : Finset (Fin n))) (t := S)
+              (f := fun (x : Fin n) (z : F) =>
+                if z ∈ matching_set_at_x_fixed k δ h_gs x then (1 : ℕ) else 0))
+    _ =
+        S.sum (fun z : F =>
+          (Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).card) := by
+          refine Finset.sum_congr rfl ?_
+          intro z hz
+          simpa using
+            (Finset.card_filter (s := (Finset.univ : Finset (Fin n)))
+              (p := fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).symm
+    _ =
+        (matching_set k ωs δ u₀ u₁ h_gs).sum
+          (fun z : F =>
+            (Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).card) := by
+          simpa [S]
+
+theorem sum_matching_set_at_x_fixed_card_ge {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card))
+    ≥ (matching_set k ωs δ u₀ u₁ h_gs).card * (n - Nat.floor (δ * n)) := by
+  classical
+  -- rewrite the LHS using the provided double-counting identity
+  have hrewrite :=
+    (sum_matching_set_at_x_fixed_card_eq_sum_count (k := k) (δ := δ) (h_gs := h_gs) (ωs := ωs))
+  -- set S for readability
+  set S : Finset F := matching_set k ωs δ u₀ u₁ h_gs with hS
+  -- use the rewrite, then bound each term in the sum
+  calc
+    (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card))
+        = ∑ z ∈ S,
+            (Finset.univ.filter (fun x : Fin n => z ∈ matching_set_at_x_fixed k δ h_gs x)).card := by
+          simpa [S] using hrewrite
+    _ ≥ ∑ z ∈ S, (n - Nat.floor (δ * n)) := by
+          -- pointwise lower bound on each term
+          refine Finset.sum_le_sum ?_  -- produces ≤, then we flip via rewriting
+          intro z hz
+          -- goal is: (n - floor ...) ≤ count
+          -- provided by matching_set_at_x_fixed_count_ge
+          simpa [S] using (matching_set_at_x_fixed_count_ge (k := k) (δ := δ) (h_gs := h_gs) (ωs := ωs) z hz)
+    _ = S.card * (n - Nat.floor (δ * n)) := by
+          -- sum of a constant over a finset
+          simp
+    _ = (matching_set k ωs δ u₀ u₁ h_gs).card * (n - Nat.floor (δ * n)) := by
+          simpa [S]
+
+theorem sum_matching_set_at_x_fixed_card_gt {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (hk : k + 2 ≤ n)
+  (hfloor : Nat.floor (δ * n) ≤ n - (k + 1)) {D : ℕ}
+  (hD : D = Bivariate.totalDegree (H k δ x₀ h_gs))
+  (hM : (n - k) * ((2 * k + 1)
+        * (Bivariate.natDegreeY (H k δ x₀ h_gs))
+        * (Bivariate.natDegreeY (R k δ x₀ h_gs))
+        * D)
+      < (matching_set k ωs δ u₀ u₁ h_gs).card) :
+  (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card))
+    > k * (matching_set k ωs δ u₀ u₁ h_gs).card
+      + (n - k) * ((2 * k + 1)
+        * (Bivariate.natDegreeY (H k δ x₀ h_gs))
+        * (Bivariate.natDegreeY (R k δ x₀ h_gs))
+        * D) := by
+  classical
+  -- Abbreviate the main natural-number quantities
+  set M : ℕ := (matching_set k ωs δ u₀ u₁ h_gs).card with hMdef
+  set e : ℕ := Nat.floor (δ * n) with hedef
+  set T : ℕ :=
+      (2 * k + 1) * (Bivariate.natDegreeY (H k δ x₀ h_gs))
+        * (Bivariate.natDegreeY (R k δ x₀ h_gs)) * D with hTdef
+
+  have hge : M * (n - e)
+      ≤ (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card)) := by
+    simpa [M, e] using
+      (sum_matching_set_at_x_fixed_card_ge (k := k) (δ := δ) (ωs := ωs) h_gs)
+
+  have hfloor' : e ≤ n - (k + 1) := by
+    simpa [e] using hfloor
+
+  have hM' : (n - k) * T < M := by
+    simpa [M, T] using hM
+
+  have hk1 : k + 1 ≤ n - e := by
+    omega
+
+  have hkm : k * M + M ≤ M * (n - e) := by
+    have hmul : (k + 1) * M ≤ (n - e) * M := Nat.mul_le_mul_right M hk1
+    calc
+      k * M + M = (k + 1) * M := by
+        simpa [Nat.succ_eq_add_one] using (Nat.succ_mul k M).symm
+      _ ≤ (n - e) * M := hmul
+      _ = M * (n - e) := by
+        simpa [Nat.mul_comm]
+
+  have harith : k * M + (n - k) * T < M * (n - e) := by
+    have h1 : k * M + (n - k) * T < k * M + M :=
+      Nat.add_lt_add_left hM' (k * M)
+    exact lt_of_lt_of_le h1 hkm
+
+  have hlt : k * M + (n - k) * T
+        < (Finset.univ.sum (fun x : Fin n => (matching_set_at_x_fixed k δ h_gs x).card)) :=
+    lt_of_lt_of_le harith hge
+
+  -- Rewrite back in terms of the original expressions
+  simpa [gt_iff_lt, M, T] using hlt
+
+theorem exists_points_with_large_matching_subset {ωs : Fin n ↪ F} (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (hk : k + 2 ≤ n)
+  (hfloor : Nat.floor (δ * n) ≤ n - (k + 1)) {D : ℕ}
+  (hD : D = Bivariate.totalDegree (H k δ x₀ h_gs))
+  (hM : (n - k) * ((2 * k + 1)
+        * (Bivariate.natDegreeY (H k δ x₀ h_gs))
+        * (Bivariate.natDegreeY (R k δ x₀ h_gs))
+        * D)
+      < (matching_set k ωs δ u₀ u₁ h_gs).card) :
   ∃ Dtop : Finset (Fin n),
     Dtop.card = k + 1 ∧
     ∀ x ∈ Dtop,
-      (matching_set_at_x k δ h_gs x).card >
+      (matching_set_at_x_fixed k δ h_gs x).card >
         (2 * k + 1)
         * (Bivariate.natDegreeY <| H k δ x₀ h_gs)
         * (Bivariate.natDegreeY <| R k δ x₀ h_gs)
-        * D := by sorry
+        * D := by
+  classical
+  -- Basic notation
+  let S : Finset F := matching_set k ωs δ u₀ u₁ h_gs
+  let M : ℕ := S.card
+  let f : Fin n → ℕ := fun x : Fin n =>
+    (matching_set_at_x_fixed (F := F) (n := n) (m := m) (k := k) (δ := δ)
+        (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs x).card
+  let T : ℕ :=
+    (2 * k + 1)
+      * (Bivariate.natDegreeY (H k δ x₀ h_gs))
+      * (Bivariate.natDegreeY (R k δ x₀ h_gs))
+      * D
+
+  have hf : ∀ x, f x ≤ M := by
+    intro x
+    simpa [f, M, S] using
+      (matching_set_at_x_fixed_card_le_matching_set_card (F := F) (n := n) (m := m)
+        (k := k) (δ := δ) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs x)
+
+  have hsum : (Finset.univ.sum f) > k * M + (n - k) * T := by
+    -- obtain the strict inequality from the provided lemma
+    simpa [f, M, S, T] using
+      (sum_matching_set_at_x_fixed_card_gt (F := F) (n := n) (m := m) (k := k)
+        (δ := δ) (x₀ := x₀) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs)
+        h_gs hk hfloor (D := D) hD hM)
+
+  have hTM : T ≤ M := by
+    -- use the hypothesis `hM` (and `hk`) to see `T ≤ M`
+    have hklt : k < k + 2 := by
+      simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using
+        (Nat.lt_add_of_pos_right (n := k) (m := 2) (by decide : 0 < (2 : ℕ)))
+    have hkn : k < n := lt_of_lt_of_le hklt hk
+    have hpos : 0 < n - k := Nat.sub_pos_of_lt hkn
+    have hone : (1 : ℕ) ≤ n - k := Nat.succ_le_of_lt hpos
+    have hT_le_mul : T ≤ (n - k) * T := by
+      -- 1*T ≤ (n-k)*T
+      have : (1 : ℕ) * T ≤ (n - k) * T := Nat.mul_le_mul_right T hone
+      simpa [Nat.one_mul] using this
+    have hmul_lt : (n - k) * T < M := by
+      -- unfold `M`, `T`, `S` in the provided hypothesis
+      simpa [M, S, T, Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hM
+    exact le_of_lt (lt_of_le_of_lt hT_le_mul hmul_lt)
+
+  have hgood : (Finset.univ.filter (fun x : Fin n => f x > T)).card ≥ k + 1 := by
+    simpa [f, M, T] using (card_filter_gt_of_sum_gt (n := n) f M T k hTM hf hsum)
+
+  rcases Finset.exists_subset_card_eq
+      (s := (Finset.univ.filter fun x : Fin n => f x > T)) (n := k + 1) hgood with
+    ⟨Dtop, hDtop_sub, hDtop_card⟩
+
+  refine ⟨Dtop, hDtop_card, ?_⟩
+  intro x hx
+  have hxmem : x ∈ Finset.univ.filter (fun x : Fin n => f x > T) := hDtop_sub hx
+  have hxgood' : f x > T := (Finset.mem_filter.mp hxmem).2
+  simpa [f, T] using hxgood'
+
 
 end BCIKS20ProximityGapSection5
 
