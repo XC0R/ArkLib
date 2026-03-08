@@ -446,21 +446,68 @@ lemma approximate_solution_is_exact_solution_coeffs'
               (irreducible_H k h_gs))) := by
    sorry
 
-open BCIKS20AppendixA.ClaimA2 in
-/-- Claim 5.9 from [BCIKS20].
-    States that the solution `γ` is linear in
-    the variable `Z`.
--/
-lemma solution_gamma_is_linear_in_Z
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  :
-  ∃ (v₀ v₁ : F[X]),
-    γ' x₀ (R k δ x₀ h_gs) (irreducible_H k (x₀ := x₀) (δ := δ) h_gs) =
-        BCIKS20AppendixA.polyToPowerSeries𝕃 _
-          (
-            (Polynomial.map Polynomial.C v₀) +
-            (Polynomial.C Polynomial.X) * (Polynomial.map Polynomial.C v₁)
-          ) := by sorry
+theorem gamma_coeff_eq_zero_of_ge_k (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∀ t : ℕ, t ≥ k →
+    PowerSeries.coeff t
+      (BCIKS20AppendixA.ClaimA2.γ'
+        x₀
+        (R k δ x₀ h_gs)
+        (irreducible_H k (x₀ := x₀) (δ := δ) h_gs))
+    = 0 := by
+  intro t ht
+  have h := congrArg (PowerSeries.coeff t)
+    (approximate_solution_is_exact_solution_coeffs' (k := k) (δ := δ) (x₀ := x₀) (h_gs := h_gs))
+  -- simplify using coeff_mk
+  simpa [PowerSeries.coeff_mk, ht] using h
+
+theorem gamma_eq_trunc_coe (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  BCIKS20AppendixA.ClaimA2.γ'
+      x₀
+      (R k δ x₀ h_gs)
+      (irreducible_H k (x₀ := x₀) (δ := δ) h_gs)
+    =
+    (PowerSeries.trunc (k + 1)
+        (BCIKS20AppendixA.ClaimA2.γ'
+          x₀
+          (R k δ x₀ h_gs)
+          (irreducible_H k (x₀ := x₀) (δ := δ) h_gs))
+      : PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) := by
+  classical
+  ext t
+  by_cases ht : t < k + 1
+  · simp [PowerSeries.coeff_trunc, ht]
+  · have ht' : t ≥ k + 1 := Nat.le_of_not_gt ht
+    have htk : t ≥ k := le_trans (Nat.le_succ k) ht'
+    have hcoeff :
+        PowerSeries.coeff t
+          (BCIKS20AppendixA.ClaimA2.γ'
+            x₀
+            (R k δ x₀ h_gs)
+            (irreducible_H k (x₀ := x₀) (δ := δ) h_gs))
+          = 0 :=
+      gamma_coeff_eq_zero_of_ge_k (k := k) (m := m) (n := n) (δ := δ) (x₀ := x₀)
+        (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs t htk
+    simp [PowerSeries.coeff_trunc, ht, hcoeff]
+
+
+theorem polyToPowerSeries𝕃_coeff (H : Polynomial (Polynomial F)) (P : Polynomial (Polynomial F)) (n : ℕ) :
+  PowerSeries.coeff n (BCIKS20AppendixA.polyToPowerSeries𝕃 H P) =
+    BCIKS20AppendixA.liftToFunctionField (H := H) (P.coeff n) := by
+  simp [BCIKS20AppendixA.polyToPowerSeries𝕃]
+
+theorem solution_gamma_is_linear_in_Z (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∃ (v₀ v₁ : Polynomial F),
+    BCIKS20AppendixA.ClaimA2.γ'
+        x₀
+        (R k δ x₀ h_gs)
+        (irreducible_H k (x₀ := x₀) (δ := δ) h_gs)
+      =
+      BCIKS20AppendixA.polyToPowerSeries𝕃 _
+        ((Polynomial.map Polynomial.C v₀) +
+          (Polynomial.C Polynomial.X) * (Polynomial.map Polynomial.C v₁)) := by
+  classical
+  sorry
+
 
 /-- The linear represenation of the solution `γ`
     extracted from the claim 5.9.
