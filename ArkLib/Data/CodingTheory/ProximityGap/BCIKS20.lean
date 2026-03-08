@@ -119,22 +119,68 @@ theorem correlatedAgreement_affine_curves [DecidableEq ι] {k : ℕ} {u : Fin k 
   : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by sorry
 
+theorem affineSubspace_line_closed {ι : Type} [Fintype ι]
+{F : Type} [Field F]
+(S : AffineSubspace F (ι → F)) {x y : ι → F} (hx : x ∈ S) (hy : y ∈ S) (z : F) :
+  x + z • (y - x) ∈ S := by
+  classical
+  -- Use the standard closure of an affine subspace under affine combinations.
+  simpa [vsub_eq_sub, vadd_eq_add, add_comm, add_left_comm, add_assoc] using
+    (S.smul_vsub_vadd_mem z hy hx hx)
+
 open Affine in
-/-- Theorem 1.6 (Correlated agreement over affine spaces) in [BCIKS20].
+theorem ca_affineSpaces_of_eps_ge_one {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+{F : Type} [Field F] [Fintype F] [DecidableEq F]
+{k : ℕ} {C : Set (ι → F)} {δ ε : ℝ≥0} (hε : (1 : ENNReal) ≤ (ε : ENNReal)) :
+  δ_ε_correlatedAgreementAffineSpaces (k := k) (A := F) (F := F) (ι := ι) (C := C) (δ := δ) (ε := ε) := by
+  classical
+  unfold δ_ε_correlatedAgreementAffineSpaces
+  intro u hPr
+  -- Let pr be the relevant probability
+  set pr : ENNReal :=
+    (do
+        let y ← PMF.uniformOfFintype
+          (Affine.affineSubspaceAtOrigin (F := F) (A := F) (u 0) (Fin.tail u))
+        return (δᵣ(y.1, C) ≤ δ)) True
+  have hPr' : pr > (ε : ENNReal) := by
+    simpa [pr] using hPr
+  have hle : pr ≤ (1 : ENNReal) := by
+    simpa [pr] using
+      (PMF.coe_le_one
+        (p := (do
+          let y ← PMF.uniformOfFintype
+            (Affine.affineSubspaceAtOrigin (F := F) (A := F) (u 0) (Fin.tail u))
+          return (δᵣ(y.1, C) ≤ δ)))
+        True)
+  have hlt : (1 : ENNReal) < pr := lt_of_le_of_lt hε hPr'
+  exfalso
+  exact (not_lt_of_ge hle) hlt
 
-Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and an affine space with origin `u₀` and affine generting set `u₁, ..., uκ`
-such that the probability a random point in the affine space is `δ`-close to the Reed-Solomon
-code is at most `ε`. Then the words `u₀, ..., uκ` have correlated agreement.
 
-Note that we have `k+2` vectors to form the affine space. This an intricacy needed us to be
-able to isolate the affine origin from the affine span and to form a generating set of the
-correct size. The reason for taking an extra vector is that after isolating the affine origin,
-the affine span is formed as the span of the difference of the rest of the vector set. -/
 theorem correlatedAgreement_affine_spaces {k : ℕ} [NeZero k] {u : Fin (k + 1) → ι → F}
   {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain))
   : δ_ε_correlatedAgreementAffineSpaces (k := k) (A := F) (F := F) (ι := ι)
-    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by sorry
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  sorry
+
+theorem direction_codeword_of_origin_and_shift {ι : Type} [Fintype ι] [DecidableEq ι]
+{F : Type} [Field F] [DecidableEq F]
+{C : Submodule F (ι → F)}
+{S : Finset ι} {u₀ u₁ c₀ c₁ : ι → F}
+(hc₀ : c₀ ∈ C) (hc₁ : c₁ ∈ C)
+(h₀ : ∀ x ∈ S, c₀ x = u₀ x)
+(h₁ : ∀ x ∈ S, c₁ x = (u₀ + u₁) x) :
+  (c₁ - c₀) ∈ C ∧ ∀ x ∈ S, (c₁ - c₀) x = u₁ x := by
+  constructor
+  · exact C.sub_mem hc₁ hc₀
+  · intro x hx
+    have h0' : c₀ x = u₀ x := h₀ x hx
+    have h1' : c₁ x = u₀ x + u₁ x := by
+      simpa [Pi.add_apply] using h₁ x hx
+    -- compute pointwise
+    simp [Pi.sub_apply, h1', h0']
+
 
 end CoreResults
 
