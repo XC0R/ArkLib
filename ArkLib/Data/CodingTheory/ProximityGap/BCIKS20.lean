@@ -7,6 +7,12 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib.Data.Nat.Cast.Order.Ring
+import ArkLib.Data.CodingTheory.BerlekampWelch.BerlekampWelch
+import Mathlib.LinearAlgebra.Matrix.Adjugate
+import Mathlib.LinearAlgebra.Matrix.Determinant.Basic
+import Mathlib.FieldTheory.RatFunc.AsPolynomial
+import ArkLib.Data.CodingTheory.PolishchukSpielman.PolishchukSpielman
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -564,27 +570,301 @@ noncomputable def coeffs_of_close_proximity_curve {l : ℕ}
   have : Fintype { z | δᵣ(curve u z, V) ≤ δ} := by infer_instance
   @Set.toFinset _ { z | δᵣ(curve u z, V) ≤ δ} this
 
-/-- If the set of points `δ`-close to the code `V` has
-    at least `n * l + 1` points then
-    there exists a curve defined by vectors `v` from `V`
-    such that the points of `curve u` and `curve v`
-    are `δ`-close with the same parameters.
-    Moreover, `u` and `v` differ at at most `δ * n`
-    positions.
--/
-theorem large_agreement_set_on_curve_implies_correlated_agreement {l : ℕ}
-  {rho : ℚ≥0}
-  {δ : ℚ≥0}
-  {V : Finset (Fin n → F)}
-  (hδ : δ ≤ (1 - rho) / 2)
-  {u : Fin l → Fin n → F}
-  (hS : n * l < (coeffs_of_close_proximity_curve δ u V).card)
-  :
-  coeffs_of_close_proximity_curve δ u V = F ∧
-  ∃ (v : Fin l → Fin n → F),
-    ∀ z, δᵣ(curve u z, curve v z) ≤ δ ∧
-    ({ x : Fin n | Finset.image u ≠ Finset.image v } : Finset _).card ≤ δ * n := by
-  sorry
+noncomputable def RSCodeFinset (ωs : Fin n ↪ F) (deg : ℕ) : Finset (Fin n → F) :=
+  ReedSolomonCode.finCarrier ωs deg
+
+theorem RSCodeFinset_nonempty {ωs : Fin n ↪ F} {deg : ℕ} : (RSCodeFinset (n := n) (F := F) ωs deg).Nonempty := by
+  classical
+  refine ⟨0, ?_⟩
+  unfold RSCodeFinset ReedSolomonCode.finCarrier
+  simp
+
+noncomputable def bwError (δ : ℚ≥0) (n : ℕ) : ℕ := Nat.floor ((δ : ℝ≥0) * n)
+
+theorem bwError_unique_decoding_ineq {deg : ℕ} {δ : ℚ≥0}
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2) :
+  2 * bwError δ n < n - deg + 1 := by
+  classical
+  set e : ℕ := bwError δ n
+
+  have he_le : (e : ℝ≥0) ≤ (δ : ℝ≥0) * n := by
+    subst e
+    dsimp [bwError]
+    simpa using (Nat.floor_le (a := (δ : ℝ≥0) * n) (by exact zero_le _))
+
+  have hn0 : (n : ℚ≥0) ≠ 0 := by
+    exact_mod_cast (NeZero.ne n)
+
+  have h2 : (2 : ℚ≥0) * δ ≤ (1 - (deg : ℚ≥0) / n) := by
+    -- multiply `hδ` by 2
+    have h :=
+      mul_le_mul_of_nonneg_left hδ (show (0 : ℚ≥0) ≤ (2 : ℚ≥0) by exact zero_le _)
+    -- simplify
+    simpa [mul_assoc, mul_left_comm, mul_comm, div_eq_mul_inv] using h
+
+  have hδn : (2 : ℚ≥0) * (δ * n) ≤ (n : ℚ≥0) - deg := by
+    -- multiply by n and rewrite
+    have h :=
+      mul_le_mul_of_nonneg_right h2 (show (0 : ℚ≥0) ≤ (n : ℚ≥0) by exact zero_le _)
+    -- rewrite (1 - deg/n) * n
+    have hmul_deg : ((deg : ℚ≥0) / n) * (n : ℚ≥0) = deg := by
+      -- `a / b * b = a` for `b ≠ 0`
+      simpa [div_eq_mul_inv, mul_assoc] using
+        (mul_inv_cancel_right₀ (a := (deg : ℚ≥0)) hn0)
+    have hmul_sub : (1 - (deg : ℚ≥0) / n) * (n : ℚ≥0) = (n : ℚ≥0) - deg := by
+      calc
+        (1 - (deg : ℚ≥0) / n) * (n : ℚ≥0)
+            = (1 : ℚ≥0) * (n : ℚ≥0) - ((deg : ℚ≥0) / n) * (n : ℚ≥0) := by
+                simpa using (tsub_mul (1 : ℚ≥0) ((deg : ℚ≥0) / n) (n : ℚ≥0))
+        _ = (n : ℚ≥0) - deg := by
+              simp [hmul_deg]
+    -- now finish
+    simpa [mul_assoc, hmul_sub] using h
+
+  -- convert `hδn` to `ℝ≥0`
+  have hδnR : (2 : ℝ≥0) * ((δ : ℝ≥0) * n) ≤ (n : ℝ≥0) - deg := by
+    -- cast inequality from ℚ≥0 to ℝ≥0
+    exact_mod_cast hδn
+
+  have hmainR : (2 : ℝ≥0) * (e : ℝ≥0) ≤ (n : ℝ≥0) - deg := by
+    have h :=
+      mul_le_mul_of_nonneg_left he_le (show (0 : ℝ≥0) ≤ (2 : ℝ≥0) by exact zero_le _)
+    exact le_trans h hδnR
+
+  have hmain_nat : 2 * e ≤ n - deg := by
+    -- go back to Nat
+    exact_mod_cast hmainR
+
+  have : 2 * e < n - deg + 1 := Nat.lt_succ_of_le hmain_nat
+  simpa [e] using this
+
+
+noncomputable def curveMismatchSet {l : ℕ} (u v : Fin l → Fin n → F) : Finset (Fin n) :=
+  {x : Fin n | (fun i => u i x) ≠ fun i => v i x}
+
+theorem curve_relDist_le_of_curveMismatchSet_card_le {l : ℕ} {δ : ℚ≥0} {u v : Fin l → Fin n → F}
+  (hm : (curveMismatchSet (n := n) (F := F) u v).card ≤ δ * n) :
+  ∀ z : F, δᵣ(curve u z, curve v z) ≤ δ := by
+  intro z
+  classical
+  -- Define the coordinatewise evaluation functional used in the curve definition
+  let g : (Fin l → F) → F := fun w => ∑ i, z ^ i.1 • w i
+
+  -- Applying a function coordinatewise cannot increase Hamming distance
+  have hcomp' :
+      Δ₀((fun x : Fin n => g (fun i : Fin l => u i x)),
+        (fun x : Fin n => g (fun i : Fin l => v i x)))
+        ≤
+      Δ₀((fun x : Fin n => fun i : Fin l => u i x),
+        (fun x : Fin n => fun i : Fin l => v i x)) := by
+    -- `hammingDist_comp_le_hammingDist` is stated in terms of `hammingDist`; our `Δ₀` is notation.
+    simpa [g] using
+      (hammingDist_comp_le_hammingDist (ι := Fin n)
+        (β := fun _ : Fin n => F)
+        (γ := fun _ : Fin n => (Fin l → F))
+        (f := fun _ => g)
+        (x := fun x : Fin n => fun i : Fin l => u i x)
+        (y := fun x : Fin n => fun i : Fin l => v i x))
+
+  -- Rewrite the LHS as the distance between the curve points
+  have hcurve_u : (fun x : Fin n => g (fun i : Fin l => u i x)) = curve u z := by
+    ext x
+    simp [g, curve, Finset.sum_apply]
+  have hcurve_v : (fun x : Fin n => g (fun i : Fin l => v i x)) = curve v z := by
+    ext x
+    simp [g, curve, Finset.sum_apply]
+
+  have hcomp : Δ₀(curve u z, curve v z)
+        ≤
+      Δ₀((fun x : Fin n => fun i : Fin l => u i x),
+        (fun x : Fin n => fun i : Fin l => v i x)) := by
+    simpa [hcurve_u, hcurve_v] using hcomp'
+
+  -- The RHS distance is exactly the size of `curveMismatchSet u v`
+  have hRHS :
+      Δ₀((fun x : Fin n => fun i : Fin l => u i x),
+        (fun x : Fin n => fun i : Fin l => v i x))
+        = (curveMismatchSet (n := n) (F := F) u v).card := by
+    rfl
+
+  have hΔ : (Δ₀(curve u z, curve v z) : ℚ≥0) ≤ (curveMismatchSet (n := n) (F := F) u v).card := by
+    have : (Δ₀(curve u z, curve v z) : ℚ≥0) ≤
+        (Δ₀((fun x : Fin n => fun i : Fin l => u i x),
+          (fun x : Fin n => fun i : Fin l => v i x)) : ℚ≥0) := by
+      exact_mod_cast hcomp
+    simpa [hRHS] using this
+
+  have hnpos : (0 : ℚ≥0) < (n : ℚ≥0) := by
+    exact_mod_cast (Nat.pos_of_ne_zero (NeZero.ne n))
+
+  -- Unfold relative Hamming distance and clear the denominator using `div_le_iff₀`.
+  unfold Code.relHammingDist
+  have hmain : (Δ₀(curve u z, curve v z) : ℚ≥0) ≤ δ * n := le_trans hΔ hm
+  -- `Fintype.card (Fin n) = n`
+  simpa [Fintype.card_fin] using ( (div_le_iff₀ hnpos).2 hmain )
+
+
+theorem exists_close_RSCodeword_of_mem_coeffs_of_close_proximity_curve {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0} {u : Fin l → Fin n → F} {z : F}
+  (hz : z ∈ coeffs_of_close_proximity_curve δ u (RSCodeFinset (n := n) (F := F) ωs deg)) :
+  ∃ w ∈ RSCodeFinset (n := n) (F := F) ωs deg, δᵣ(curve u z, w) ≤ δ := by
+  classical
+  -- Unfold membership in `coeffs_of_close_proximity_curve`
+  unfold coeffs_of_close_proximity_curve at hz
+  -- `hz` is membership in a `Set.toFinset`, so simplify
+  simp at hz
+  -- Now `hz : δᵣ(curve u z, RSCodeFinset ωs deg) ≤ δ`
+  -- Convert δ to NNReal to use `Code.relCloseToCode_iff_relCloseToCodeword_of_minDist`
+  set δR : ℝ≥0 := (δ : ℝ≥0)
+  have hz' : δᵣ(curve u z, (RSCodeFinset (n := n) (F := F) ωs deg : Set (Fin n → F))) ≤ δR := by
+    -- coe-coe and rewrite
+    simpa [δR] using hz
+  -- Apply the closeness-to-code lemma
+  have hw : ∃ w ∈ (RSCodeFinset (n := n) (F := F) ωs deg : Set (Fin n → F)), δᵣ(curve u z, w) ≤ δR :=
+    (Code.relCloseToCode_iff_relCloseToCodeword_of_minDist (u := curve u z)
+      (C := (RSCodeFinset (n := n) (F := F) ωs deg : Set (Fin n → F))) (δ := δR)).1 hz'
+  rcases hw with ⟨w, hwmem, hwdist⟩
+  refine ⟨w, ?_, ?_⟩
+  · -- membership back in the finset
+    simpa using hwmem
+  · -- convert distance bound back to ℚ≥0
+    -- `hwdist : (δᵣ(curve u z, w) : ℝ≥0) ≤ δR`
+    -- so cast back
+    simpa [δR] using hwdist
+
+theorem mem_RSCodeFinset_iff_mem_RSCode {ωs : Fin n ↪ F} {deg : ℕ} {w : Fin n → F} : w ∈ RSCodeFinset (n := n) (F := F) ωs deg ↔ w ∈ ReedSolomon.code ωs deg := by
+  unfold RSCodeFinset
+  simp [ReedSolomonCode.finCarrier]
+
+theorem curve_mem_RSCodeFinset {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {v : Fin l → Fin n → F} (hv : ∀ i, v i ∈ RSCodeFinset (n := n) (F := F) ωs deg) (z : F) : curve v z ∈ RSCodeFinset (n := n) (F := F) ωs deg := by
+  classical
+  -- Convert the goal to a submodule membership goal
+  rw [mem_RSCodeFinset_iff_mem_RSCode]
+  -- Convert the hypotheses similarly
+  have hv' : ∀ i, v i ∈ ReedSolomon.code ωs deg := by
+    intro i
+    exact (mem_RSCodeFinset_iff_mem_RSCode (n := n) (F := F) (ωs := ωs) (deg := deg) (w := v i)).1 (hv i)
+  -- Now use closure of the Reed–Solomon code under linear combinations
+  simpa [curve] using
+    (ReedSolomon.code ωs deg).sum_mem (t := (Finset.univ : Finset (Fin l)))
+      (fun i _ => (ReedSolomon.code ωs deg).smul_mem (z ^ i.1) (hv' i))
+
+theorem coeffs_of_close_proximity_curve_eq_univ_of_exists_v {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0} {u v : Fin l → Fin n → F}
+  (hv : ∀ i, v i ∈ RSCodeFinset (n := n) (F := F) ωs deg)
+  (hclose : ∀ z, δᵣ(curve u z, curve v z) ≤ δ)
+  : coeffs_of_close_proximity_curve δ u (RSCodeFinset (n := n) (F := F) ωs deg) = (Finset.univ : Finset F) := by
+  classical
+  ext z
+  simp [coeffs_of_close_proximity_curve]
+  have hzmem : curve v z ∈ RSCodeFinset (n := n) (F := F) ωs deg :=
+    curve_mem_RSCodeFinset (n := n) (F := F) (l := l) (ωs := ωs) (deg := deg) hv z
+  have hle :
+      δᵣ(curve u z, (↑(RSCodeFinset (n := n) (F := F) ωs deg) : Set (Fin n → F))) ≤
+        (δᵣ(curve u z, curve v z) : ENNReal) := by
+    simpa using
+      (Code.relDistFromCode_le_relDist_to_mem (ι := Fin n) (F := F)
+        (u := curve u z)
+        (C := (↑(RSCodeFinset (n := n) (F := F) ωs deg) : Set (Fin n → F)))
+        (v := curve v z)
+        (by simpa using hzmem))
+  have hclose' : (δᵣ(curve u z, curve v z) : ENNReal) ≤ (δ : ENNReal) := by
+    -- first cast the inequality to `ℝ≥0`, then to `ℝ≥0∞`
+    have hclose_nnreal : (δᵣ(curve u z, curve v z) : NNReal) ≤ (δ : NNReal) := by
+      exact_mod_cast (hclose z)
+    -- now coe to `ENNReal`
+    have hclose_ennreal :
+        ((δᵣ(curve u z, curve v z) : NNReal) : ENNReal) ≤ ((δ : NNReal) : ENNReal) :=
+      (ENNReal.coe_le_coe).2 hclose_nnreal
+    -- rewrite casts from `ℚ≥0` to `ENNReal` via `NNReal`
+    simpa [ENNReal.coe_nnratCast] using hclose_ennreal
+  exact le_trans hle hclose'
+
+theorem exists_poly_of_mem_coeffs_of_close_proximity_curve {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0} {u : Fin l → Fin n → F} {z : F}
+  (hz : z ∈ coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)) :
+  ∃ p : Polynomial F,
+    p ∈ Polynomial.degreeLT F deg ∧
+    Δ₀(curve u z, p.eval ∘ ωs) ≤ bwError δ n := by
+  classical
+  rcases
+      exists_close_RSCodeword_of_mem_coeffs_of_close_proximity_curve
+        (n := n) (F := F) (ωs := ωs) (deg := deg) (δ := δ) (u := u) (z := z) hz with
+    ⟨w, hwRS, hrel⟩
+
+  have hwRS' : w ∈ ReedSolomon.code ωs deg :=
+    (mem_RSCodeFinset_iff_mem_RSCode (n := n) (F := F) (ωs := ωs) (deg := deg) (w := w)).1 hwRS
+
+  -- unpack membership in the RS code as an evaluation of a low-degree polynomial
+  rcases (by simpa [ReedSolomon.code] using hwRS') with ⟨p, hpLT, hpw⟩
+
+  refine ⟨p, hpLT, ?_⟩
+
+  -- turn the relative distance bound into a bound on the Hamming distance
+  have hrel' : (δᵣ(curve u z, w) : ℝ≥0) ≤ (δ : ℝ≥0) := by
+    exact_mod_cast hrel
+
+  have hdist' : Δ₀(curve u z, w) ≤ Nat.floor ((δ : ℝ≥0) * (Fintype.card (Fin n))) := by
+    have :=
+      (Code.pairRelDist_le_iff_pairDist_le
+            (ι := Fin n) (F := F) (u := curve u z) (v := w) (δ := (δ : ℝ≥0))).1 hrel'
+    simpa using this
+
+  have hdist : Δ₀(curve u z, w) ≤ bwError δ n := by
+    simpa [bwError, Fintype.card_fin] using hdist'
+
+  have hw_eq : w = p.eval ∘ ωs := by
+    ext i
+    -- `hpw : (ReedSolomon.evalOnPoints ωs) p = w`
+    simpa [ReedSolomon.evalOnPoints] using congrArg (fun f => f i) hpw.symm
+
+  simpa [hw_eq] using hdist
+
+theorem bw_decoder_eq_some_of_mem_coeffs {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0}
+  (hn : deg ≤ n)
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2)
+  {u : Fin l → Fin n → F} {z : F}
+  (hz : z ∈ coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)) :
+  ∃ p : Polynomial F,
+    p ∈ Polynomial.degreeLT F deg ∧
+    BerlekampWelch.decoder (bwError δ n) deg (fun i => ωs i) (curve u z) = some p := by
+  classical
+  obtain ⟨p, hpLT, hdist⟩ :=
+    exists_poly_of_mem_coeffs_of_close_proximity_curve (ωs := ωs) (deg := deg) (δ := δ)
+      (u := u) (z := z) hz
+  by_cases hdeg : deg = 0
+  · subst hdeg
+    have hp0 : p = 0 := by
+      have hpdeg : p.degree < (0 : ℕ) := (Polynomial.mem_degreeLT).1 hpLT
+      by_contra hp0
+      have : p.natDegree < (0 : ℕ) :=
+        (Polynomial.natDegree_lt_iff_degree_lt hp0).2 hpdeg
+      exact Nat.not_lt_zero _ this
+    subst hp0
+    refine ⟨0, hpLT, ?_⟩
+    have hzero : (0 : Polynomial F).eval ∘ (fun i : Fin n => ωs i) = (0 : Fin n → F) := by
+      funext i
+      simp
+    have hdist0 : Δ₀(curve u z, (0 : Fin n → F)) ≤ bwError δ n := by
+      simpa [hzero] using hdist
+    have hnorm : ‖curve u z‖₀ ≤ bwError δ n := by
+      simpa [hammingDist_zero_right] using hdist0
+    simp [BerlekampWelch.decoder, hnorm]
+  ·
+    have hdeg_pos : 0 < deg := Nat.pos_of_ne_zero hdeg
+    have hpdeg : p.degree < (deg : ℕ) := (Polynomial.mem_degreeLT).1 hpLT
+    have hp_natDegree : p.natDegree < deg := by
+      by_cases hp0 : p = 0
+      · subst hp0
+        simpa using hdeg_pos
+      · exact (Polynomial.natDegree_lt_iff_degree_lt hp0).2 hpdeg
+    have he : 2 * bwError δ n < n - deg + 1 :=
+      bwError_unique_decoding_ineq (deg := deg) (δ := δ) hδ
+    have h_inj : Function.Injective (fun i : Fin n => ωs i) := by
+      simpa using ωs.injective
+    have hdec :
+        BerlekampWelch.decoder (bwError δ n) deg (fun i : Fin n => ωs i) (curve u z) = some p :=
+      BerlekampWelch.decoder_eq_some (e := bwError δ n) (k := deg)
+        (ωs := fun i : Fin n => ωs i) (f := curve u z) (p := p)
+        he hn h_inj hp_natDegree hdist
+    exact ⟨p, hpLT, hdec⟩
 
 /-- The distance bound from the proximity gap paper.
 -/
@@ -613,6 +893,210 @@ theorem large_agreement_set_on_curve_implies_correlated_agreement' {l : ℕ}
   ∃ (v : Fin l → Fin n → F),
   ∀ i, v i ∈ V ∧
   (1 - δ) * n ≤ ({x : Fin n | ∀ i, u i x = v i x} : Finset _).card := sorry
+
+open scoped BigOperators in
+theorem exists_v_RS_mismatch_of_large_agreement_set_of_deg_le_n {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0}
+  (hn : deg ≤ n)
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2)
+  {u : Fin l → Fin n → F}
+  (hS : n * l < (coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)).card) :
+  ∃ v : Fin l → Fin n → F,
+    (∀ i, v i ∈ RSCodeFinset ωs deg) ∧
+    (curveMismatchSet u v).card ≤ δ * n := by
+  classical
+  by_cases hl : l = 0
+  · subst hl
+    refine ⟨u, ?_, ?_⟩
+    · intro i
+      exact Fin.elim0 i
+    · simp [curveMismatchSet]
+  ·
+    have hlpos : 0 < l := Nat.pos_of_ne_zero hl
+    have hnpos : 0 < n := Nat.pos_of_neZero n
+    haveI : Finite F := by infer_instance
+
+    -- show δ ≤ 1 in ℚ≥0
+    have hδ_le_one : (δ : ℚ≥0) ≤ 1 := by
+      have h₁ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2 := hδ
+      have h₂ : (1 - (deg : ℚ≥0) / n) / 2 ≤ (1 - (deg : ℚ≥0) / n) := by
+        simpa using
+          (div_le_self (a := (1 - (deg : ℚ≥0) / n)) (b := (2 : ℚ≥0)) (by simp) (by norm_num))
+      have h₃ : (1 - (deg : ℚ≥0) / n) ≤ (1 : ℚ≥0) := by
+        simpa using
+          (sub_le_self (a := (1 : ℚ≥0)) (b := (deg : ℚ≥0) / n) (by simp))
+      exact le_trans h₁ (le_trans h₂ h₃)
+
+    -- δ ≤ δ₀ 0 3 (as real)
+    have hδ' : (δ : ℝ) ≤ ProximityGap.δ₀ (rho := (0 : ℚ≥0)) (m := 3) := by
+      simp [ProximityGap.δ₀]
+      exact_mod_cast hδ_le_one
+
+    -- build hS' for the big lemma: with rho=0, LHS collapses to 0, so it suffices that card S > 0
+    have hSposNat : 0 < (coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)).card := by
+      exact lt_trans (Nat.mul_pos hnpos hlpos) hS
+    have hSposReal : (0 : ℝ) < (coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)).card := by
+      exact_mod_cast hSposNat
+    have hExp : ((3 / 2 : ℚ) : ℝ) ≠ 0 := by
+      norm_num
+    have hLHS0 : (((1 + 1 / (2 * (3 : ℕ))) ^ 7 * (3 : ℕ) ^ 7) /
+        (3 * (Real.rpow (0 : ℚ≥0) (3 / 2 : ℚ))) * (n : ℕ) ^ 2 * l : ℝ) = 0 := by
+      simp [Real.zero_rpow hExp]
+    have hS' : (((1 + 1 / (2 * (3 : ℕ))) ^ 7 * (3 : ℕ) ^ 7) /
+        (3 * (Real.rpow (0 : ℚ≥0) (3 / 2 : ℚ))) * (n : ℕ) ^ 2 * l : ℝ)
+        < (coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)).card := by
+      simpa [hLHS0] using hSposReal
+
+    -- apply the (imported) correlated agreement lemma
+    rcases (large_agreement_set_on_curve_implies_correlated_agreement' (F := F) (n := n)
+      (l := l) (m := 3) (rho := (0 : ℚ≥0)) (δ := δ)
+      (hm := by decide) (V := RSCodeFinset ωs deg) (hδ := hδ') (u := u) hS') with ⟨v, hv⟩
+
+    refine ⟨v, ?_, ?_⟩
+    · intro i
+      exact (hv i).1
+    ·
+      -- Let A be the agreement set
+      let A : Finset (Fin n) := {x : Fin n | ∀ i : Fin l, u i x = v i x}
+
+      -- Extract a lower bound on |A|
+      let i0 : Fin l := ⟨0, hlpos⟩
+      have hagree : (1 - δ) * (n : ℚ≥0) ≤ (A.card : ℚ≥0) := by
+        simpa [A] using (hv i0).2
+
+      -- Relate |A| and the mismatch set by partitioning univ
+      have hcard_partition_nat : A.card + (curveMismatchSet u v).card = n := by
+        have h :=
+          (Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin n)))
+            (p := fun x : Fin n => ∀ i : Fin l, u i x = v i x))
+        -- simplify filters to A and curveMismatchSet
+        simpa [A, curveMismatchSet, funext_iff] using h
+
+      have hcard_partition : (A.card : ℚ≥0) + (curveMismatchSet u v).card = n := by
+        exact_mod_cast hcard_partition_nat
+
+      -- Compute n = (1-δ)*n + δ*n
+      have hsum : (1 - δ) * (n : ℚ≥0) + δ * (n : ℚ≥0) = n := by
+        have h1 : (1 - δ) + δ = (1 : ℚ≥0) := by
+          -- (1-δ)+δ = 1 since δ ≤ 1
+          simpa [add_comm, add_left_comm, add_assoc] using (tsub_add_cancel_of_le hδ_le_one)
+        calc
+          (1 - δ) * (n : ℚ≥0) + δ * (n : ℚ≥0)
+              = ((1 - δ) + δ) * (n : ℚ≥0) := by
+                  ring
+          _ = (1 : ℚ≥0) * (n : ℚ≥0) := by
+                  simp [h1]
+          _ = n := by
+                  simp
+
+      -- Add δ*n to hagree and rewrite using hsum
+      have hn_le : (n : ℚ≥0) ≤ (A.card : ℚ≥0) + δ * (n : ℚ≥0) := by
+        have h' : (1 - δ) * (n : ℚ≥0) + δ * (n : ℚ≥0) ≤ (A.card : ℚ≥0) + δ * (n : ℚ≥0) := by
+          exact add_le_add hagree le_rfl
+        simpa [hsum] using h'
+
+      -- Replace n by A.card + mismatch.card and cancel A.card
+      have hmis : (curveMismatchSet u v).card ≤ δ * (n : ℚ≥0) := by
+        have hn_le' : (A.card : ℚ≥0) + (curveMismatchSet u v).card ≤ (A.card : ℚ≥0) + δ * (n : ℚ≥0) := by
+          simpa [hcard_partition] using hn_le
+        exact (add_le_add_iff_left (A.card : ℚ≥0)).1 hn_le'
+
+      simpa using hmis
+
+
+theorem mem_RSCodeFinset_of_n_le_deg {ωs : Fin n ↪ F} {deg : ℕ} (hdeg : n ≤ deg) (w : Fin n → F) : w ∈ RSCodeFinset (n := n) (F := F) ωs deg := by
+  classical
+  refine (mem_RSCodeFinset_iff_mem_RSCode (n := n) (F := F) (ωs := ωs) (deg := deg) (w := w)).2 ?_
+  -- Interpolating polynomial
+  let p : Polynomial F := Lagrange.interpolate (s := (Finset.univ : Finset (Fin n)))
+      (v := fun i : Fin n => ωs i) w
+  have hinj : Set.InjOn (fun i : Fin n => ωs i) (Finset.univ : Finset (Fin n)) := by
+    intro x hx y hy hxy
+    exact ωs.injective hxy
+  have hp_eval : ∀ i : Fin n, p.eval (ωs i) = w i := by
+    intro i
+    have := Lagrange.eval_interpolate_at_node (s := (Finset.univ : Finset (Fin n)))
+      (v := fun i : Fin n => ωs i) (r := w) (i := i) hinj (by simp)
+    simpa [p] using this
+  have hp_deg_lt_n : p.degree < (n : WithBot ℕ) := by
+    have := Lagrange.degree_interpolate_lt (s := (Finset.univ : Finset (Fin n)))
+      (v := fun i : Fin n => ωs i) (r := w) hinj
+    simpa [p] using this
+  have hn_le_deg : (n : WithBot ℕ) ≤ deg := by
+    exact_mod_cast hdeg
+  have hp_deg_lt_deg : p.degree < (deg : WithBot ℕ) := lt_of_lt_of_le hp_deg_lt_n hn_le_deg
+  have hp_mem_degLT : p ∈ Polynomial.degreeLT F deg := (Polynomial.mem_degreeLT).2 hp_deg_lt_deg
+  refine ⟨p, hp_mem_degLT, ?_⟩
+  ext i
+  simpa [ReedSolomon.evalOnPoints, hp_eval i]
+
+theorem exists_v_RS_mismatch_of_large_agreement_set {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0}
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2)
+  {u : Fin l → Fin n → F}
+  (hS : n * l < (coeffs_of_close_proximity_curve δ u (RSCodeFinset ωs deg)).card) :
+  ∃ v : Fin l → Fin n → F,
+    (∀ i, v i ∈ RSCodeFinset ωs deg) ∧
+    (curveMismatchSet u v).card ≤ δ * n := by
+  classical
+  by_cases hn : deg ≤ n
+  ·
+    exact
+      exists_v_RS_mismatch_of_large_agreement_set_of_deg_le_n (ωs := ωs) (deg := deg) (δ := δ)
+        hn hδ hS
+  ·
+    have hdeg : n ≤ deg := le_of_not_ge hn
+    refine ⟨u, ?_, ?_⟩
+    · intro i
+      exact mem_RSCodeFinset_of_n_le_deg (ωs := ωs) (deg := deg) hdeg (u i)
+    ·
+      have hEmpty : curveMismatchSet u u = (∅ : Finset (Fin n)) := by
+        ext x
+        simp [curveMismatchSet]
+      simpa [hEmpty] using (zero_le (δ * n))
+
+theorem exists_correlated_curve_of_large_agreement_set {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0}
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2)
+  {u : Fin l → Fin n → F}
+  (hS : n * l < (coeffs_of_close_proximity_curve δ u (RSCodeFinset (n := n) (F := F) ωs deg)).card)
+  :
+  ∃ v : Fin l → Fin n → F,
+    (∀ i, v i ∈ RSCodeFinset (n := n) (F := F) ωs deg) ∧
+    (∀ z, δᵣ(curve u z, curve v z) ≤ δ) ∧
+    (curveMismatchSet u v).card ≤ δ * n := by
+  classical
+  rcases
+      exists_v_RS_mismatch_of_large_agreement_set (n := n) (F := F) (l := l) (ωs := ωs)
+        (deg := deg) (δ := δ) hδ hS with
+    ⟨v, hvRS, hm⟩
+  have hclose : ∀ z : F, δᵣ(curve u z, curve v z) ≤ δ :=
+    curve_relDist_le_of_curveMismatchSet_card_le (n := n) (F := F) (l := l) (δ := δ)
+      (u := u) (v := v) hm
+  exact ⟨v, hvRS, hclose, hm⟩
+
+theorem large_agreement_set_on_curve_implies_correlated_agreement {l : ℕ} {ωs : Fin n ↪ F} {deg : ℕ} {δ : ℚ≥0}
+  (hδ : δ ≤ (1 - (deg : ℚ≥0) / n) / 2)
+  {u : Fin l → Fin n → F}
+  (hS : n * l < (coeffs_of_close_proximity_curve δ u (RSCodeFinset (n := n) (F := F) ωs deg)).card)
+  :
+  coeffs_of_close_proximity_curve δ u (RSCodeFinset (n := n) (F := F) ωs deg) = (Finset.univ : Finset F)
+  ∧
+  ∃ (v : Fin l → Fin n → F),
+    (∀ i, v i ∈ RSCodeFinset (n := n) (F := F) ωs deg) ∧
+    (∀ z, δᵣ(curve u z, curve v z) ≤ δ) ∧
+    (curveMismatchSet u v).card ≤ δ * n := by
+  classical
+  rcases
+      exists_correlated_curve_of_large_agreement_set (n := n) (F := F) (l := l) (ωs := ωs)
+        (deg := deg) (δ := δ) (hδ := hδ) (u := u) (hS := hS) with
+    ⟨v, hv, hclose, hmismatch⟩
+  constructor
+  ·
+    exact
+      coeffs_of_close_proximity_curve_eq_univ_of_exists_v (n := n) (F := F) (l := l) (ωs := ωs)
+        (deg := deg) (δ := δ) (u := u) (v := v) hv hclose
+  ·
+    refine ⟨v, ?_⟩
+    exact ⟨hv, hclose, hmismatch⟩
+
 
 section
 open NNReal Finset Function
