@@ -87,25 +87,226 @@ theorem RS_correlatedAgreement_affineLines_uniqueDecodingRegime
     : δ_ε_correlatedAgreementAffineLines (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by sorry
 
-/-- Theorem 1.4 (Main Theorem — Correlated agreement over lines) in [BCIKS20].
+theorem affineLine_param_injective (u : WordStack (A := F) (κ := Fin 2) (ι := ι)) (hdir : u 1 ≠ 0) :
+    Function.Injective (fun z : F => u 0 + z • u 1) := by
+  classical
+  intro a b hab
+  have hab' : a • u 1 = b • u 1 := by
+    exact add_left_cancel hab
+  have hnon : ∃ i : ι, u 1 i ≠ 0 := by
+    by_contra h
+    apply hdir
+    funext i
+    have : u 1 i = 0 := by
+      by_contra hi
+      apply h
+      exact ⟨i, hi⟩
+    simpa using this
+  rcases hnon with ⟨i, hi⟩
+  have habi : (a • u 1) i = (b • u 1) i := by
+    exact congrArg (fun w => w i) hab'
+  have habi' : a * (u 1 i) = b * (u 1 i) := by
+    simpa using habi
+  exact mul_right_cancel₀ hi habi'
 
-Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and two words `u₀` and `u₁`, such that the probability that a random affine
-line passing through `u₀` and `u₁` is `δ`-close to Reed-Solomon code is at most `ε`.
-Then, the words `u₀` and `u₁` have correlated agreement. -/
-theorem RS_correlatedAgreement_affineLines {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain)) :
-  δ_ε_correlatedAgreementAffineLines (A := F) (F := F) (ι := ι)
-    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) :=
-  -- Do casing analysis on `hδ`
-  if hδ_uniqueDecodingRegime :
-    δ ≤ Code.relativeUniqueDecodingRadius (ι := ι) (F := F) (C := ReedSolomon.code domain deg)
-  then
-    RS_correlatedAgreement_affineLines_uniqueDecodingRegime (hδ := hδ_uniqueDecodingRegime)
-  else
-    -- TODO: theorem 5.1 for list-decoding regime
-    sorry
 
+theorem card_filter_univ_subtype_eq_filter {β : Type} [DecidableEq β] (s : Finset β) (q : β → Prop) [DecidablePred q] :
+    (Finset.filter (fun y : s => q (y : β)) (Finset.univ : Finset s)).card =
+      (s.filter q).card := by
+  classical
+  -- let A be the finset of elements of `s` satisfying `q`
+  -- (written as a finset on the subtype `s`)
+  simpa using
+    (Finset.card_bij
+      (s := Finset.filter (fun y : s => q (y : β)) (Finset.univ : Finset s))
+      (t := s.filter q)
+      (i := fun y hy => (y : β))
+      (hi := by
+        intro y hy
+        -- `hy : y ∈ filter ... univ`
+        have hyq : q (y : β) := (Finset.mem_filter.1 hy).2
+        exact Finset.mem_filter.2 ⟨y.2, hyq⟩)
+      (i_inj := by
+        intro y1 hy1 y2 hy2 h
+        -- equality in the subtype `s` is equality of the underlying value
+        ext
+        exact h)
+      (i_surj := by
+        intro b hb
+        -- `hb : b ∈ s.filter q`
+        have hb' : b ∈ s ∧ q b := Finset.mem_filter.1 hb
+        refine ⟨⟨b, hb'.1⟩, ?_, rfl⟩
+        -- show `⟨b, hb'.1⟩` is in the filtered univ
+        exact Finset.mem_filter.2 ⟨Finset.mem_univ _, by simpa using hb'.2⟩))
+
+
+theorem fintype_card_subtype_coe_finset_eq_filter_card {β : Type} [DecidableEq β] (s : Finset β) (q : β → Prop) [DecidablePred q] :
+    Fintype.card {y : s // q (y : β)} = (s.filter q).card := by
+  classical
+  -- rewrite the subtype card as a filtered `univ` card
+  rw [Fintype.card_subtype (α := s) (p := fun y : s => q (y : β))]
+  -- now it is exactly the statement of `card_filter_univ_subtype_eq_filter`
+  simpa using (card_filter_univ_subtype_eq_filter (s := s) (q := q))
+
+theorem polynomialCurveFinite_fin2_eq_image_affineLine (u : WordStack (A := F) (κ := Fin 2) (ι := ι)) :
+    Curve.polynomialCurveFinite (F := F) (A := F) u =
+      Finset.univ.image (fun z : F => u 0 + z • u 1) := by
+  classical
+  ext v
+  -- unfold the definition of the curve and simplify the `Fin 2` sum
+  simp [Curve.polynomialCurveFinite, Fin.sum_univ_two, pow_zero, pow_one, one_smul,
+    add_comm, add_left_comm, add_assoc, eq_comm]
+
+theorem card_polynomialCurveFinite_fin2_eq_card_image_affineLine (u : WordStack (A := F) (κ := Fin 2) (ι := ι)) :
+    (Curve.polynomialCurveFinite (F := F) (A := F) u).card =
+      (Finset.univ.image (fun z : F => u 0 + z • u 1)).card := by
+  classical
+  simpa [polynomialCurveFinite_fin2_eq_image_affineLine (u := u)]
+
+theorem filter_polynomialCurveFinite_fin2_eq_filter_image_affineLine (C : Set (ι → F)) (δ : ℝ≥0)
+    (u : WordStack (A := F) (κ := Fin 2) (ι := ι)) :
+    (Curve.polynomialCurveFinite (F := F) (A := F) u).filter (fun x : ι → F => δᵣ(x, C) ≤ δ) =
+      (Finset.univ.image (fun z : F => u 0 + z • u 1)).filter (fun x : ι → F => δᵣ(x, C) ≤ δ) := by
+  classical
+  simpa [polynomialCurveFinite_fin2_eq_image_affineLine (u := u)]
+
+theorem prob_uniformOfFintype_eq_card_div {α : Type} [Fintype α] [Nonempty α]
+    (P : α → Prop) [DecidablePred P] :
+    Pr_{let x ← $ᵖ α}[P x] = (Fintype.card {x : α // P x} : ENNReal) / (Fintype.card α : ENNReal) := by
+  classical
+  -- Ensure the subtype `{x : α | P x}` uses the same `Fintype` instance as `{x : α // P x}`.
+  letI : Fintype {x : α | P x} := Subtype.fintype P
+  simpa using (by
+    calc
+      (Pr_{let x ← $ᵖ α}[P x])
+          = ((PMF.map P ($ᵖ α)) True) := by
+              rfl
+      _ = (PMF.map P ($ᵖ α)).toOuterMeasure {True} := by
+              simpa [PMF.toOuterMeasure_apply_singleton]
+      _ = ($ᵖ α).toOuterMeasure (P ⁻¹' ({True} : Set Prop)) := by
+              simp only [PMF.toOuterMeasure_map_apply]
+      _ = ($ᵖ α).toOuterMeasure {x : α | P x} := by
+              simp only [Set.preimage_singleton_true]
+      _ = (Fintype.card {x : α // P x} : ENNReal) / (Fintype.card α : ENNReal) := by
+              simpa using
+                (PMF.toOuterMeasure_uniformOfFintype_apply (α := α) (s := {x : α | P x}))
+    )
+
+theorem prob_uniform_affineLine_eq_prob_uniform_curve_fin2 (C : Set (ι → F)) (δ : ℝ≥0)
+    (u : WordStack (A := F) (κ := Fin 2) (ι := ι)) :
+    Pr_{let z ← $ᵖ F}[δᵣ(u 0 + z • u 1, C) ≤ δ] =
+      Pr_{let y ← $ᵖ (Curve.polynomialCurveFinite (F := F) (A := F) u)}[δᵣ(y.1, C) ≤ δ] := by
+  classical
+  let P : (ι → F) → Prop := fun x => δᵣ(x, C) ≤ δ
+  let f : F → (ι → F) := fun z => u 0 + z • u 1
+  change Pr_{let z ← $ᵖ F}[P (f z)] =
+      Pr_{let y ← $ᵖ (Curve.polynomialCurveFinite (F := F) (A := F) u)}[P y.1]
+
+  -- provide nonemptiness of the curve (needed for `prob_uniformOfFintype_eq_card_div`)
+  have hneImg : (Finset.univ.image f).Nonempty := by
+    simpa using (Finset.univ_nonempty.image f)
+  have hcard_curve :
+      (Curve.polynomialCurveFinite (F := F) (A := F) u).card = (Finset.univ.image f).card := by
+    simpa [f] using (card_polynomialCurveFinite_fin2_eq_card_image_affineLine (u := u))
+  have hneCurveFinset : (Curve.polynomialCurveFinite (F := F) (A := F) u).Nonempty := by
+    have hposImg : 0 < (Finset.univ.image f).card := Finset.card_pos.2 hneImg
+    have hposCurve : 0 < (Curve.polynomialCurveFinite (F := F) (A := F) u).card := by
+      simpa [hcard_curve] using hposImg
+    exact Finset.card_pos.1 hposCurve
+  haveI : Nonempty (Curve.polynomialCurveFinite (F := F) (A := F) u) := by
+    rcases hneCurveFinset with ⟨x, hx⟩
+    exact ⟨⟨x, hx⟩⟩
+
+  -- rewrite both probabilities as card ratios
+  rw [prob_uniformOfFintype_eq_card_div (α := F) (P := fun z : F => P (f z))]
+  rw [prob_uniformOfFintype_eq_card_div
+        (α := (Curve.polynomialCurveFinite (F := F) (A := F) u))
+        (P := fun y : (Curve.polynomialCurveFinite (F := F) (A := F) u) => P y.1)]
+
+  -- rewrite the RHS numerator/denominator using finset `card` and the curve/image equalities
+  have hnum_curve :
+      (Fintype.card {y : (Curve.polynomialCurveFinite (F := F) (A := F) u) // P y.1} : ENNReal) =
+        (((Curve.polynomialCurveFinite (F := F) (A := F) u).filter P).card : ENNReal) := by
+    -- first rewrite the nat card, then cast to ENNReal
+    simpa [P] using
+      congrArg (fun n : Nat => (n : ENNReal))
+        (fintype_card_subtype_coe_finset_eq_filter_card
+          (s := (Curve.polynomialCurveFinite (F := F) (A := F) u)) (q := P))
+  have hfilter_curve :
+      (Curve.polynomialCurveFinite (F := F) (A := F) u).filter P =
+        (Finset.univ.image f).filter P := by
+    simpa [P, f] using
+      (filter_polynomialCurveFinite_fin2_eq_filter_image_affineLine (C := C) (δ := δ) (u := u))
+  have hden_curve :
+      (Fintype.card (Curve.polynomialCurveFinite (F := F) (A := F) u) : ENNReal) =
+        (((Curve.polynomialCurveFinite (F := F) (A := F) u).card : Nat) : ENNReal) := by
+    simpa using congrArg (fun n : Nat => (n : ENNReal))
+      (Fintype.card_coe (Curve.polynomialCurveFinite (F := F) (A := F) u))
+
+  -- fold the curve-side expression into a ratio over the affine-line image
+  rw [hnum_curve, hden_curve]
+  -- rewrite curve finset to the image finset
+  simp [hfilter_curve, hcard_curve]
+
+  -- now it remains to compare a ratio over `F` with a ratio over `univ.image f`.
+  by_cases hdir : u 1 = 0
+  · -- constant map case
+    have huniv : (Finset.univ.image (fun _ : F => u 0)) = ({u 0} : Finset (ι → F)) := by
+      simpa using
+        (Finset.image_const (s := (Finset.univ : Finset F)) (h := Finset.univ_nonempty) (b := u 0))
+
+    by_cases hP0 : P (u 0)
+    ·
+      have hcardF0 : (Fintype.card F : ENNReal) ≠ 0 := by
+        simpa using (Nat.cast_ne_zero.2 (Fintype.card_ne_zero (α := F)))
+      -- reduce to the singleton-filter goal
+      simp [f, hdir, huniv, hP0, hcardF0]
+      have hR : (↑(#(Finset.filter P ({u 0} : Finset (ι → F)))) : ENNReal) = 1 := by
+        simp [Finset.filter_singleton, hP0]
+      rw [hR]
+      have hcardF_top : (Fintype.card F : ENNReal) ≠ (⊤ : ENNReal) := by
+        simp
+      simpa using (ENNReal.div_self hcardF0 hcardF_top)
+    ·
+      simp [f, hdir, huniv, hP0]
+      have hR : (↑(#(Finset.filter P ({u 0} : Finset (ι → F)))) : ENNReal) = 0 := by
+        simp [Finset.filter_singleton, hP0]
+      simpa [hR]
+  · -- injective map case
+    have hinj : Function.Injective f := affineLine_param_injective (u := u) (hdir := hdir)
+
+    have hcard_sub :
+        (Fintype.card {z : F // P (f z)} : ENNReal) =
+          (((Finset.univ.filter (fun z : F => P (f z))).card : Nat) : ENNReal) := by
+      simpa using
+        congrArg (fun n : Nat => (n : ENNReal))
+          (Fintype.card_subtype (α := F) (p := fun z : F => P (f z)))
+
+    have hcard_den :
+        (((Finset.univ.image f).card : Nat) : ENNReal) = (Fintype.card F : ENNReal) := by
+      -- `card_image_of_injective` + `Fintype.card` definition
+      simpa using
+        congrArg (fun n : Nat => (n : ENNReal))
+          (Finset.card_image_of_injective (s := (Finset.univ : Finset F)) (f := f) hinj)
+
+    have hcard_num :
+        (((Finset.univ.image f).filter P).card : Nat) = (Finset.univ.filter (fun z : F => P (f z))).card := by
+      -- `filter_image` does not need injectivity; injectivity is used only to preserve card
+      have hfilter : (Finset.univ.image f).filter P = (Finset.univ.filter (fun z : F => P (f z))).image f := by
+        simpa using
+          (Finset.filter_image (s := (Finset.univ : Finset F)) (f := f) (p := P))
+      calc
+        ((Finset.univ.image f).filter P).card
+            = ((Finset.univ.filter (fun z : F => P (f z))).image f).card := by
+                simpa [hfilter]
+        _ = (Finset.univ.filter (fun z : F => P (f z))).card := by
+              simpa using
+                (Finset.card_image_of_injective
+                  (s := (Finset.univ.filter (fun z : F => P (f z)))) (f := f) hinj)
+
+    -- rewrite everything to the same numerator/denominator
+    -- and let `simp` close the goal
+    simp [hcard_sub, hcard_den, hcard_num]
 
 /-- Theorem 1.5 (Correlated agreement for low-degree parameterised curves) in [BCIKS20].
 
@@ -118,6 +319,27 @@ theorem correlatedAgreement_affine_curves [DecidableEq ι] {k : ℕ} {u : Fin k 
   (hδ : δ ≤ 1 - ReedSolomonCode.sqrtRate deg domain)
   : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
     (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by sorry
+
+theorem RS_correlatedAgreement_affineLines {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδ : δ ≤ 1 - (ReedSolomonCode.sqrtRate deg domain)) :
+  δ_ε_correlatedAgreementAffineLines (A := F) (F := F) (ι := ι)
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  have hcurves :
+      δ_ε_correlatedAgreementCurves (k := 1) (A := F) (F := F) (ι := ι)
+        (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+    simpa using
+      (correlatedAgreement_affine_curves (ι := ι) (F := F) (k := 1)
+        (u := (fun _ : Fin 1 => (0 : ι → F))) (deg := deg) (domain := domain) (δ := δ) hδ)
+  intro u hprob
+  refine hcurves u ?_
+  have hprob' := hprob
+  -- translate the affine-line probability into the curve probability
+  rw [
+    prob_uniform_affineLine_eq_prob_uniform_curve_fin2 (ι := ι) (F := F)
+      (C := ReedSolomon.code domain deg) (δ := δ) u
+    ] at hprob'
+  simpa [one_mul] using hprob'
 
 open Affine in
 /-- Theorem 1.6 (Correlated agreement over affine spaces) in [BCIKS20].
