@@ -7,6 +7,7 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib.RingTheory.PowerSeries.Substitution
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -422,25 +423,237 @@ lemma approximate_solution_is_exact_solution_coeffs
   (0 : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
   := by sorry
 
-open BCIKS20AppendixA.ClaimA2 in
-/-- The claim 5.8 from [BCIKS20].
-    States that the approximate solution is
-    actually a solution.
-    This version is in terms of polynomials.
--/
-lemma approximate_solution_is_exact_solution_coeffs'
+noncomputable def alphaPoly_pg
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  :
-    γ' x₀ (R k δ x₀ h_gs) (irreducible_H k h_gs) =
+  : Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)) :=
+  (Finset.range k).sum (fun i =>
+    Polynomial.monomial i
+      (BCIKS20AppendixA.ClaimA2.α'
+        x₀
+        (R k δ x₀ h_gs)
+        (irreducible_H k h_gs)
+        i))
+
+noncomputable def alphaPoly_pg_at
+  (k : ℕ) (δ : ℚ) (x₀ : F)
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  : Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)) :=
+  (Finset.range k).sum (fun i =>
+    Polynomial.monomial i
+      (BCIKS20AppendixA.ClaimA2.α'
+        x₀
+        (R k δ x₀ h_gs)
+        (irreducible_H k h_gs)
+        i))
+
+open BCIKS20AppendixA.ClaimA2 in
+theorem alphaPoly_pg_coe_eq_mk (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+    ((alphaPoly_pg (k := k) (δ := δ) (x₀ := x₀) h_gs :
+        Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+      PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)))
+      =
+      PowerSeries.mk (fun t =>
+        BCIKS20AppendixA.ClaimA2.α'
+          x₀
+          (R k δ x₀ h_gs)
+          (irreducible_H k h_gs)
+          t) := by
+  classical
+  ext t
+  -- reduce to coefficients and compute the polynomial coefficient
+  simp [PowerSeries.coeff_mk, Polynomial.coeff_coe, alphaPoly_pg, Polynomial.coeff_sum,
+    Polynomial.coeff_monomial]
+  by_cases ht : t < k
+  · -- t < k
+    simp [ht]
+  · -- t ≥ k
+    have htk : k ≤ t := le_of_not_gt ht
+    have hα :
+        BCIKS20AppendixA.ClaimA2.α' x₀ (R k δ x₀ h_gs) (irreducible_H k h_gs) t = 0 :=
+      approximate_solution_is_exact_solution_coeffs (k := k) (δ := δ) (x₀ := x₀) h_gs t htk
+    simp [ht, hα]
+
+theorem powerSeries_subst_coe_polynomial {R : Type} [CommRing R] (a : PowerSeries R) (p : Polynomial R) :
+  PowerSeries.subst a (p : PowerSeries R) =
+    (Polynomial.aeval a p : PowerSeries R) := by
+  classical
+  -- unfold substitution and rewrite polynomial coercion via mvpolynomial
+  rw [PowerSeries.subst, p.toPowerSeries_toMvPowerSeries, MvPowerSeries.subst_coe, ← AlgHom.comp_apply]
+  -- now it suffices to identify the two algebra homomorphisms
+  apply AlgHom.congr_fun
+  apply Polynomial.algHom_ext
+  simp
+
+theorem powerSeries_subst_coe_eq_coe_comp {R : Type} [CommRing R] (p q : Polynomial R) :
+  PowerSeries.subst (q : PowerSeries R) (p : PowerSeries R) =
+    ((p.comp q : Polynomial R) : PowerSeries R) := by
+  classical
+  -- 1) subst → aeval
+  rw [powerSeries_subst_coe_polynomial (a := (q : PowerSeries R)) (p := p)]
+  -- 2) aeval in PowerSeries → coe (aeval in Polynomial)
+  simpa [Polynomial.comp_eq_aeval] using
+    (Polynomial.aeval_algHom_apply (f := Polynomial.coeToPowerSeries.algHom R) (x := q) (p := p))
+
+
+open scoped BigOperators in
+theorem substSeries_pg (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  (PowerSeries.mk (fun t : ℕ =>
+      match t with
+      | 0 => (-BCIKS20AppendixA.fieldTo𝕃 x₀ : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
+      | 1 => 1
+      | _ => 0))
+    = ((Polynomial.X - Polynomial.C (BCIKS20AppendixA.fieldTo𝕃 x₀) :
+        Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+        PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) := by
+  ext t
+  cases t with
+  | zero =>
+      simp
+  | succ t =>
+      cases t with
+      | zero =>
+          simp
+      | succ t =>
+          have h : Nat.succ (Nat.succ t) ≠ 1 := by
+            omega
+          simp [PowerSeries.coeff_X, h]
+
+open BCIKS20AppendixA.ClaimA2 in
+theorem gamma'_coeff_eq_zero_of_ge_k (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (t : ℕ) (ht : t ≥ k) :
+    PowerSeries.coeff t
+      (BCIKS20AppendixA.ClaimA2.γ'
+        x₀ (R k δ x₀ h_gs) (irreducible_H k h_gs)) =
+      (0 : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)) := by
+  classical
+  -- Unfold `γ'`/`γ` to a `PowerSeries.subst`
+  simp [BCIKS20AppendixA.ClaimA2.γ', BCIKS20AppendixA.ClaimA2.γ] at *
+
+  -- Rewrite the α-series via `α'` and then via `alphaPoly_pg`
+  letI : Fact (Irreducible (H k δ x₀ h_gs)) := ⟨irreducible_H k h_gs⟩
+  have hα :
+      PowerSeries.mk (α x₀ (R k δ x₀ h_gs) (H k δ x₀ h_gs)) =
         PowerSeries.mk (fun t =>
-          if t ≥ k
-          then (0 : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
-          else PowerSeries.coeff t
-            (γ'
+          BCIKS20AppendixA.ClaimA2.α'
+            x₀
+            (R k δ x₀ h_gs)
+            (irreducible_H k h_gs)
+            t) := by
+    rfl
+  rw [hα]
+  rw [← alphaPoly_pg_coe_eq_mk (k := k) (δ := δ) (x₀ := x₀) h_gs]
+
+  -- Rewrite the substituted series using `substSeries_pg` (via `congrArg` to avoid `rw`-matching issues)
+  have hsub :
+      (PowerSeries.coeff t)
+          (PowerSeries.subst
+            (PowerSeries.mk fun t : ℕ =>
+              match t with
+              | 0 => (-BCIKS20AppendixA.fieldTo𝕃 x₀ : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
+              | 1 => 1
+              | _ => 0)
+            ((alphaPoly_pg (k := k) (δ := δ) (x₀ := x₀) h_gs :
+                Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+              PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))))
+        =
+        (PowerSeries.coeff t)
+          (PowerSeries.subst
+            (((Polynomial.X - Polynomial.C (BCIKS20AppendixA.fieldTo𝕃 x₀) :
+                  Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+                PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))))
+            ((alphaPoly_pg (k := k) (δ := δ) (x₀ := x₀) h_gs :
+                Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+              PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)))) := by
+    -- Apply `substSeries_pg` in the first argument of `PowerSeries.subst`
+    simpa using
+      congrArg
+        (fun s =>
+          (PowerSeries.coeff t)
+            (PowerSeries.subst s
+              ((alphaPoly_pg (k := k) (δ := δ) (x₀ := x₀) h_gs :
+                  Polynomial (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))) :
+                PowerSeries (BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs)))))
+        (substSeries_pg (k := k) (δ := δ) (x₀ := x₀) h_gs)
+
+  refine hsub.trans ?_
+
+  -- Turn substitution into polynomial composition
+  rw [powerSeries_subst_coe_eq_coe_comp
+        (p := alphaPoly_pg (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        (q := (Polynomial.X - Polynomial.C (BCIKS20AppendixA.fieldTo𝕃 x₀)))]
+
+  -- Reduce to polynomial coefficient
+  simp only [Polynomial.coeff_coe]
+
+  -- Degree bound argument
+  cases k with
+  | zero =>
+      simp [alphaPoly_pg]
+  | succ k' =>
+      have hpdeg :
+          (alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).natDegree ≤ k' := by
+        unfold alphaPoly_pg
+        refine
+          Polynomial.natDegree_sum_le_of_forall_le (s := Finset.range (Nat.succ k')) (n := k')
+            (f := fun i =>
+              Polynomial.monomial i
+                (BCIKS20AppendixA.ClaimA2.α'
+                  x₀
+                  (R (Nat.succ k') δ x₀ h_gs)
+                  (irreducible_H (Nat.succ k') h_gs)
+                  i)) ?_
+        intro i hi
+        have hi' : i ≤ k' := Nat.le_of_lt_succ (Finset.mem_range.mp hi)
+        exact (Polynomial.natDegree_monomial_le
+          (a :=
+            BCIKS20AppendixA.ClaimA2.α'
               x₀
-              (R k (x₀ := x₀) (δ := δ) h_gs)
-              (irreducible_H k h_gs))) := by
-   sorry
+              (R (Nat.succ k') δ x₀ h_gs)
+              (irreducible_H (Nat.succ k') h_gs)
+              i)
+          (m := i)).trans hi'
+
+      set q : Polynomial (BCIKS20AppendixA.𝕃 (H (Nat.succ k') δ x₀ h_gs)) :=
+        Polynomial.X - Polynomial.C (BCIKS20AppendixA.fieldTo𝕃 x₀)
+
+      have hcompdeg :
+          ((alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).comp q).natDegree ≤ k' := by
+        have hle :
+            ((alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).comp q).natDegree ≤
+              (alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).natDegree := by
+          simpa [q, Polynomial.natDegree_X_sub_C] using
+            (Polynomial.natDegree_comp_le
+              (p := alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs)
+              (q := q))
+        exact le_trans hle hpdeg
+
+      have hlt :
+          ((alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).comp q).natDegree < t := by
+        refine lt_of_lt_of_le (Nat.lt_succ_of_le hcompdeg) ?_
+        simpa using ht
+
+      exact Polynomial.coeff_eq_zero_of_natDegree_lt
+        (p := (alphaPoly_pg (k := Nat.succ k') (δ := δ) (x₀ := x₀) h_gs).comp q) hlt
+
+
+open BCIKS20AppendixA.ClaimA2 in
+theorem approximate_solution_is_exact_solution_coeffs' (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+    BCIKS20AppendixA.ClaimA2.γ'
+        x₀ (R k δ x₀ h_gs) (irreducible_H k h_gs) =
+      PowerSeries.mk (fun t =>
+        if t ≥ k
+        then (0 : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
+        else PowerSeries.coeff t
+          (BCIKS20AppendixA.ClaimA2.γ'
+            x₀
+            (R k (x₀ := x₀) (δ := δ) h_gs)
+            (irreducible_H k h_gs))) := by
+  classical
+  ext t
+  simp only [PowerSeries.coeff_mk]
+  by_cases ht : t ≥ k
+  · simpa [ht] using (gamma'_coeff_eq_zero_of_ge_k (k := k) (δ := δ) (x₀ := x₀) h_gs t ht)
+  · simp [ht]
+
 
 open BCIKS20AppendixA.ClaimA2 in
 /-- Claim 5.9 from [BCIKS20].
