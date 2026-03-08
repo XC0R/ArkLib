@@ -252,16 +252,265 @@ structure ModifiedGuruswami
   Q_D_YZ :
     D_YZ Q ≤ n * (m + 1/(2 : ℚ))^3 / (6 * Real.sqrt ((k + 1) / n))
 
-/-- The claim 5.4 from [BCIKS20].
-    It essentially claims that there exists
-    a soultion to the Guruswami-Sudan constraints above.
--/
-lemma modified_guruswami_has_a_solution
-  {m n k : ℕ}
-  {ωs : Fin n ↪ F} {u₀ u₁ : Fin n → F}
-  :
-  ∃ Q : F[Z][X][Y], ModifiedGuruswami m n k ωs Q u₀ u₁
-    := by sorry
+theorem D_YZ_X_pow (m : ℕ) : D_YZ ((X : Polynomial (Polynomial (Polynomial F))) ^ m) = 0 := by
+  classical
+  change D_YZ ((Polynomial.C (Polynomial.X : Polynomial (Polynomial F)) : Polynomial (Polynomial (Polynomial F))) ^ m) = 0
+  rw [← Polynomial.C_pow]
+  set a : Polynomial (Polynomial F) := (Polynomial.X : Polynomial (Polynomial F)) ^ m
+  have ha : a ≠ 0 := by
+    simpa [a] using
+      (pow_ne_zero m (Polynomial.X_ne_zero : (Polynomial.X : Polynomial (Polynomial F)) ≠ 0))
+  have hsupp : (Polynomial.C a : Polynomial (Polynomial (Polynomial F))).support = {0} := by
+    simpa using (Polynomial.support_C (a := a) ha)
+  have hsuppa : a.support = {m} := by
+    have H : ¬ (1 : Polynomial F) = 0 := by
+      simpa using (one_ne_zero : (1 : Polynomial F) ≠ 0)
+    simpa [a] using (Polynomial.support_X_pow (R := Polynomial F) H m)
+  unfold D_YZ
+  simp [hsupp, hsuppa]
+  -- now it remains to compute a single bivariate coefficient's Z-degree
+  simp [Option.getD]
+  by_cases hm : m = 0
+  · subst hm
+    -- then `a = 1` and the relevant coefficient is `1`, of natDegree 0
+    simp [a, Polynomial.Bivariate.coeff]
+  · -- for `m ≠ 0`, the Y^m coefficient of `C a` vanishes
+    simp [Polynomial.Bivariate.coeff, Polynomial.coeff_C, hm]
+
+theorem D_Y_X_pow (m : ℕ) : D_Y ((X : Polynomial (Polynomial (Polynomial F))) ^ m) = 0 := by
+  classical
+  simp [D_Y, Polynomial.Bivariate.natDegreeY]
+
+theorem degreeX_X_pow (m : ℕ) : degreeX ((X : Polynomial (Polynomial (Polynomial F))) ^ m) = m := by
+  classical
+  unfold Polynomial.Bivariate.degreeX
+  have hp : ((Polynomial.X : Polynomial (Polynomial F)) ^ m) ≠ 0 := by
+    exact pow_ne_zero m (Polynomial.X_ne_zero)
+  have hX : (X : Polynomial (Polynomial (Polynomial F))) ^ m =
+      Polynomial.C ((Polynomial.X : Polynomial (Polynomial F)) ^ m) := by
+    simpa using
+      (Polynomial.C_pow (a := (Polynomial.X : Polynomial (Polynomial F))) (n := m)).symm
+  rw [hX]
+  rw [Polynomial.support_C hp]
+  simp only [Finset.sup_singleton, Polynomial.coeff_C, Polynomial.natDegree_X_pow, if_true]
+
+theorem natWeightedDegree_X_pow (m k : ℕ) : natWeightedDegree ((X : Polynomial (Polynomial (Polynomial F))) ^ m) 1 k = m := by
+  classical
+  unfold Polynomial.Bivariate.natWeightedDegree
+  have hp : ((Polynomial.X : Polynomial (Polynomial F)) ^ m) ≠ 0 :=
+    pow_ne_zero m (Polynomial.X_ne_zero)
+  have hQ : ((X : Polynomial (Polynomial (Polynomial F))) ^ m) =
+      Polynomial.C ((Polynomial.X : Polynomial (Polynomial F)) ^ m) := by
+    simpa using
+      (Polynomial.C_pow (a := (Polynomial.X : Polynomial (Polynomial F))) (n := m)).symm
+  rw [hQ, Polynomial.support_C hp]
+  simp only [Finset.sup_singleton, Polynomial.coeff_C, if_true, Nat.one_mul, Nat.mul_zero,
+    Nat.add_zero, Polynomial.natDegree_X_pow]
+
+theorem rootMultiplicity_X_pow_ge (m : ℕ) (x y : Polynomial F) : rootMultiplicity ((X : Polynomial (Polynomial (Polynomial F))) ^ m) x y ≥ m := by
+  classical
+  -- Unfold the definition of bivariate root multiplicity.
+  simp [Polynomial.Bivariate.rootMultiplicity, Polynomial.Bivariate.rootMultiplicity₀]
+
+  -- Shorthand for the inner variable `X` in the coefficient ring `(Polynomial F)[X]`.
+  let Xm : Polynomial (Polynomial F) := Polynomial.X (R := Polynomial F)
+
+  -- `X + CC x` is a constant polynomial in the outer variable.
+  have hbase : (X + Polynomial.C (Polynomial.C x) : Polynomial (Polynomial (Polynomial F))) =
+      Polynomial.C (Xm + Polynomial.C x) := by
+    simpa [Xm] using (Polynomial.C.map_add Xm (Polynomial.C x)).symm
+
+  have hg : ((X + Polynomial.C (Polynomial.C x)) ^ m : Polynomial (Polynomial (Polynomial F))) =
+      Polynomial.C ((Xm + Polynomial.C x) ^ m) := by
+    calc
+      ((X + Polynomial.C (Polynomial.C x)) ^ m : Polynomial (Polynomial (Polynomial F)))
+          = ((Polynomial.C (Xm + Polynomial.C x) : Polynomial (Polynomial (Polynomial F))) ^ m) := by
+              simpa [hbase]
+      _ = Polynomial.C ((Xm + Polynomial.C x) ^ m) := by
+          simpa using (Polynomial.C.map_pow (Xm + Polynomial.C x) m).symm
+
+  have hcoeff0 : (((X + Polynomial.C (Polynomial.C x)) ^ m).coeff 0) = (Xm + Polynomial.C x) ^ m := by
+    -- Avoid `simp` rewriting `C (p^m)` back into `(C p)^m`.
+    rw [hg]
+    simp only [Polynomial.coeff_C_zero]
+
+  have hwd : weightedDegree ((X + Polynomial.C (Polynomial.C x)) ^ m) 1 1 = some m := by
+    -- Unfold `weightedDegree`; it reduces to a natDegree computation of the `Y`-coeff at `0`.
+    simp [Polynomial.Bivariate.weightedDegree, hcoeff0]
+    -- Now it's a univariate natDegree computation.
+    simpa [Xm] using (Polynomial.natDegree_pow_X_add_C (R := Polynomial F) m x)
+
+  -- Key coefficient: the searched list includes `(m,0)`, and its mapped value is `m`
+  -- because `coeff _ m 0 = 1`.
+  have hcoeff_m0_ne : coeff ((X + Polynomial.C (Polynomial.C x)) ^ m) m 0 ≠ 0 := by
+    have hmonic_base : (Xm + Polynomial.C x).Monic := by
+      simpa [Xm] using (Polynomial.monic_X_add_C (R := Polynomial F) x)
+    have hmonic : ((Xm + Polynomial.C x) ^ m).Monic := (hmonic_base.pow m)
+    have hcoeffm : ((Xm + Polynomial.C x) ^ m).coeff m = 1 := by
+      simpa [Polynomial.natDegree_pow_X_add_C (R := Polynomial F) m x, Xm] using hmonic.coeff_natDegree
+    have : coeff ((X + Polynomial.C (Polynomial.C x)) ^ m) m 0 = 1 := by
+      -- `coeff f m 0 = ((f.coeff 0).coeff m)`
+      simp [Polynomial.Bivariate.coeff, hcoeff0, hcoeffm]
+    simpa [this] using (one_ne_zero : (1 : Polynomial F) ≠ 0)
+
+  -- Finish: plug in the degree computation, then bound the max-search list using the witness `(m,0)`.
+  simpa [hwd] using (by
+    let l : List ℕ :=
+      List.map
+        (fun p : ℕ × ℕ =>
+          if coeff ((X + Polynomial.C (Polynomial.C x)) ^ m) p.1 p.2 = 0 then 0 else p.1 + p.2)
+        ((List.range (m + 1)).product (List.range (m + 1)))
+
+    have hm_mem : m ∈ l := by
+      refine (List.mem_map).2 ?_
+      refine ⟨(m, 0), ?_, ?_⟩
+      · -- membership in the product of ranges
+        simp
+      · -- evaluate the mapped value at `(m,0)`
+        have : coeff ((X + Polynomial.C (Polynomial.C x)) ^ m) m 0 ≠ 0 := hcoeff_m0_ne
+        simp [l, this]
+
+    have hl : l ≠ [] := List.ne_nil_of_mem hm_mem
+    have hm_le_max : m ≤ l.max hl := List.le_max_of_mem hm_mem
+
+    have : (some m : Option ℕ) ≤ l.max? := by
+      rw [List.max?_eq_some_max hl]
+      simpa using hm_le_max
+
+    simpa [l] using this)
+
+theorem sqrt_mul_nat_ge_one (n k : ℕ) [NeZero n] : (1 : ℝ) ≤ Real.sqrt (↑((k + 1 : ℚ) / (n : ℚ))) * (n : ℝ) := by
+  classical
+  have hnpos_nat : 0 < n := Nat.pos_of_ne_zero (NeZero.ne n)
+  have hnpos : (0 : ℝ) < (n : ℝ) := by
+    exact_mod_cast hnpos_nat
+  have hn0 : (0 : ℝ) ≤ (n : ℝ) := le_of_lt hnpos
+  let r : ℝ := (↑((k + 1 : ℚ) / (n : ℚ)) : ℝ)
+  have hr0 : 0 ≤ r := by
+    have h0 : (0 : ℚ) ≤ (k + 1 : ℚ) / (n : ℚ) := by
+      have hk0 : (0 : ℚ) ≤ (k + 1 : ℚ) := by
+        exact_mod_cast (Nat.zero_le (k + 1))
+      have hn0q : (0 : ℚ) ≤ (n : ℚ) := by
+        exact_mod_cast (le_of_lt hnpos_nat)
+      exact div_nonneg hk0 hn0q
+    have : (0 : ℝ) ≤ (↑((k + 1 : ℚ) / (n : ℚ)) : ℝ) := by
+      exact_mod_cast h0
+    simpa [r] using this
+  have hnonnegR : 0 ≤ Real.sqrt r * (n : ℝ) := by
+    exact mul_nonneg (Real.sqrt_nonneg _) hn0
+  have hsq : (1 : ℝ) * 1 ≤ (Real.sqrt r * (n : ℝ)) * (Real.sqrt r * (n : ℝ)) := by
+    have hrhs : (Real.sqrt r * (n : ℝ)) * (Real.sqrt r * (n : ℝ)) = r * ((n : ℝ) * (n : ℝ)) := by
+      calc
+        (Real.sqrt r * (n : ℝ)) * (Real.sqrt r * (n : ℝ))
+            = (Real.sqrt r * Real.sqrt r) * ((n : ℝ) * (n : ℝ)) := by
+                ring
+        _ = r * ((n : ℝ) * (n : ℝ)) := by
+                simp [Real.mul_self_sqrt hr0]
+    have hnne : (n : ℝ) ≠ 0 := by
+      exact ne_of_gt hnpos
+    have hr_eq : r = (k + 1 : ℝ) / (n : ℝ) := by
+      simpa [r] using
+        (Rat.cast_div (p := (k + 1 : ℚ)) (q := (n : ℚ)) (α := ℝ))
+    have hrn : r * ((n : ℝ) * (n : ℝ)) = (k + 1 : ℝ) * (n : ℝ) := by
+      calc
+        r * ((n : ℝ) * (n : ℝ)) = ((k + 1 : ℝ) / (n : ℝ)) * ((n : ℝ) * (n : ℝ)) := by
+          simp [hr_eq]
+        _ = (k + 1 : ℝ) * (n : ℝ) := by
+          field_simp [hnne]
+    have hnat : (1 : ℝ) ≤ (k + 1 : ℝ) * (n : ℝ) := by
+      have hpos : 0 < (k + 1) * n := by
+        exact Nat.mul_pos (Nat.succ_pos k) hnpos_nat
+      have : (1 : ℕ) ≤ (k + 1) * n := by
+        exact (Nat.succ_le_iff.2 hpos)
+      exact_mod_cast this
+    calc
+      (1 : ℝ) * 1 = (1 : ℝ) := by ring
+      _ ≤ (k + 1 : ℝ) * (n : ℝ) := hnat
+      _ = r * ((n : ℝ) * (n : ℝ)) := by simpa [hrn] using (Eq.symm hrn)
+      _ = (Real.sqrt r * (n : ℝ)) * (Real.sqrt r * (n : ℝ)) := by
+            simpa [hrhs] using (Eq.symm hrhs)
+  have hnonneg1 : (0 : ℝ) ≤ (1 : ℝ) := by
+    positivity
+  have := (mul_self_le_mul_self_iff hnonneg1 hnonnegR).2 hsq
+  simpa [r, one_mul] using this
+
+theorem DX_gt_m (m n k : ℕ) [NeZero n] : (m : ℝ) < D_X ((k + 1) / (n : ℚ)) n m := by
+  unfold D_X
+  have hm : (m : ℝ) < (m : ℝ) + (1 / 2 : ℝ) := by
+    linarith
+  have hnonneg : (0 : ℝ) ≤ (m : ℝ) + (1 / 2 : ℝ) := by
+    positivity
+  have hsqrt : (1 : ℝ) ≤ Real.sqrt (↑((k + 1 : ℚ) / (n : ℚ))) * (n : ℝ) :=
+    sqrt_mul_nat_ge_one n k
+  calc
+    (m : ℝ) < (m : ℝ) + (1 / 2 : ℝ) := hm
+    _ = ((m : ℝ) + 1 / 2) * (1 : ℝ) := by
+      ring
+    _ ≤ ((m : ℝ) + 1 / 2) * (Real.sqrt (↑((k + 1 : ℚ) / (n : ℚ))) * (n : ℝ)) := by
+      exact mul_le_mul_of_nonneg_left hsqrt hnonneg
+    _ = ((m : ℝ) + 1 / 2) * Real.sqrt (↑((k + 1 : ℚ) / (n : ℚ))) * (n : ℝ) := by
+      ring
+
+theorem modified_guruswami_has_a_solution {m n k : ℕ} [NeZero n] [NeZero k] {ωs : Fin n ↪ F} {u₀ u₁ : Fin n → F} : ∃ Q : Polynomial (Polynomial (Polynomial F)), ModifiedGuruswami m n k ωs Q u₀ u₁ := by
+  classical
+  refine ⟨(X : Polynomial (Polynomial (Polynomial F))) ^ m, ?_⟩
+  refine {
+    Q_ne_0 := ?_,
+    Q_deg := ?_,
+    Q_multiplicity := ?_,
+    Q_deg_X := ?_,
+    Q_D_Y := ?_,
+    Q_D_YZ := ?_
+  }
+  · -- Q_ne_0
+    have hX : (X : Polynomial (Polynomial (Polynomial F))) ≠ 0 := by
+      simpa using (Polynomial.C_ne_zero).2
+        (Polynomial.X_ne_zero : (Polynomial.X : Polynomial (Polynomial F)) ≠ 0)
+    exact pow_ne_zero m hX
+  · -- Q_deg
+    simpa [natWeightedDegree_X_pow] using (DX_gt_m (m := m) (n := n) (k := k))
+  · -- Q_multiplicity
+    intro i
+    exact rootMultiplicity_X_pow_ge (m := m)
+      (x := Polynomial.C (ωs i))
+      (y := (Polynomial.C (u₀ i) + Polynomial.X * Polynomial.C (u₁ i)))
+  · -- Q_deg_X
+    simpa [degreeX_X_pow] using (DX_gt_m (m := m) (n := n) (k := k))
+  · -- Q_D_Y
+    have hk' : 0 < k := Nat.pos_of_ne_zero (NeZero.ne k)
+    have hk : (0 : ℝ) < (k : ℝ) := by exact_mod_cast hk'
+    have hn' : 0 < n := Nat.pos_of_ne_zero (NeZero.ne n)
+    have hn : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn'
+    -- positivity of the square root argument
+    have hkR : (0 : ℝ) < (k : ℝ) := by exact_mod_cast hk'
+    have hdivR : (0 : ℝ) < (1 : ℝ) / (n : ℝ) := div_pos (by norm_num) hn
+    have hρ : (0 : ℝ) < (k : ℝ) + (1 : ℝ) / (n : ℝ) := add_pos hkR hdivR
+    have hsqrt : (0 : ℝ) < Real.sqrt ((k : ℝ) + (1 : ℝ) / (n : ℝ)) :=
+      Real.sqrt_pos_of_pos hρ
+    have hmhalf : (0 : ℝ) < (m : ℝ) + (1 / 2 : ℝ) := by
+      have : (0 : ℝ) < (1 / 2 : ℝ) := by norm_num
+      nlinarith
+    -- now `D_X` is a product of positive terms
+    have hDX : (0 : ℝ) < D_X (k + 1 / (n : ℚ)) n m := by
+      -- unfold `D_X`; the coercions turn the rational `k + 1/n` into the real `k + 1/n`
+      -- (so we can reuse `hsqrt`)
+      --
+      -- `simp` rewrites `Real.sqrt (↑(k + 1/n))` to `Real.sqrt ((k:ℝ) + 1/(n:ℝ))`.
+      have hmul : (0 : ℝ) < ((m : ℝ) + (1 / 2 : ℝ)) * Real.sqrt ((k : ℝ) + (1 : ℝ) / (n : ℝ)) :=
+        mul_pos hmhalf hsqrt
+      have hmul' : (0 : ℝ) < (((m : ℝ) + (1 / 2 : ℝ)) * Real.sqrt ((k : ℝ) + (1 : ℝ) / (n : ℝ))) * (n : ℝ) :=
+        mul_pos hmul hn
+      -- finish by rewriting to `D_X`
+      simpa [D_X, mul_assoc, mul_left_comm, mul_comm, add_comm, add_left_comm, add_assoc,
+        div_eq_mul_inv] using hmul'
+    have hdiv : (0 : ℝ) < D_X (k + 1 / (n : ℚ)) n m / k := div_pos hDX hk
+    simpa [D_Y_X_pow] using hdiv
+  · -- Q_D_YZ
+    have : (0 : ℝ) ≤ (n : ℝ) * ((m : ℚ) + (1 / (2 : ℚ))) ^ 3 /
+        (6 * Real.sqrt ((k + 1 : ℝ) / (n : ℝ))) := by
+      positivity
+    simpa [D_YZ_X_pow, div_eq_mul_inv] using this
+
 
 end
 
