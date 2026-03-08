@@ -501,25 +501,116 @@ noncomputable def matching_set_at_x
     u₀ x + z * u₁ x =
       (Pz (matching_set_is_a_sub_of_coeffs_of_close_proximity k h_gs h)).eval (ωs x)} sorry
 
-/-- Claim 5.10 of [BCIKS20].
-    Needed to prove the claim 5.9.
-    This claim states that `γ(x)=w(x,Z)` if
-    the cardinality |S'_x| is big enough.
--/
-lemma solution_gamma_matches_word_if_subset_large
+noncomputable def matching_set_at_x_fixed
+  (k : ℕ)
+  (δ : ℚ)
+  (x₀ : F)
   {ωs : Fin n ↪ F}
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  {x : Fin n}
-  {D : ℕ}
-  (hD : D ≥ Bivariate.totalDegree (H k δ x₀ h_gs))
-  (hx : (matching_set_at_x k δ h_gs x).card >
-    (2 * k + 1)
-      * (Bivariate.natDegreeY <| H k δ x₀ h_gs)
-      * (Bivariate.natDegreeY <| R k δ x₀ h_gs)
-      * D)
-  : (P k δ x₀ h_gs).eval (Polynomial.C (ωs x)) =
-    (Polynomial.C <| u₀ x) + u₁ x • Polynomial.X
-  := by sorry
+  (x : Fin n) : Finset F :=
+  letI : Fintype F := Fintype.ofFinite F
+  Finset.univ.filter (fun z : F =>
+    Polynomial.eval z ((P k δ x₀ h_gs).eval (Polynomial.C (ωs x))) =
+      Polynomial.eval z ((Polynomial.C (u₀ x) : Polynomial F) + u₁ x • Polynomial.X))
+
+theorem mem_matching_set_at_x_fixed_iff: {ωs : Fin n ↪ F} →
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) →
+  (x : Fin n) →
+  (z : F) →
+  (z ∈ matching_set_at_x_fixed (k := k) (δ := δ) (x₀ := x₀) h_gs x) ↔
+    Polynomial.eval z ((P k δ x₀ h_gs).eval (Polynomial.C (ωs x))) =
+      Polynomial.eval z ((Polynomial.C (u₀ x) : Polynomial F) + u₁ x • Polynomial.X) := by
+  classical
+  intro ωs h_gs x z
+  letI : Fintype F := Fintype.ofFinite F
+  simp only [matching_set_at_x_fixed, Finset.mem_filter, Finset.mem_univ, true_and]
+
+theorem natDegree_C_add_smul_X_le_one: (a b : F) → ((Polynomial.C a : Polynomial F) + b • Polynomial.X).natDegree ≤ 1 := by
+  classical
+  set_option maxHeartbeats 4000000 in
+  exact fun a b => by
+    calc
+      ((Polynomial.C a : Polynomial F) + b • Polynomial.X).natDegree
+          ≤ max (Polynomial.C a).natDegree (b • Polynomial.X).natDegree :=
+            Polynomial.natDegree_add_le (Polynomial.C a : Polynomial F) (b • Polynomial.X)
+      _ ≤ max 0 1 := by
+            refine max_le_max ?_ ?_
+            ·
+              exact (Polynomial.natDegree_C a : (Polynomial.C a : Polynomial F).natDegree = 0).le
+            ·
+              exact
+                (Polynomial.natDegree_smul_le b (Polynomial.X : Polynomial F)).trans
+                  ((Polynomial.natDegree_X : (Polynomial.X : Polynomial F).natDegree = 1).le)
+      _ = 1 := max_eq_right (Nat.zero_le 1)
+
+theorem natDegree_P_eval_C_le_one: {ωs : Fin n ↪ F} →
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) →
+  {x : Fin n} →
+  ((P k δ x₀ h_gs).eval (Polynomial.C (ωs x)) : Polynomial F).natDegree ≤ 1 := by
+  classical
+  intro ωs h_gs x
+  -- unfold `P` and evaluate at `X = C (ωs x)`
+  -- (the whole expression lives in `Polynomial F = F[Z]`)
+  simp [ProximityGap.P, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C,
+    Polynomial.eval_map]
+  -- remaining goal is a simple degree bound
+  have hmul : ((Polynomial.C ((Classical.choose (Classical.choose_spec
+      (solution_gamma_is_linear_in_Z k (δ := δ) (x₀ := x₀) h_gs))).eval (ωs x)) : Polynomial F)
+      * Polynomial.X).natDegree
+      ≤ (Polynomial.X : Polynomial F).natDegree := by
+    simpa using
+      (Polynomial.natDegree_C_mul_le
+        (a := (Classical.choose (Classical.choose_spec
+          (solution_gamma_is_linear_in_Z k (δ := δ) (x₀ := x₀) h_gs))).eval (ωs x))
+        (f := (Polynomial.X : Polynomial F)))
+  exact le_trans hmul (by simp)
+
+
+theorem solution_gamma_matches_word_if_subset_large: {ωs : Fin n ↪ F} →
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) →
+  {x : Fin n} →
+  (hx : (matching_set_at_x_fixed k δ x₀ h_gs x).card > 1) →
+  (P k δ x₀ h_gs).eval (Polynomial.C (ωs x)) =
+    (Polynomial.C (u₀ x)) + u₁ x • Polynomial.X := by
+  classical
+  intro ωs h_gs x hx
+  -- Abbreviations
+  let p : Polynomial F := (P k δ x₀ h_gs).eval (Polynomial.C (ωs x))
+  let q : Polynomial F := (Polynomial.C (u₀ x)) + u₁ x • Polynomial.X
+  let s : Finset F := matching_set_at_x_fixed (k := k) (δ := δ) (x₀ := x₀) h_gs x
+  -- Degree bounds
+  have hpdeg : p.natDegree ≤ 1 := by
+    dsimp [p]
+    exact
+      natDegree_P_eval_C_le_one (k := k) (δ := δ) (x₀ := x₀) (ωs := ωs) (h_gs := h_gs)
+        (x := x)
+  have hqdeg : q.natDegree ≤ 1 := by
+    dsimp [q]
+    exact natDegree_C_add_smul_X_le_one (a := u₀ x) (b := u₁ x)
+  -- Evaluations agree on the matching set
+  have heval : ∀ z ∈ s, p.eval z = q.eval z := by
+    intro z hz
+    -- unfold `s` in the membership hypothesis and use the axiom characterization
+    dsimp [s] at hz
+    have hEq :=
+      (mem_matching_set_at_x_fixed_iff (k := k) (δ := δ) (x₀ := x₀) (ωs := ωs) h_gs x z).1
+        hz
+    dsimp [p, q]
+    exact hEq
+  -- Cardinality larger than max degree
+  have hcard : max p.natDegree q.natDegree < #s := by
+    have hmax : max p.natDegree q.natDegree ≤ 1 := max_le hpdeg hqdeg
+    have hx' : 1 < s.card := by
+      dsimp [s]
+      exact hx
+    exact lt_of_le_of_lt hmax hx'
+  -- Interpolate
+  have hpq : p = q :=
+    Polynomial.eq_of_natDegree_lt_card_of_eval_eq' p q s heval hcard
+  -- Unfold abbreviations
+  dsimp [p, q] at hpq
+  exact hpq
+
 
 /-- Claim 5.11 from [BCIKS20].
     There exists a set of points `{x₀,...,x_{k+1}}`
