@@ -309,35 +309,6 @@ noncomputable def Pz
   F[X]
   := (exists_Pz_of_coeffs_of_close_proximity (n := n) (k := k) hS).choose
 
-/-- Proposition 5.5 from [BCIKS20].
-    There exists a subset `S'` of the set `S` and
-    a bivariate polynomial `P(X, Z)` that matches
-    `Pz` on that set.
--/
-lemma exists_a_set_and_a_matching_polynomial
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  :
-  ∃ S', ∃ (h_sub : S' ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁), ∃ P : F[Z][X],
-    #S' > #(coeffs_of_close_proximity k ωs δ u₀ u₁) / (2 * D_Y Q) ∧
-    ∀ z : S', Pz (h_sub z.2) = P.map (Polynomial.evalRingHom z.1) ∧
-    P.natDegree ≤ k ∧
-    Bivariate.degreeX P ≤ 1 := by sorry
-
-/-- The subset `S'` extracted from the proprosition 5.5.
--/
-noncomputable def matching_set
-  (ωs : Fin n ↪ F)
-  (δ : ℚ)
-  (u₀ u₁ : Fin n → F)
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  : Finset F := (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose
-
-/-- `S'` is indeed a subset of `S` -/
-lemma matching_set_is_a_sub_of_coeffs_of_close_proximity
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  : matching_set k ωs δ u₀ u₁ h_gs ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁ :=
-  (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose_spec.choose
-
 /-- The equation 5.12 from [BCIKS20]. -/
 lemma irreducible_factorization_of_gs_solution
   {k : ℕ}
@@ -359,6 +330,62 @@ lemma discr_of_irred_components_nonzero
   : ∃ x₀,
       ∀ R ∈ (irreducible_factorization_of_gs_solution h_gs).choose_spec.choose,
       Bivariate.evalX x₀ (Bivariate.discr_y R) ≠ 0 := by sorry
+
+theorem claim56_available (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∃ x₀, ∀ R ∈ (irreducible_factorization_of_gs_solution (k := k) h_gs).choose_spec.choose,
+    Bivariate.evalX x₀ (Bivariate.discr_y R) ≠ 0 := by
+  simpa using
+    discr_of_irred_components_nonzero (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁) h_gs
+
+
+theorem eq512_available (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∃ (C : F[Z][X]) (R : List F[Z][X][Y]) (f : List ℕ) (e : List ℕ),
+    R.length = f.length ∧
+    f.length = e.length ∧
+    ∀ eᵢ ∈ e, 1 ≤ eᵢ ∧
+    ∀ Rᵢ ∈ R, Rᵢ.Separable ∧
+    ∀ Rᵢ ∈ R, Irreducible Rᵢ ∧
+    Q = (Polynomial.C C) *
+      ∏ x ∈ R.toFinset ×ˢ f.toFinset ×ˢ e.toFinset, x.1.comp (Y ^ x.2.1) ^ x.2.2 := by
+  simpa using irreducible_factorization_of_gs_solution (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁) h_gs
+
+
+theorem modified_guruswami_has_a_solution_available: ∃ Q' : F[Z][X][Y], ModifiedGuruswami m n k ωs Q' u₀ u₁ := by
+  simpa using
+    (modified_guruswami_has_a_solution (m := m) (n := n) (k := k) (ωs := ωs) (u₀ := u₀) (u₁ := u₁))
+
+theorem set_toFinset_eq_of_two_fintype {α : Type u} (s : Set α) (i₁ i₂ : Fintype s) :
+  @Set.toFinset α s i₁ = @Set.toFinset α s i₂ := by
+  classical
+  have h : i₁ = i₂ := Subsingleton.elim i₁ i₂
+  cases h
+  rfl
+
+
+theorem exists_a_set_and_a_matching_polynomial (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∃ S', ∃ (h_sub : S' ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁), ∃ P : F[Z][X],
+    #S' > #(coeffs_of_close_proximity k ωs δ u₀ u₁) / (2 * D_Y Q) ∧
+    ∀ z : S', Pz (h_sub z.2) = P.map (Polynomial.evalRingHom z.1) ∧
+    P.natDegree ≤ k ∧
+    Bivariate.degreeX P ≤ 1 := by
+  classical
+  sorry
+
+
+/-- The subset `S'` extracted from the proprosition 5.5.
+-/
+noncomputable def matching_set
+  (ωs : Fin n ↪ F)
+  (δ : ℚ)
+  (u₀ u₁ : Fin n → F)
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  : Finset F := (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose
+
+/-- `S'` is indeed a subset of `S` -/
+lemma matching_set_is_a_sub_of_coeffs_of_close_proximity
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  : matching_set k ωs δ u₀ u₁ h_gs ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁ :=
+  (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose_spec.choose
 
 open Trivariate in
 open Bivariate in
