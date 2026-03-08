@@ -221,88 +221,88 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [Oracle
         1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α)
         + 2 * (s.depth + 1) * s.leafCount / (Fintype.card α)
     := by
-    sorry
-    --   calc
-    -- -- We first rewrite the game to include the query logs
-    -- _ = [fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --           committingLog, openingLog, verificationLog) =>
-    --         verified ∧
-    --         (not (leaf == extractedTree.get idx.toNodeIndex)
-    --         ∨ not (proof.map (Option.some) == extractedProof)) |
-    --       do
-    --         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --             committingLog, openingLog, verificationLog) ←
-    --           extractability_game_with_logging committingAdv openingAdv
-    --         return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --                 committingLog, openingLog, verificationLog)] := by
-    --   -- This follows from marginalization
-    --   sorry
-    -- -- The bad event happens only when there is a collision event
-    -- -- or the bad event happens with no collision
-    -- _ ≤ [fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --         committingLog, openingLog, verificationLog)
-    --         =>
-    --         (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∨
-    --         (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-    --         (verified ∧
-    --         (not (leaf == extractedTree.get idx.toNodeIndex)
-    --         ∨ not (proof.map (Option.some) == extractedProof)))) |
-    --       do
-    --         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --             committingLog, openingLog, verificationLog) ←
-    --           extractability_game_with_logging committingAdv openingAdv
-    --         return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --                 committingLog, openingLog, verificationLog)] := by
-    --   apply probEvent_mono
-    --   tauto
-    -- -- We apply the union bound
-    -- _ ≤ [fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --         committingLog, openingLog, verificationLog)
-    --         =>
-    --         (collisionIn (committingLog ++ openingLog ++ verificationLog)) |
-    --       do
-    --         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --             committingLog, openingLog, verificationLog) ←
-    --           extractability_game_with_logging committingAdv openingAdv
-    --         return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --                 committingLog, openingLog, verificationLog)] +
-    --     [fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --         committingLog, openingLog, verificationLog)
-    --         =>
-    --         (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-    --         (verified ∧
-    --         (not (leaf == extractedTree.get idx.toNodeIndex)
-    --         ∨ not (proof.map (Option.some) == extractedProof)))) |
-    --       do
-    --         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --             committingLog, openingLog, verificationLog) ←
-    --           extractability_game_with_logging committingAdv openingAdv
-    --         return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --                 committingLog, openingLog, verificationLog)] := by
-    --     -- TODO is this in vcvio somewhere?
-    --     sorry
-    -- -- We bound the collision event probability with a collision bound
-    -- _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
-    --     [fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --         committingLog, openingLog, verificationLog)
-    --         =>
-    --         (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-    --         (verified ∧
-    --         (not (leaf == extractedTree.get idx.toNodeIndex)
-    --         ∨ not (proof.map (Option.some) == extractedProof)))) |
-    --       do
-    --         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --             committingLog, openingLog, verificationLog) ←
-    --           extractability_game_with_logging committingAdv openingAdv
-    --         return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-    --                 committingLog, openingLog, verificationLog)] := by
-    --     gcongr
-    --     -- TODO: Prove a general collision bound lemma
-    --     sorry
-    -- -- We bound the no-collision bad event probability
-    -- _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
-    --     2 * (s.depth + 1) * s.leafCount / (Fintype.card α):= by
-    --     sorry
+      calc
+    -- We first rewrite the game to include the query logs
+    _ = Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+              committingLog, openingLog, verificationLog) =>
+            verified ∧
+            (not (leaf == extractedTree.get idx.toNodeIndex)
+            ∨ not (proof.map (Option.some) == extractedProof)) |
+          do
+            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                committingLog, openingLog, verificationLog) ←
+              extractability_game_with_logging committingAdv openingAdv
+            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                    committingLog, openingLog, verificationLog)] := by
+      -- This follows from marginalization
+      sorry
+    -- The bad event happens only when there is a collision event
+    -- or the bad event happens with no collision
+    _ ≤ Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+            committingLog, openingLog, verificationLog)
+            =>
+            (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∨
+            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
+            (verified ∧
+            (not (leaf == extractedTree.get idx.toNodeIndex)
+            ∨ not (proof.map (Option.some) == extractedProof)))) |
+          do
+            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                committingLog, openingLog, verificationLog) ←
+              extractability_game_with_logging committingAdv openingAdv
+            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                    committingLog, openingLog, verificationLog)] := by
+      sorry
+      -- apply probEvent_mono
+      -- tauto
+    -- We apply the union bound
+    _ ≤ Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+            committingLog, openingLog, verificationLog)
+            =>
+            (collisionIn (committingLog ++ openingLog ++ verificationLog)) |
+          do
+            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                committingLog, openingLog, verificationLog) ←
+              extractability_game_with_logging committingAdv openingAdv
+            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                    committingLog, openingLog, verificationLog)] +
+        Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+            committingLog, openingLog, verificationLog)
+            =>
+            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
+            (verified ∧
+            (not (leaf == extractedTree.get idx.toNodeIndex)
+            ∨ not (proof.map (Option.some) == extractedProof)))) |
+          do
+            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                committingLog, openingLog, verificationLog) ←
+              extractability_game_with_logging committingAdv openingAdv
+            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                    committingLog, openingLog, verificationLog)] := by
+        -- TODO is this in vcvio somewhere?
+        sorry
+    -- We bound the collision event probability with a collision bound
+    _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
+        Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+            committingLog, openingLog, verificationLog)
+            =>
+            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
+            (verified ∧
+            (not (leaf == extractedTree.get idx.toNodeIndex)
+            ∨ not (proof.map (Option.some) == extractedProof)))) |
+          do
+            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                committingLog, openingLog, verificationLog) ←
+              extractability_game_with_logging committingAdv openingAdv
+            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
+                    committingLog, openingLog, verificationLog)] := by
+        gcongr
+        -- TODO: Prove a general collision bound lemma
+        sorry
+    -- We bound the no-collision bad event probability
+    _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
+        2 * (s.depth + 1) * s.leafCount / (Fintype.card α):= by
+        sorry
 
   /-
   Now we can break down the bad event into smaller events
