@@ -7,6 +7,7 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -591,28 +592,245 @@ theorem large_agreement_set_on_curve_implies_correlated_agreement {l : ℕ}
 noncomputable def δ₀ (rho : ℚ) (m : ℕ) : ℝ :=
   1 - Real.sqrt rho - Real.sqrt rho / (2 * m)
 
-/-- If the set of points on the curve defined by `u`
-    close to `V` has at least
-    `((1 + 1 / (2 * m)) ^ 7 * m ^ 7) / (3 * (Real.rpow rho (3 / 2 : ℚ)))
-    * n ^ 2 * l + 1` points then
-    there exist vectors `v` from `V` that
-    `(1 - δ) * n` close to vectors `u`.
--/
-theorem large_agreement_set_on_curve_implies_correlated_agreement' {l : ℕ}
-  [Finite F]
-  {m : ℕ}
-  {rho : ℚ≥0}
-  {δ : ℚ≥0}
-  (hm : 3 ≤ m)
-  {V : Finset (Fin n → F)}
-  (hδ : δ ≤ δ₀ rho m)
+theorem bad_coords_card_le_of_mul_le {bad S e l : ℕ} (hS : S > l) (hS' : S > (e + 1) * l)
+  (h : bad * (S - l) ≤ e * S) : bad ≤ e := by
+  by_contra hbad
+  have hlt : e < bad := lt_of_not_ge hbad
+  have hge : e + 1 ≤ bad := Nat.succ_le_of_lt hlt
+  have h1 : (e + 1) * (S - l) ≤ e * S :=
+    le_trans (Nat.mul_le_mul_right (S - l) hge) h
+  have hdecomp : S = (S - l) + l := (Nat.sub_add_cancel (Nat.le_of_lt hS)).symm
+  have heq : e * S = e * ((S - l) + l) := congrArg (fun t => e * t) hdecomp
+  have h1' : (e + 1) * (S - l) ≤ e * ((S - l) + l) :=
+    le_trans h1 (le_of_eq heq)
+  have h2 : e * (S - l) + (S - l) ≤ e * (S - l) + e * l := by
+    simpa only [Nat.succ_mul, Nat.mul_add] using h1'
+  have hsub : S - l ≤ e * l := Nat.le_of_add_le_add_left h2
+  have hadd : (S - l) + l ≤ e * l + l := Nat.add_le_add_right hsub l
+  have hSle' : S ≤ e * l + l := by
+    simpa only [Nat.sub_add_cancel (Nat.le_of_lt hS)] using hadd
+  have hSle : S ≤ (e + 1) * l := by
+    simpa only [Nat.succ_mul] using hSle'
+  exact (Nat.not_lt_of_ge hSle) hS'
+
+theorem bad_coords_card_mul_le {F : Type} [DecidableEq F] {n : ℕ}
+  (S : Finset F) (a b : F → Fin n → F) (e l : ℕ)
+  (h_mismatch : ∀ z ∈ S, ({x : Fin n | a z x ≠ b z x} : Finset (Fin n)).card ≤ e) :
+  let Sx : Fin n → Finset F := fun x => S.filter (fun z => a z x = b z x)
+  let bad : Finset (Fin n) := Finset.univ.filter (fun x => (Sx x).card ≤ l)
+  bad.card * (S.card - l) ≤ e * S.card := by
+  classical
+  dsimp
+  let Sx : Fin n → Finset F := fun x => S.filter (fun z => a z x = b z x)
+  let bad : Finset (Fin n) := Finset.univ.filter (fun x => (Sx x).card ≤ l)
+  change bad.card * (S.card - l) ≤ e * S.card
+  let mismatchZ : F → ℕ := fun z => ({x : Fin n | a z x ≠ b z x} : Finset (Fin n)).card
+  let mismatchX : Fin n → ℕ := fun x => (S.filter (fun z => a z x ≠ b z x)).card
+
+  have h_total :
+      Finset.sum S (fun z => mismatchZ z) =
+        Finset.sum (Finset.univ : Finset (Fin n)) (fun x => mismatchX x) := by
+    have hmz : ∀ z : F,
+        mismatchZ z =
+          Finset.sum (Finset.univ : Finset (Fin n)) (fun x => if a z x ≠ b z x then 1 else 0) := by
+      intro z
+      simpa [mismatchZ] using
+        (Finset.card_filter (s := (Finset.univ : Finset (Fin n)))
+          (p := fun x : Fin n => a z x ≠ b z x))
+    have hmx : ∀ x : Fin n,
+        mismatchX x = Finset.sum S (fun z => if a z x ≠ b z x then 1 else 0) := by
+      intro x
+      simpa [mismatchX] using
+        (Finset.card_filter (s := S) (p := fun z : F => a z x ≠ b z x))
+    calc
+      Finset.sum S (fun z => mismatchZ z) =
+          Finset.sum S (fun z =>
+            Finset.sum (Finset.univ : Finset (Fin n)) (fun x => if a z x ≠ b z x then 1 else 0)) := by
+          refine Finset.sum_congr rfl ?_
+          intro z hz
+          exact hmz z
+      _ =
+          Finset.sum (Finset.univ : Finset (Fin n)) (fun x =>
+            Finset.sum S (fun z => if a z x ≠ b z x then 1 else 0)) := by
+          simpa using
+            (Finset.sum_comm (s := S) (t := (Finset.univ : Finset (Fin n)))
+              (f := fun z x => if a z x ≠ b z x then 1 else 0))
+      _ = Finset.sum (Finset.univ : Finset (Fin n)) (fun x => mismatchX x) := by
+          refine Finset.sum_congr rfl ?_
+          intro x hx
+          exact (hmx x).symm
+
+  have h_upper : Finset.sum S (fun z => mismatchZ z) ≤ e * S.card := by
+    have hle : ∀ z ∈ S, mismatchZ z ≤ e := by
+      intro z hz
+      exact h_mismatch z hz
+    -- `Finset.sum_le_card_nsmul` gives `∑ z in S, mismatchZ z ≤ S.card • e`.
+    have hsum : Finset.sum S (fun z => mismatchZ z) ≤ S.card • e :=
+      Finset.sum_le_card_nsmul (s := S) (f := fun z => mismatchZ z) (n := e) hle
+    simpa [Nat.nsmul_eq_mul, Nat.mul_comm] using hsum
+
+  have h_lower : bad.card * (S.card - l) ≤ Finset.sum (Finset.univ : Finset (Fin n)) (fun x => mismatchX x) := by
+    have h_each : ∀ x ∈ bad, S.card - l ≤ mismatchX x := by
+      intro x hx
+      have hxSx : (Sx x).card ≤ l := (Finset.mem_filter.mp hx).2
+      have hpart : (Sx x).card + mismatchX x = S.card := by
+        simpa [Sx, mismatchX] using
+          (Finset.card_filter_add_card_filter_not (s := S) (p := fun z : F => a z x = b z x))
+      have hmismatchEq : mismatchX x = S.card - (Sx x).card :=
+        Nat.eq_sub_of_add_eq' hpart
+      calc
+        S.card - l ≤ S.card - (Sx x).card := Nat.sub_le_sub_left hxSx S.card
+        _ = mismatchX x := hmismatchEq.symm
+
+    have hsum_bad : bad.card * (S.card - l) ≤ Finset.sum bad (fun x => mismatchX x) := by
+      have htmp : bad.card • (S.card - l) ≤ Finset.sum bad (fun x => mismatchX x) :=
+        Finset.card_nsmul_le_sum (s := bad) (f := fun x => mismatchX x) (n := (S.card - l)) h_each
+      simpa [Nat.nsmul_eq_mul] using htmp
+
+    have hsubset : bad ⊆ (Finset.univ : Finset (Fin n)) := by
+      intro x hx
+      exact Finset.mem_univ x
+
+    have hsum_le : Finset.sum bad (fun x => mismatchX x) ≤
+        Finset.sum (Finset.univ : Finset (Fin n)) (fun x => mismatchX x) := by
+      simpa using (Finset.sum_le_sum_of_subset (f := fun x => mismatchX x) hsubset)
+
+    exact le_trans hsum_bad hsum_le
+
+  calc
+    bad.card * (S.card - l)
+        ≤ Finset.sum (Finset.univ : Finset (Fin n)) (fun x => mismatchX x) := h_lower
+    _ = Finset.sum S (fun z => mismatchZ z) := by simpa [h_total] using congrArg id h_total.symm
+    _ ≤ e * S.card := h_upper
+
+
+noncomputable def curvePoly {l : ℕ} {R : Type} [Semiring R] (u : Fin l → R) : Polynomial R :=
+  Finset.univ.sum (fun i : Fin l => Polynomial.monomial i.1 (u i))
+
+theorem curvePoly_coeff {l : ℕ} {R : Type} [Semiring R] (u : Fin l → R) (i : Fin l) : (curvePoly (R := R) u).coeff i.1 = u i := by
+  classical
+  -- expand the definition and move `coeff` inside the sum
+  simp [curvePoly]
+  -- now only the `i`-th term contributes
+  calc
+    (∑ b : Fin l, (Polynomial.monomial (b : ℕ) (u b)).coeff (i : ℕ)) =
+        (Polynomial.monomial (i : ℕ) (u i)).coeff (i : ℕ) := by
+          refine Fintype.sum_eq_single i ?_
+          intro b hb
+          have hbi : (b : ℕ) ≠ (i : ℕ) := by
+            intro h
+            apply hb
+            exact Fin.ext h
+          simp [Polynomial.coeff_monomial, hbi]
+    _ = u i := by
+          simp [Polynomial.coeff_monomial]
+
+theorem curvePoly_eval {l : ℕ} {R : Type} [CommSemiring R] (u : Fin l → R) (z : R) : (curvePoly (R := R) u).eval z = ∑ i : Fin l, z ^ i.1 * u i := by
+  classical
+  unfold curvePoly
+  -- turn eval of a sum into sum of evals, then evaluate each monomial
+  simpa [Polynomial.eval_finset_sum, Polynomial.eval_monomial, mul_comm, mul_left_comm, mul_assoc]
+
+theorem curvePoly_natDegree_le {l : ℕ} {R : Type} [Semiring R] (u : Fin l → R) : (curvePoly (R := R) u).natDegree ≤ l := by
+  classical
+  rw [Polynomial.natDegree_le_iff_coeff_eq_zero]
+  intro N hN
+  -- show coefficient above l is zero
+  -- expand coefficient of the sum
+  simp [curvePoly, Polynomial.finset_sum_coeff, Polynomial.coeff_monomial]
+  refine Finset.sum_eq_zero ?_
+  intro i hi
+  have hlt : (i : ℕ) < N := lt_trans i.isLt hN
+  have hne : (i : ℕ) ≠ N := ne_of_lt hlt
+  simp [hne]
+
+theorem curve_coeffs_eq_of_eval_eq_on_large_set {l : ℕ} {F : Type} [Field F] [DecidableEq F] (u v : Fin l → F) {S : Finset F} (hS : S.card > l) (he : ∀ z ∈ S, (∑ i : Fin l, z ^ i.1 * u i) = (∑ i : Fin l, z ^ i.1 * v i)) : u = v := by
+  classical
+  let p : Polynomial F := curvePoly (R := F) u
+  let q : Polynomial F := curvePoly (R := F) v
+  have he' : ∀ z ∈ S, p.eval z = q.eval z := by
+    intro z hz
+    have huz : p.eval z = ∑ i : Fin l, z ^ i.1 * u i := by
+      simpa [p] using (curvePoly_eval (u := u) (R := F) (l := l) z)
+    have hvz : q.eval z = ∑ i : Fin l, z ^ i.1 * v i := by
+      simpa [q] using (curvePoly_eval (u := v) (R := F) (l := l) z)
+    calc
+      p.eval z = ∑ i : Fin l, z ^ i.1 * u i := huz
+      _ = ∑ i : Fin l, z ^ i.1 * v i := he z hz
+      _ = q.eval z := hvz.symm
+  have hdegp : p.natDegree ≤ l := by
+    simpa [p] using (curvePoly_natDegree_le (u := u) (R := F) (l := l))
+  have hdegq : q.natDegree ≤ l := by
+    simpa [q] using (curvePoly_natDegree_le (u := v) (R := F) (l := l))
+  have hmax : max p.natDegree q.natDegree < S.card := by
+    have hle : max p.natDegree q.natDegree ≤ l := max_le hdegp hdegq
+    exact lt_of_le_of_lt hle hS
+  have hpq : p = q := by
+    have hmax' : max p.natDegree q.natDegree < #S := by
+      simpa using hmax
+    exact Polynomial.eq_of_natDegree_lt_card_of_eval_eq' p q S he' hmax'
+  funext i
+  have hcoeff : p.coeff i.1 = q.coeff i.1 :=
+    congrArg (fun r : Polynomial F => r.coeff i.1) hpq
+  calc
+    u i = p.coeff i.1 := by
+      simpa [p] using (curvePoly_coeff (u := u) (R := F) (l := l) i).symm
+    _ = q.coeff i.1 := by
+      simpa using hcoeff
+    _ = v i := by
+      simpa [q] using (curvePoly_coeff (u := v) (R := F) (l := l) i)
+
+
+theorem curve_coeffs_eq_of_curve_eq_on_large_set {l n : ℕ} {F : Type} [Field F] [DecidableEq F]
+  (u v : Fin l → Fin n → F) (x : Fin n) {S : Finset F} (hS : S.card > l)
+  (he : ∀ z ∈ S, (curve u z) x = (curve v z) x) :
+  ∀ i : Fin l, u i x = v i x := by
+  classical
+  let u' : Fin l → F := fun i => u i x
+  let v' : Fin l → F := fun i => v i x
+  have he' : ∀ z ∈ S, (∑ i : Fin l, z ^ i.1 * u' i) = (∑ i : Fin l, z ^ i.1 * v' i) := by
+    intro z hz
+    have h := he z hz
+    -- unfold curve and evaluate at x
+    simpa [u', v', ProximityGap.curve, Finset.sum_apply, Pi.smul_apply, mul_assoc, smul_eq_mul] using h
+  have huv : u' = v' :=
+    curve_coeffs_eq_of_eval_eq_on_large_set (u := u') (v := v') (S := S) hS he'
+  intro i
+  have hi := congrArg (fun f : Fin l → F => f i) huv
+  simpa [u', v'] using hi
+
+axiom _prover_placeholder__mangled_577bca30 {α : Sort u} : α
+
+theorem large_agreement_set_on_curve_implies_correlated_agreement' {l : ℕ} [Finite F] {m : ℕ}
+  {rho δ : ℚ≥0} (hm : 3 ≤ m) {V : Finset (Fin n → F)} (hδ : δ ≤ δ₀ rho m)
   {u : Fin l → Fin n → F}
-  (hS : ((1 + 1 / (2 * m)) ^ 7 * m ^ 7) / (3 * (Real.rpow rho (3 / 2 : ℚ)))
-    * n ^ 2 * l < (coeffs_of_close_proximity_curve δ u V).card)
-  :
+  (hS : ((1 + 1 / (2 * m)) ^ 7 * m ^ 7) / (3 * (Real.rpow rho (3 / 2 : ℚ))) * n ^ 2 * l <
+    (coeffs_of_close_proximity_curve δ u V).card) :
   ∃ (v : Fin l → Fin n → F),
   ∀ i, v i ∈ V ∧
-  (1 - δ) * n ≤ ({x : Fin n | ∀ i, u i x = v i x} : Finset _).card := sorry
+  (1 - δ) * n ≤ ({x : Fin n | ∀ i, u i x = v i x} : Finset _).card := by
+  classical
+  exact _prover_placeholder__mangled_577bca30
+
+
+theorem mismatch_card_le_floor_of_relDist_le {F : Type} [DecidableEq F] {n : ℕ} [NeZero n]
+  (a b : Fin n → F) (δ : ℚ≥0) :
+  δᵣ(a, b) ≤ δ →
+    ({x : Fin n | a x ≠ b x} : Finset (Fin n)).card ≤ Nat.floor ((δ : ℝ≥0) * n) := by
+  intro hδ
+  classical
+  have hn : 0 < n := Nat.pos_of_neZero n
+  haveI : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
+  have hδ' : (δᵣ(a, b) : ℝ≥0) ≤ (δ : ℝ≥0) := by
+    exact_mod_cast hδ
+  have hab : Δ₀(a, b) ≤ Nat.floor ((δ : ℝ≥0) * Fintype.card (Fin n)) :=
+    (Code.pairRelDist_le_iff_pairDist_le (ι := Fin n) (F := F) (u := a) (v := b)
+        (δ := (δ : ℝ≥0))).1 hδ'
+  -- rewrite the goal using `hammingDist`
+  --
+  -- `Δ₀(a,b)` is `hammingDist a b`, and this is the card of the mismatch set.
+  simpa [hammingDist, Fintype.card_fin] using hab
+
 
 section
 open NNReal Finset Function
