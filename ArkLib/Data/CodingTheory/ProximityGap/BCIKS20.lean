@@ -353,12 +353,200 @@ lemma irreducible_factorization_of_gs_solution
           (Rᵢ.comp ((Y : F[Z][X][Y]) ^ fᵢ))^eᵢ
   := sorry
 
-/-- Claim 5.6 of [BCIKS20]. -/
-lemma discr_of_irred_components_nonzero
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  : ∃ x₀,
-      ∀ R ∈ (irreducible_factorization_of_gs_solution h_gs).choose_spec.choose,
-      Bivariate.evalX x₀ (Bivariate.discr_y R) ≠ 0 := by sorry
+theorem discr_y_ne_zero_of_separable {R : Type} [CommRing R] [IsDomain R] [Inhabited R]
+  (f : Polynomial (Polynomial R)) : f.Separable → Bivariate.discr_y f ≠ 0 := by
+  intro hfsep
+  classical
+  have hres :
+      Polynomial.resultant f (Polynomial.derivative f) =
+        f.leadingCoeff * Bivariate.discr_y f := by
+    simpa [Bivariate.discr_y] using
+      (Classical.choose_spec
+        (Univariate.resultant_is_divisible_by_leadingCoeff (f := f)))
+  have hres_ne : Polynomial.resultant f (Polynomial.derivative f) ≠ 0 := by
+    -- `Separable` is definitionaly `IsCoprime f f.derivative`
+    simpa using
+      (Polynomial.resultant_ne_zero f (Polynomial.derivative f) (H := hfsep))
+  intro hdiscr
+  apply hres_ne
+  calc
+    Polynomial.resultant f (Polynomial.derivative f) = f.leadingCoeff * Bivariate.discr_y f := hres
+    _ = f.leadingCoeff * 0 := by simpa [hdiscr]
+    _ = 0 := by simp
+
+theorem evalX_coeff {R : Type} [Semiring R] (a : R) (f : Polynomial (Polynomial R)) (n : ℕ) :
+  (Bivariate.evalX a f).coeff n = (f.coeff n).eval a :=   rfl
+
+theorem evalX_ne_zero_of_leadingCoeff_eval_ne_zero (a : F) (f : F[Z][X]) :
+  ((f.leadingCoeff).eval a ≠ 0) → Bivariate.evalX a f ≠ 0 := by
+  intro hlead
+  have h1 : (Bivariate.evalX a f).coeff f.natDegree = (f.coeff f.natDegree).eval a :=
+    evalX_coeff (R := F) (a := a) (f := f) (n := f.natDegree)
+  have h2 : (f.coeff f.natDegree).eval a = (f.leadingCoeff).eval a := by
+    simp only [Polynomial.leadingCoeff]
+  have hEq : (Bivariate.evalX a f).coeff f.natDegree = (f.leadingCoeff).eval a :=
+    h1.trans h2
+  have hcoeff : (Bivariate.evalX a f).coeff f.natDegree ≠ 0 := by
+    intro h0
+    apply hlead
+    exact hEq.symm.trans h0
+  intro hzero
+  apply hcoeff
+  simpa [hzero]
+
+noncomputable def irred_factors_list
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) : List F[Z][X][Y] :=
+  (irreducible_factorization_of_gs_solution (m := m) (n := n) (Q := Q) (ωs := ωs) (u₀ := u₀)
+    (u₁ := u₁) h_gs).choose_spec.choose
+
+noncomputable def discrLeadProd
+  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) : Polynomial F :=
+  (irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+    (u₁ := u₁) h_gs).map (fun R => (Bivariate.discr_y R).leadingCoeff) |>.prod
+
+theorem discrLeadProd_eval (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) (x : F) :
+  (discrLeadProd (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+      (u₁ := u₁) h_gs).eval x =
+    ((irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+        (u₁ := u₁) h_gs).map (fun R => ((Bivariate.discr_y R).leadingCoeff).eval x)).prod := by
+  classical
+  unfold discrLeadProd
+  -- evaluation is a ring hom, hence commutes with `List.prod`
+  simpa [List.map_map, Function.comp] using
+    (Polynomial.eval_list_prod
+      (l :=
+        (irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁)
+            h_gs).map fun R => (Bivariate.discr_y R).leadingCoeff)
+      (x := x))
+
+theorem irred_factors_list_separable (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∀ R ∈ irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+    (u₁ := u₁) h_gs,
+    R.Separable := by
+  classical
+  intro R hR
+  -- Let `hfac` be the chosen irreducible factorization witness.
+  let hfac :=
+    irreducible_factorization_of_gs_solution (m := m) (n := n) (Q := Q) (ωs := ωs)
+      (u₀ := u₀) (u₁ := u₁) h_gs
+
+  -- Rewrite the membership hypothesis in terms of `hfac`.
+  have hR' : R ∈ hfac.choose_spec.choose := by
+    simpa [irred_factors_list, hfac] using hR
+
+  -- Unpack the specification for the chosen data.
+  let e : List ℕ := hfac.choose_spec.choose_spec.choose_spec.choose
+  have hspec := hfac.choose_spec.choose_spec.choose_spec.choose_spec
+
+  -- `hspec` contains the separability statement, nested under `∀ eᵢ ∈ e`.
+  -- Split on whether `e` is empty.
+  by_cases he : e = []
+  · -- If `e` is empty, then the factor list is empty by the length equalities,
+    -- contradicting `hR'`.
+    have helen : e.length = 0 := by simpa [he]
+    have hflen : (hfac.choose_spec.choose_spec.choose).length = 0 := by
+      calc
+        (hfac.choose_spec.choose_spec.choose).length = e.length := hspec.2.1
+        _ = 0 := helen
+    have hRlen : (hfac.choose_spec.choose).length = 0 := by
+      calc
+        (hfac.choose_spec.choose).length = (hfac.choose_spec.choose_spec.choose).length := hspec.1
+        _ = 0 := hflen
+    have hRnil : hfac.choose_spec.choose = [] := List.eq_nil_of_length_eq_zero hRlen
+    -- Rewrite `hR'` using `hRnil` to get membership in the empty list.
+    have hR'' : R ∈ ([] : List F[Z][X][Y]) := by
+      -- `rw` rewrites the goal; then `exact` uses the original membership proof.
+      rw [← hRnil]
+      exact hR'
+    -- Contradiction.
+    cases hR''
+  · -- If `e` is nonempty, pick an exponent `e0 ∈ e` and extract the separability property.
+    obtain ⟨e0, he0mem⟩ : ∃ e0, e0 ∈ e := by
+      exact List.exists_mem_of_ne_nil (l := e) he
+    have hsep_all : ∀ Rᵢ ∈ hfac.choose_spec.choose, Rᵢ.Separable := by
+      intro Rᵢ hRᵢ
+      -- Instantiate the `∀ eᵢ ∈ e` statement at `e0`.
+      exact ((hspec.2.2 e0 he0mem).2 Rᵢ hRᵢ).1
+    exact hsep_all R hR'
+
+theorem discrLeadProd_ne_zero (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  discrLeadProd (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+    (u₁ := u₁) h_gs ≠ 0 := by
+  classical
+  unfold discrLeadProd
+  refine List.prod_ne_zero ?_
+  intro h0
+  rcases List.mem_map.1 h0 with ⟨R, hR, hR0⟩
+  have hsep : R.Separable :=
+    irred_factors_list_separable (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+      (u₁ := u₁) h_gs R hR
+  have hdisc : Bivariate.discr_y R ≠ 0 :=
+    discr_y_ne_zero_of_separable (R := Polynomial F) (f := R) hsep
+  have hlead : (Bivariate.discr_y R).leadingCoeff ≠ 0 :=
+    (Polynomial.leadingCoeff_ne_zero).2 hdisc
+  exact hlead hR0
+
+theorem discr_of_irred_components_nonzero (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (h_deg : (discrLeadProd (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+    (u₁ := u₁) h_gs).natDegree < Cardinal.mk F) :
+  ∃ x₀,
+    ∀ R ∈ irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀)
+      (u₁ := u₁) h_gs,
+      Bivariate.evalX x₀ (Bivariate.discr_y R) ≠ 0 := by
+  classical
+  -- Set up convenient abbreviations.
+  let Rlist : List F[Z][X][Y] :=
+    irred_factors_list (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁)
+      h_gs
+  let p : Polynomial F :=
+    discrLeadProd (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁) h_gs
+
+  have hp0 : p ≠ 0 := by
+    simpa [p] using
+      discrLeadProd_ne_zero (m := m) (n := n) (k := k) (ωs := ωs) (Q := Q) (u₀ := u₀) (u₁ := u₁)
+        h_gs
+
+  -- Pick `x` such that `p.eval x ≠ 0`.
+  obtain ⟨x, hx⟩ :=
+    Polynomial.exists_eval_ne_zero_of_natDegree_lt_card (f := p) hp0 (by simpa [p] using h_deg)
+
+  refine ⟨x, ?_⟩
+  intro R hR
+
+  -- Rewrite `p.eval x` as a product over `Rlist`.
+  have hxprod :
+      (Rlist.map (fun R => ((Bivariate.discr_y R).leadingCoeff).eval x)).prod ≠ (0 : F) := by
+    -- `hx` is `p.eval x ≠ 0`, and `discrLeadProd_eval` expands that evaluation.
+    simpa [p, Rlist, discrLeadProd_eval (h_gs := h_gs) (x := x)] using hx
+
+  -- The corresponding factor in the product must itself be nonzero.
+  have hfac : ((Bivariate.discr_y R).leadingCoeff).eval x ≠ 0 := by
+    -- If it were zero, then `0` would appear in the mapped list, forcing the product to be zero.
+    have hR' : R ∈ Rlist := by
+      simpa [Rlist] using hR
+
+    let L : List F := Rlist.map (fun R => ((Bivariate.discr_y R).leadingCoeff).eval x)
+
+    have hprodL : L.prod ≠ (0 : F) := by
+      simpa [L] using hxprod
+
+    have hmem : ((Bivariate.discr_y R).leadingCoeff).eval x ∈ L := by
+      simpa [L] using
+        (List.mem_map_of_mem (f := fun R => ((Bivariate.discr_y R).leadingCoeff).eval x) hR')
+
+    intro hzero
+    have h0mem : (0 : F) ∈ L := by
+      simpa [hzero] using hmem
+
+    have hprod0 : L.prod = (0 : F) := by
+      exact List.prod_eq_zero (l := L) h0mem
+
+    exact hprodL hprod0
+
+  -- Convert the leading-coefficient evaluation into non-vanishing of `evalX`.
+  exact
+    evalX_ne_zero_of_leadingCoeff_eval_ne_zero (a := x) (f := Bivariate.discr_y R) hfac
+
 
 open Trivariate in
 open Bivariate in
