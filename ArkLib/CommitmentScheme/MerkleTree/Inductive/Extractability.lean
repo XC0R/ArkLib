@@ -17,10 +17,7 @@ open scoped NNReal
 Convert a computation to one that also returns its query log
 
 TODO
-- generalize Type universe?
-- generalize spec
-- move to vcv?
-- already in vcv?
+- This is in VCV
 -/
 def OracleComp.withLogging {ι : Type} {T : Type} {spec : OracleSpec ι} (oa : OracleComp spec T) :
     OracleComp spec (T × spec.QueryLog) :=
@@ -84,6 +81,11 @@ returns (optionally?) a FullData of Option α.
 
 TODO, if there is a collision, but it isn't used or is only used in a subtree,
 should the rest of the tree work? Or should it all fail?
+
+(I think, after my conversation with Mattias and Felix, this doesn't matter.
+If there is a collision, we are already in the bad case.
+What is just needed is that the extractor gives some default value in the ablated case.
+)
 -/
 def extractor {α : Type} [DecidableEq α] [SampleableType α] [Fintype α] [OracleSpec.Fintype (spec α)]
     (s : Skeleton)
@@ -157,6 +159,7 @@ def extractability_game_with_logging
             committingLog, openingLog, verificationLog)
 
 
+-- withCounting?
 def IsQueryBound {ι : Type} {spec : OracleSpec ι} {α : Type} (oa : OracleComp spec α) (qb : ℕ) : Prop := sorry
 
 -- Does this exists in vcvio somewhere?
@@ -279,7 +282,7 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [Oracle
               extractability_game_with_logging committingAdv openingAdv
             return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
                     committingLog, openingLog, verificationLog)] := by
-        -- TODO is this in vcvio somewhere?
+        -- exact probEvent_or_le
         sorry
     -- We bound the collision event probability with a collision bound
     _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
