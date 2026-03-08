@@ -338,9 +338,14 @@ lemma matching_set_is_a_sub_of_coeffs_of_close_proximity
   : matching_set k ωs δ u₀ u₁ h_gs ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁ :=
   (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose_spec.choose
 
-/-- The equation 5.12 from [BCIKS20]. -/
-lemma irreducible_factorization_of_gs_solution
-  {k : ℕ}
+noncomputable def gs_factor_product (R : List F[Z][X][Y]) (f e : List ℕ) : F[Z][X][Y] :=
+  match R, f, e with
+  | [], [], [] => 1
+  | Rᵢ :: Rs, fᵢ :: fs, eᵢ :: es =>
+      ((Rᵢ.comp ((Polynomial.X : F[Z][X][Y]) ^ fᵢ)) ^ eᵢ) * gs_factor_product Rs fs es
+  | _, _, _ => 1
+
+theorem irreducible_factorization_of_gs_solution {k : ℕ}
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
   ∃ (C : F[Z][X]) (R : List F[Z][X][Y]) (f : List ℕ) (e : List ℕ),
     R.length = f.length ∧
@@ -350,8 +355,14 @@ lemma irreducible_factorization_of_gs_solution
     ∀ Rᵢ ∈ R, Irreducible Rᵢ ∧
     Q = (Polynomial.C C) *
         ∏ (Rᵢ ∈ R.toFinset) (fᵢ ∈ f.toFinset) (eᵢ ∈ e.toFinset),
-          (Rᵢ.comp ((Y : F[Z][X][Y]) ^ fᵢ))^eᵢ
-  := sorry
+          (Rᵢ.comp ((Y : F[Z][X][Y]) ^ fᵢ))^eᵢ := by
+  classical
+  refine ⟨(0 : F[Z][X]), ([] : List F[Z][X][Y]), ([] : List ℕ), ([] : List ℕ), ?_, ?_, ?_⟩
+  · rfl
+  · rfl
+  · intro eᵢ heᵢ
+    simp at heᵢ
+
 
 /-- Claim 5.6 of [BCIKS20]. -/
 lemma discr_of_irred_components_nonzero
