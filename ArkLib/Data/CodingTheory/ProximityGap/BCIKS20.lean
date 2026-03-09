@@ -7,6 +7,11 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib.Probability.ProbabilityMassFunction.Monad
+import Mathlib.Topology.Algebra.InfiniteSum.ENNReal
+import ArkLib.Data.CodingTheory.InterleavedCode
+import ArkLib.Data.Probability.Instances
+import Mathlib.Algebra.Order.BigOperators.Expect
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -625,34 +630,320 @@ variable {l : ℕ} [NeZero l]
          {F : Type} [Field F] [Fintype F] [DecidableEq F]
 
 
-open scoped Pointwise in
-open scoped ProbabilityTheory in
-open Uniform in
-/--
-Lemma 6.3 in [BCIKS20].
+theorem exists_of_weighted_avg_gt {α : Type} (p : PMF α) (f : α → ENNReal) (ε : ENNReal) :
+  (∑' a, p a * f a) > ε → ∃ a, f a > ε := by
+  intro hgt
+  by_contra hno
+  have hle : ∀ a, f a ≤ ε := by
+    intro a
+    have : ¬ f a > ε := by
+      intro ha
+      exact hno ⟨a, ha⟩
+    exact le_of_not_gt this
+  have hmul : ∀ a, p a * f a ≤ p a * ε := by
+    intro a
+    exact mul_le_mul_of_nonneg_left (hle a) (by simpa using (zero_le (p a)))
+  have htsum : (∑' a, p a * f a) ≤ ∑' a, p a * ε := by
+    exact ENNReal.tsum_le_tsum hmul
+  have htsum' : (∑' a, p a * f a) ≤ ε := by
+    refine le_trans htsum ?_
+    -- simplify RHS
+    simpa [ENNReal.tsum_mul_right, p.tsum_coe] using (le_rfl : (∑' a, p a * ε) ≤ (∑' a, p a * ε))
+  exact (not_lt_of_ge htsum') hgt
 
-Let `V` be a Reed–Solomon code of rate `ρ`, and let `U` be an affine subspace obtained by
-translating a linear subspace `U'`.  For a proximity parameter `δ` below the Johnson/Guruswami–Sudan
-list-decoding bound (`0 < δ < 1 - √ρ`), suppose that a random point `u` sampled uniformly from `U`
-is `δ`-close to `V` with probability strictly larger than the proximity-gap error bound `ε`.  Then
-every point of the underlying linear subspace `U'` is also `δ`-close to `V`.
--/
+theorem jointAgreement_implies_second_proximity {ι : Type} [Fintype ι] [Nonempty ι] {F : Type} [DecidableEq F]
+    {C : Set (ι → F)} {δ : ℝ≥0} {W : Fin 2 → ι → F} :
+    jointAgreement (C := C) (δ := δ) (W := W) → δᵣ(W 1, C) ≤ δ := by
+  intro h
+  rcases h with ⟨S, hS_card, v, hv⟩
+  have hv1 : v 1 ∈ C := (hv 1).1
+  have hSsub : S ⊆ Finset.filter (fun j => v 1 j = W 1 j) Finset.univ := (hv 1).2
+  have hdist : δᵣ(W 1, v 1) ≤ δ := by
+    -- Use the agreement set `S`
+    rw [Code.relCloseToWord_iff_exists_agreementCols (u := W 1) (v := v 1) (δ := δ)]
+    refine ⟨S, ?_, ?_⟩
+    · -- cardinality bound
+      have hS' : (1 - δ) * (Fintype.card ι : ℝ≥0) ≤ (S.card : ℝ≥0) := by
+        simpa [ge_iff_le, mul_comm, mul_left_comm, mul_assoc] using hS_card
+      exact (Code.relDist_floor_bound_iff_complement_bound (n := Fintype.card ι)
+        (upperBound := S.card) (δ := δ)).2 hS'
+    · intro j
+      constructor
+      · intro hj
+        have hj' : j ∈ Finset.filter (fun j => v 1 j = W 1 j) Finset.univ := hSsub hj
+        have : v 1 j = W 1 j := by
+          simpa [Finset.mem_filter] using hj'
+        exact this.symm
+      · intro hj_ne
+        intro hj
+        have hj' : j ∈ Finset.filter (fun j => v 1 j = W 1 j) Finset.univ := hSsub hj
+        have : v 1 j = W 1 j := by
+          simpa [Finset.mem_filter] using hj'
+        exact hj_ne this.symm
+  -- Now use `v 1` as a witness for closeness to the code
+  have hclose : ∃ v' ∈ C, δᵣ(W 1, v') ≤ δ := by
+    exact ⟨v 1, hv1, hdist⟩
+  -- Conclude using the characterization of relative distance to a code
+  exact (Code.relCloseToCode_iff_relCloseToCodeword_of_minDist (u := W 1) (C := C) (δ := δ)).2 hclose
+
+theorem prob_uniform_congr_equiv {α : Type} [Fintype α] [Nonempty α]
+  (e : α ≃ α) (P : α → Prop) [DecidablePred P] :
+  Pr_{let x ←$ᵖ α}[P (e x)] = Pr_{let x ←$ᵖ α}[P x] := by
+  classical
+  -- Rewrite both sides using the uniform probability = card(filter)/card formula.
+  rw [prob_uniform_eq_card_filter_div_card (F := α) (P := fun x => P (e x))]
+  rw [prob_uniform_eq_card_filter_div_card (F := α) (P := P)]
+  -- Denominators match, so it suffices to show the filtered finsets have the same card.
+  have hcard : (Finset.filter (fun x : α => P (e x)) Finset.univ).card =
+      (Finset.filter (fun x : α => P x) Finset.univ).card := by
+    classical
+    -- Build a bijection between the two filtered sets using the equivalence `e`.
+    refine Finset.card_bij (s := Finset.filter (fun x : α => P (e x)) Finset.univ)
+      (t := Finset.filter (fun x : α => P x) Finset.univ)
+      (i := fun a ha => e a) ?_ ?_ ?_
+    · intro a ha
+      -- `ha` gives `P (e a)`.
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha
+      -- Show `e a` is in the target filter.
+      simp [Finset.mem_filter, ha]
+    · intro a1 ha1 a2 ha2 h
+      exact e.injective h
+    · intro b hb
+      refine ⟨e.symm b, ?_, ?_⟩
+      · -- Show `e.symm b` is in the source filter.
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hb
+        -- Need `P (e (e.symm b))`.
+        simpa [Finset.mem_filter, hb]
+      · simp
+  -- Finish by rewriting with `hcard`.
+  simp [hcard]
+
+theorem prob_uniform_shift_invariant {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {U : Finset (ι → F)} [Nonempty U]
+  (dir : ι → F)
+  (hshift : ∀ a ∈ (U : Finset (ι → F)), ∀ z : F, a + z • dir ∈ (U : Finset (ι → F)))
+  {V : Set (ι → F)} {δ : ℝ≥0} :
+  ∀ z : F,
+    Pr_{let a ←$ᵖ U}[δᵣ((a.1 + z • dir), V) ≤ δ] = Pr_{let a ←$ᵖ U}[δᵣ(a.1, V) ≤ δ] := by
+  intro z
+  classical
+  -- Define the shift equivalence on U
+  let shiftEquiv : (U : Type) ≃ (U : Type) :=
+    { toFun := fun a => ⟨a.1 + z • dir, hshift a.1 a.2 z⟩
+      invFun := fun a => ⟨a.1 + (-z) • dir, hshift a.1 a.2 (-z)⟩
+      left_inv := by
+        intro a
+        apply Subtype.ext
+        -- pointwise cancellation
+        ext i
+        simp [add_assoc, add_left_comm, add_comm, add_smul]
+      right_inv := by
+        intro a
+        apply Subtype.ext
+        ext i
+        simp [add_assoc, add_left_comm, add_comm, add_smul] }
+  -- Apply invariance of the uniform distribution under an equivalence
+  simpa [shiftEquiv] using
+    (prob_uniform_congr_equiv (α := (U : Type)) (e := shiftEquiv)
+      (P := fun a : (U : Type) => δᵣ(a.1, V) ≤ δ))
+
+theorem exists_basepoint_with_large_line_prob_aux {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {U : Finset (ι → F)} [Nonempty U]
+  (dir : ι → F)
+  (hshift : ∀ a ∈ (U : Finset (ι → F)), ∀ z : F, a + z • dir ∈ (U : Finset (ι → F)))
+  {V : Set (ι → F)} {δ ε : ℝ≥0} :
+  Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε →
+    ∃ a : U, Pr_{let z ←$ᵖ F}[δᵣ(a.1 + z • dir, V) ≤ δ] > ε := by
+  intro hprob
+  classical
+  let good : (ι → F) → Prop := fun w => δᵣ(w, V) ≤ δ
+  let lineProb (a : U) : ENNReal := Pr_{ let z ←$ᵖ F }[ good (a.1 + z • dir) ]
+  let P2 : ENNReal := Pr_{ let a ←$ᵖ U; let z ←$ᵖ F }[ good (a.1 + z • dir) ]
+
+  have hP2 : P2 = ∑' a : U, ($ᵖ U) a * lineProb a := by
+    simpa [P2, lineProb] using
+      (prob_tsum_form_split_first (D := ($ᵖ U))
+        (D_rest := fun a : U => (do
+          let z ← $ᵖ F
+          return good (a.1 + z • dir))))
+
+  have hswap :
+      (do
+          let a ← $ᵖ U
+          let z ← $ᵖ F
+          return good (a.1 + z • dir) : PMF Prop) =
+        (do
+          let z ← $ᵖ F
+          let a ← $ᵖ U
+          return good (a.1 + z • dir) : PMF Prop) := by
+    simpa [Bind.bind, PMF.bind] using
+      (PMF.bind_comm ($ᵖ U) ($ᵖ F) (fun a z => (pure (good (a.1 + z • dir)) : PMF Prop)))
+
+  have hP2_swap : P2 = Pr_{ let z ←$ᵖ F; let a ←$ᵖ U }[ good (a.1 + z • dir) ] := by
+    have hswap' := congrArg (fun p : PMF Prop => (p True : ENNReal)) hswap
+    simpa [P2] using hswap'
+
+  have hP2_eq : P2 = Pr_{ let u ←$ᵖ U }[ good u.1 ] := by
+    -- start from swapped form
+    rw [hP2_swap]
+    -- split outer z
+    have hsplit :
+        Pr_{ let z ←$ᵖ F; let a ←$ᵖ U }[ good (a.1 + z • dir) ] =
+          ∑' z : F, ($ᵖ F) z * Pr_{ let a ←$ᵖ U }[ good (a.1 + z • dir) ] := by
+      simpa using
+        (prob_tsum_form_split_first (D := ($ᵖ F))
+          (D_rest := fun z : F => (do
+            let a ← $ᵖ U
+            return good (a.1 + z • dir))))
+    rw [hsplit]
+    -- shift invariance: inner prob is constant
+    have hconst : ∀ z : F, Pr_{ let a ←$ᵖ U }[ good (a.1 + z • dir) ] = Pr_{ let a ←$ᵖ U }[ good a.1 ] := by
+      intro z
+      simpa [good] using
+        (prob_uniform_shift_invariant (U := U) (dir := dir) (hshift := hshift)
+          (V := V) (δ := δ) (z := z))
+    -- rewrite the sum
+    have : (∑' z : F, ($ᵖ F) z * Pr_{ let a ←$ᵖ U }[ good (a.1 + z • dir) ]) =
+        ∑' z : F, ($ᵖ F) z * Pr_{ let a ←$ᵖ U }[ good a.1 ] := by
+      refine tsum_congr ?_
+      intro z
+      -- use hconst z
+      congr 1
+      exact hconst z
+    rw [this]
+    -- collapse constant sum
+    simp only [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+
+  have hP2_gt : P2 > ε := by
+    simpa [hP2_eq] using hprob
+
+  have hsum_gt : (∑' a : U, ($ᵖ U) a * lineProb a) > ε := by
+    simpa [hP2] using hP2_gt
+
+  rcases exists_of_weighted_avg_gt ($ᵖ U) lineProb (ε : ENNReal) hsum_gt with ⟨a, ha⟩
+  refine ⟨a, ?_⟩
+  simpa [lineProb] using ha
+
+theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {U'_sub : Submodule F (ι → F)} {u0 dir : ι → F} (hdir : dir ∈ U'_sub)
+  {V : Set (ι → F)} {δ ε : ℝ≥0} :
+  letI U' : Finset (ι → F) := (U'_sub : Set (ι → F)).toFinset
+  letI U : Finset (ι → F) := U'.image (fun x => u0 + x)
+  haveI : Nonempty U := by
+    classical
+    apply Finset.Nonempty.to_subtype
+    refine ⟨u0, ?_⟩
+    -- u0 = u0 + 0, and 0 ∈ U'
+    refine Finset.mem_image.2 ?_
+    refine ⟨0, ?_, by simp⟩
+    simpa [U', Set.mem_toFinset] using (show (0 : ι → F) ∈ (U'_sub : Set (ι → F)) from U'_sub.zero_mem)
+  Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε →
+    ∃ a : U, Pr_{let z ←$ᵖ F}[δᵣ(a.1 + z • dir, V) ≤ δ] > ε := by
+  classical
+  -- Define the finsets explicitly (matching the statement)
+  let U' : Finset (ι → F) := (U'_sub : Set (ι → F)).toFinset
+  let U : Finset (ι → F) := U'.image (fun x => u0 + x)
+  -- Provide the nonemptiness instance
+  haveI : Nonempty U := by
+    classical
+    apply Finset.Nonempty.to_subtype
+    refine ⟨u0, ?_⟩
+    -- show u0 ∈ U
+    refine Finset.mem_image.2 ?_
+    refine ⟨0, ?_, by simp⟩
+    -- 0 ∈ U'
+    simpa [U', Set.mem_toFinset] using (show (0 : ι → F) ∈ (U'_sub : Set (ι → F)) from U'_sub.zero_mem)
+  intro hprob
+  -- closure property
+  have hshift : ∀ a ∈ (U : Finset (ι → F)), ∀ z : F, a + z • dir ∈ (U : Finset (ι → F)) := by
+    intro a ha z
+    -- unpack membership in image
+    rcases Finset.mem_image.1 ha with ⟨x, hxU', rfl⟩
+    -- show (u0 + x) + z•dir is in image
+    refine Finset.mem_image.2 ?_
+    refine ⟨x + z • dir, ?_, ?_⟩
+    · -- prove x + z•dir ∈ U'
+      -- convert hxU' to submodule membership
+      have hxsub : x ∈ U'_sub := by
+        simpa [U', Set.mem_toFinset] using hxU'
+      have hdir' : dir ∈ U'_sub := hdir
+      have hxzsub : x + z • dir ∈ U'_sub := by
+        exact U'_sub.add_mem hxsub (U'_sub.smul_mem z hdir')
+      -- back to finset membership
+      simpa [U', Set.mem_toFinset] using hxzsub
+    · -- equality
+      -- u0 + (x + z•dir) = (u0 + x) + z•dir
+      simpa [add_assoc]
+  -- apply auxiliary lemma
+  have := exists_basepoint_with_large_line_prob_aux (U := U) (dir := dir) hshift (V := V) (δ := δ) (ε := ε)
+  -- need to use U' and U definitions to match the goal
+  -- The goal should follow by simp [U, U']
+  --
+  -- finish
+  simpa [U, U'] using (this (by simpa [U, U'] using hprob))
+
+
 theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] [DecidableEq F]
   {u : Fin (l + 2) → ι → F} {k : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
   (hδ : δ ∈ Set.Ioo 0 (1 - (ReedSolomonCode.sqrtRate (k + 1) domain))) :
-  letI U' : Finset (ι → F) :=
-    SetLike.coe (affineSpan F (Finset.univ.image (Fin.tail u))) |>.toFinset
-  letI U : Finset (ι → F) := u 0 +ᵥ U'
+  letI U'_submodule : Submodule F (ι → F) :=
+    Submodule.span F (Finset.univ.image (Fin.tail u) : Set (ι → F))
+  letI U' : Finset (ι → F) := (U'_submodule : Set (ι → F)).toFinset
+  letI U : Finset (ι → F) := U'.image (fun x => u 0 + x)
   haveI : Nonempty U := by
+    classical
     apply Finset.Nonempty.to_subtype
-    apply Finset.Nonempty.vadd_finset
-    rw [Set.toFinset_nonempty]
-    exact Set.Nonempty.mono (subset_affineSpan F _)
-      (Finset.coe_nonempty.mpr (Finset.univ_nonempty.image _))
+    refine ⟨u 0, ?_⟩
+    refine Finset.mem_image.2 ?_
+    refine ⟨0, ?_, by simp⟩
+    simpa [U', Set.mem_toFinset] using (show (0 : ι → F) ∈ (U'_submodule : Set (ι → F)) from
+      U'_submodule.zero_mem)
   letI ε : ℝ≥0 := ProximityGap.errorBound δ (k + 1) domain
   letI V := ReedSolomon.code domain (k + 1)
   Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε → ∀ u' ∈ U', δᵣ(u', V) ≤ δ := by
-  sorry
+  classical
+  intro hprob
+  intro u' hu'
+  have hu'_sub :
+      u' ∈ (Submodule.span F (Finset.univ.image (Fin.tail u) : Set (ι → F)) :
+        Submodule F (ι → F)) := by
+    simpa [Set.mem_toFinset] using hu'
+  have hδ_le : δ ≤ 1 - ReedSolomonCode.sqrtRate (k + 1) domain :=
+    le_of_lt hδ.2
+  -- pick a basepoint with large line probability in direction `u'`
+  rcases
+      (exists_basepoint_with_large_line_prob
+        (ι := ι) (F := F)
+        (U'_sub :=
+          (Submodule.span F (Finset.univ.image (Fin.tail u) : Set (ι → F)) :
+            Submodule F (ι → F)))
+        (u0 := u 0) (dir := u') (hdir := hu'_sub)
+        (V := ReedSolomon.code domain (k + 1))
+        (δ := δ) (ε := ProximityGap.errorBound δ (k + 1) domain)
+        hprob)
+    with ⟨a, hline⟩
+  -- correlated agreement over affine lines for Reed–Solomon
+  have hCA :
+      δ_ε_correlatedAgreementAffineLines (A := F) (F := F) (ι := ι)
+        (C := ReedSolomon.code domain (k + 1)) (δ := δ)
+        (ε := ProximityGap.errorBound δ (k + 1) domain) :=
+    RS_correlatedAgreement_affineLines (ι := ι) (F := F) (deg := k + 1) (domain := domain)
+      (δ := δ) hδ_le
+  have hJA :
+      jointAgreement (C := ReedSolomon.code domain (k + 1)) (δ := δ)
+        (W := Code.finMapTwoWords a.1 u') := by
+    apply hCA
+    simpa [Code.finMapTwoWords] using hline
+  have :
+      δᵣ((Code.finMapTwoWords a.1 u') 1, ReedSolomon.code domain (k + 1)) ≤ δ :=
+    jointAgreement_implies_second_proximity
+      (ι := ι) (F := F) (C := ReedSolomon.code domain (k + 1))
+      (δ := δ) (W := Code.finMapTwoWords a.1 u') hJA
+  simpa [Code.finMapTwoWords] using this
+
 
 end
 
