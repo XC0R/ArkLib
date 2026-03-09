@@ -7,6 +7,10 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 
 import ArkLib.Data.CodingTheory.ProximityGap.Basic
 
+import Mathlib.Data.Fintype.Card
+import ArkLib.Data.CodingTheory.PolishchukSpielman
+import ArkLib.Data.CodingTheory.BerlekampWelch.BerlekampWelch
+import ArkLib.Data.Probability.Instances
 /-!
   # Definitions and Theorems about Proximity Gaps
 
@@ -107,17 +111,1408 @@ theorem RS_correlatedAgreement_affineLines {deg : ℕ} {domain : ι ↪ F} {δ :
     sorry
 
 
-/-- Theorem 1.5 (Correlated agreement for low-degree parameterised curves) in [BCIKS20].
+theorem RS_rate_mul_card_le_deg {ι : Type} [Fintype ι] [Nonempty ι]
+  {F : Type} [Field F]
+  (deg : ℕ) (domain : ι ↪ F) :
+  ((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) * (Fintype.card ι : ℝ≥0)
+    ≤ (deg : ℝ≥0)) := by
+  classical
+  -- unfold the definition of rate and reduce the statement to a finrank bound
+  simp [LinearCode.rate, LinearCode.length, LinearCode.dim]
+  -- `ReedSolomon.code` is the image of `Polynomial.degreeLT F deg` under evaluation,
+  -- so its finrank is bounded by the finrank of `Polynomial.degreeLT F deg`.
+  simpa [ReedSolomon.code, Polynomial.finrank_degreeLT_n] using
+    (Submodule.finrank_map_le (R := F)
+      (f := ReedSolomon.evalOnPoints (F := F) domain)
+      (p := Polynomial.degreeLT F deg))
 
+
+theorem ca_Pr_uniform_mono {α : Type} [Fintype α] [Nonempty α]
+  (p q : α → Prop) (hpq : ∀ a, p a → q a) :
+  Pr_{let a ←$ᵖ α}[p a] ≤ Pr_{let a ←$ᵖ α}[q a] := by
+  classical
+  -- unfold `Pr_{...}[...]`
+  simp [ProbabilityTheory.prStx]
+  -- goal: (p <$> $ᵖ α) True ≤ (q <$> $ᵖ α) True
+  -- rewrite as outer measures over preimages of `{True}`
+  have hp' : (p <$> ($ᵖ α)) True = ($ᵖ α).toOuterMeasure (p ⁻¹' ({True} : Set Prop)) := by
+    -- `PMF.toOuterMeasure_apply_singleton` rewrites evaluation at `True`
+    -- and `PMF.toOuterMeasure_map_apply` rewrites outer measure of a mapped PMF
+    calc
+      (p <$> ($ᵖ α)) True = (p <$> ($ᵖ α)).toOuterMeasure ({True} : Set Prop) := by
+        symm
+        simpa using (PMF.toOuterMeasure_apply_singleton (p := (p <$> ($ᵖ α))) True)
+      _ = ($ᵖ α).toOuterMeasure (p ⁻¹' ({True} : Set Prop)) := by
+        simpa [PMF.monad_map_eq_map] using
+          (PMF.toOuterMeasure_map_apply (p := ($ᵖ α)) (f := p) (s := ({True} : Set Prop)))
+  have hq' : (q <$> ($ᵖ α)) True = ($ᵖ α).toOuterMeasure (q ⁻¹' ({True} : Set Prop)) := by
+    calc
+      (q <$> ($ᵖ α)) True = (q <$> ($ᵖ α)).toOuterMeasure ({True} : Set Prop) := by
+        symm
+        simpa using (PMF.toOuterMeasure_apply_singleton (p := (q <$> ($ᵖ α))) True)
+      _ = ($ᵖ α).toOuterMeasure (q ⁻¹' ({True} : Set Prop)) := by
+        simpa [PMF.monad_map_eq_map] using
+          (PMF.toOuterMeasure_map_apply (p := ($ᵖ α)) (f := q) (s := ({True} : Set Prop)))
+  -- reduce to a monotonicity statement on outer measures
+  rw [hp', hq']
+  refine PMF.toOuterMeasure_mono (p := ($ᵖ α)) ?_
+  intro a ha
+  -- `ha : a ∈ p ⁻¹' {True} ∩ ($ᵖ α).support`
+  have hpa_eq : p a = True := by
+    -- unpack `a ∈ p ⁻¹' {True}`
+    simpa [Set.preimage, Set.mem_singleton_iff] using ha.1
+  have hpa : p a := by
+    simpa [hpa_eq] using (trivial : True)
+  have hqa : q a := hpq a hpa
+  have hqa_eq : q a = True := by
+    apply propext
+    constructor
+    · intro _
+      trivial
+    · intro _
+      exact hqa
+  -- show `a ∈ q ⁻¹' {True}`
+  have : q a ∈ ({True} : Set Prop) := by
+    simpa [Set.mem_singleton_iff, hqa_eq]
+  exact this
+
+theorem ca_RS_rate_mul_card_sq_le_deg_sq {ι : Type} [Fintype ι] [Nonempty ι]
+  {F : Type} [Field F]
+  (deg : ℕ) (domain : ι ↪ F) :
+  (((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) ^ 2)
+    * ((Fintype.card ι : ℝ) ^ 2)
+    ≤ (deg : ℝ) ^ 2 := by
+  classical
+  have hNN :
+      (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) * (Fintype.card ι : ℝ≥0)
+        ≤ (deg : ℝ≥0) :=
+    RS_rate_mul_card_le_deg (ι := ι) (F := F) deg domain
+  have hR :
+      ((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ)
+        ≤ (deg : ℝ) := by
+    exact_mod_cast hNN
+
+  have ha :
+      0 ≤ ((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ) := by
+    positivity
+  have hb : 0 ≤ (deg : ℝ) := by
+    positivity
+
+  have hsq_mul :
+      (((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ))
+          * (((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ))
+        ≤ (deg : ℝ) * (deg : ℝ) := by
+    exact mul_le_mul hR hR ha hb
+
+  -- Convert back to squares and rewrite (a*b)^2
+  have hsq :
+      (((LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ)) ^ 2
+        ≤ (deg : ℝ) ^ 2 := by
+    simpa [pow_two] using hsq_mul
+
+  simpa [mul_pow, pow_two, mul_assoc, mul_left_comm, mul_comm] using hsq
+
+theorem ca_card_add_one_div_two_le_card_sq {ι : Type} [Fintype ι] [Nonempty ι] :
+  (((Fintype.card ι : ℝ) + 1) / 2) ≤ (Fintype.card ι : ℝ) ^ 2 := by
+  classical
+  have hn_nat : (1 : ℕ) ≤ Fintype.card ι := by
+    -- `Fintype.card_pos` gives `0 < card`
+    simpa using (Nat.succ_le_iff.2 (Fintype.card_pos (α := ι)))
+  have hn : (1 : ℝ) ≤ (Fintype.card ι : ℝ) := by
+    exact_mod_cast hn_nat
+  nlinarith
+
+theorem ca_const_128_23_div_20_pow7_le_half: ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) ≤ (1 / 2 : ℝ) := by
+  norm_num
+
+theorem ca_inv_add_three_le_const_inv (s m : ℝ≥0)
+  (hs : s ≠ 0) (hm : m ≠ 0) (hmle : m ≤ s / 20) :
+  ((m : ℝ)⁻¹ + 3 / (s : ℝ)) ≤ (23 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+  have hs0 : (s : ℝ) ≠ 0 := by
+    exact_mod_cast hs
+  have hmleR : (m : ℝ) ≤ (s : ℝ) / 20 := by
+    exact_mod_cast hmle
+
+  have hmpos : (0 : ℝ) < (m : ℝ) := by
+    have hmpos' : (0 : ℝ≥0) < m := lt_of_le_of_ne (zero_le _) (Ne.symm hm)
+    exact_mod_cast hmpos'
+
+  have h20 : (20 : ℝ) / (s : ℝ) ≤ (m : ℝ)⁻¹ := by
+    -- invert the inequality m ≤ s/20
+    have h1 : (1 : ℝ) / ((s : ℝ) / 20) ≤ (1 : ℝ) / (m : ℝ) :=
+      one_div_le_one_div_of_le hmpos hmleR
+    -- rewrite reciprocals
+    simpa [one_div, one_div_div] using h1
+
+  have h3 : (3 : ℝ) / (s : ℝ) ≤ (3 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+    have hmul := mul_le_mul_of_nonneg_left h20 (by nlinarith : (0 : ℝ) ≤ (3 / 20 : ℝ))
+    -- simplify the left-hand side
+    have : (3 / 20 : ℝ) * ((20 : ℝ) / (s : ℝ)) = (3 : ℝ) / (s : ℝ) := by
+      field_simp [hs0]
+    simpa [this, mul_assoc, mul_left_comm, mul_comm] using hmul
+
+  calc
+    (m : ℝ)⁻¹ + 3 / (s : ℝ)
+        ≤ (m : ℝ)⁻¹ + (3 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+          -- add (m⁻¹) to the left of both sides
+          simpa [add_comm, add_left_comm, add_assoc] using (add_le_add_right h3 ((m : ℝ)⁻¹))
+    _ = (23 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+          ring
+
+theorem ca_one_sub_tsub_comm (a b : ℝ≥0) : (1 - a - b) = (1 - b - a) := by
+  simp [tsub_tsub, add_comm, add_left_comm, add_assoc]
+
+theorem ca_prob_pos_singleton_iff {α : Type} [DecidableEq α]
+  (a : α) (P : α → Prop) :
+  (0 : ENNReal) < Pr_{let x ←$ᵖ (↥({a} : Finset α))}[P x.1] ↔ P a := by
+  classical
+  change (0 : ENNReal) < (PMF.map (fun x : (↥({a} : Finset α)) => P x.1) ($ᵖ (↥({a} : Finset α)))) True ↔ P a
+  by_cases hPa : P a
+  · -- identify the (unique) default element of the singleton subtype
+    have hdef : (default : (↥({a} : Finset α))) = ⟨a, by simp⟩ := by
+      ext x
+      simp
+    have hPa' : P ((default : (↥({a} : Finset α))).1) := by
+      have : (default : (↥({a} : Finset α))).1 = a := by
+        simpa using congrArg Subtype.val hdef
+      simpa [this] using hPa
+    have hnonempty : ({x ∈ ({default} : Finset (↥({a} : Finset α))) | P x.1}).Nonempty := by
+      rw [Finset.filter_nonempty_iff]
+      refine ⟨default, ?_, hPa'⟩
+      simp
+    simpa [hPa] using hnonempty
+  · simp [hPa]
+
+def ca_uniformMu {ι : Type} : ι → Set.Icc (0 : ℚ) 1 := fun _ => ⟨(1 : ℚ), by simp⟩
+
+section BCIKS20ProximityGapSection7
+
+variable {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+variable {n k m : ℕ}
+
+namespace WeightedAgreement
+
+open NNReal Finset Function
+
+open scoped BigOperators
+
+section
+
+variable {n : Type} [Fintype n] [DecidableEq n]
+
+variable {ι : Type} [Fintype ι] [Nonempty ι]
+variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
+
+variable (C : Submodule F (n → F)) [DecidablePred (· ∈ C)]
+         (μ : ι → Set.Icc (0 : ℚ) 1)
+
+/-- Relative μ-agreement between words `u` and `v`. -/
+noncomputable def agree (u v : ι → F) : ℝ :=
+  1 / (Fintype.card ι) * ∑ i ∈ { i | u i = v i }, (μ i).1
+
+/-- `μ`-agreement between a word and a set `V`. -/
+noncomputable def agree_set (u : ι → F) (V : Finset (ι → F)) [Nonempty V] : ℝ :=
+  (Finset.image (agree μ u) V).max' (nonempty_coe_sort.1 (by aesop))
+
+/-- Weighted size of a subdomain. -/
+noncomputable def mu_set (ι' : Finset ι) : ℝ :=
+  1/(Fintype.card ι) * ∑ i ∈ ι', (μ i).1
+
+/-- `μ`-weighted correlated agreement. -/
+noncomputable def weightedCorrelatedAgreement
+  (C : Set (ι → F)) [Nonempty C] {k : ℕ} (U : Fin k → ι → F) : ℝ :=
+  sSup {x |
+    ∃ D' ⊆ (Finset.univ (α := ι)),
+      x = mu_set μ D' ∧
+      ∃ v : Fin k → ι → F, ∀ i, v i ∈ C ∧ ∀ j ∈ D', v i j = U i j
+  }
+
+open ReedSolomonCode
+
+instance {domain : ι ↪ F} {deg : ℕ} : Nonempty (finCarrier domain deg) := by
+  unfold finCarrier
+  apply Nonempty.to_subtype
+  simp [ReedSolomon.code]
+  exact Submodule.nonempty (Polynomial.degreeLT F deg)
+
+open ProbabilityTheory in
+/-- Weighted correlated agreement over curves.
+    Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
+pair `(δ, ε)` and a curve generated by vectors `u`, such that the probability that a random
+point on the curve is `δ`-close to Reed-Solomon code is at most `ε`.
+Then, the words `u` have weighted correlated agreement.
+-/
+theorem weighted_correlated_agreement_for_parameterized_curves
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] [Fintype F]
+  {l : ℕ}
+  {k : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {M : ℕ}
+  {α : ℝ≥0}
+  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
+  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  (hα : sqrtRate < α) →
+  (hα₁ : α < 1) →
+  letI ε := ProximityGap.errorBound δ deg domain
+  letI pr :=
+    let curve := Curve.polynomialCurveFinite (F := F) (A := F) u
+    Pr_{let u ←$ᵖ curve}[agree_set μ u (finCarrier domain deg) ≥ α]
+  (hproximity : pr > (l + 1 : NNReal) * ε) →
+  (h_additionally : pr ≥
+    ENNReal.ofReal (
+      ((l + 1) * (M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
+      *
+      (1 / min (α - sqrtRate) (sqrtRate / 20) + 3 / sqrtRate)
+    )
+  ) →
+  ∃ ι' : Finset ι, ∃ v : Fin (l + 2) → ι → F,
+    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
+    mu_set μ ι' ≥ α ∧
+    ∀ i, ∀ x ∈ ι', u i x = v i x := sorry
+
+/-- Weighted correlated agreement over curves.
 Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and a curve passing through words `u₀, ..., uκ`, such that
-the  probability that a random point on the curve is `δ`-close to the Reed-Solomon code
-is at most `ε`. Then, the words `u₀, ..., uκ` have correlated agreement. -/
+pair `(δ, ε)` and a curve generated by vectors `u`, such that the probability that a random
+point on the curve is `δ`-close to Reed-Solomon code is at most `ε`.
+Then, the words `u` have weighted correlated agreement.
+
+Version with different bounds.
+-/
+theorem weighted_correlated_agreement_for_parameterized_curves'
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {M m : ℕ}
+  (hm : 3 ≤ m)
+  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ))
+  {α : ℝ≥0} :
+  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI S : Finset F := {
+    z : F | agree_set μ (fun i ↦ ∑ j, z ^ j.1 * u j i) (finCarrier domain deg) ≥ α
+  }
+  (hα : sqrtRate * (1 + 1 / (2 * m : ℝ)) ≤ α) →
+  (hS :
+    Finset.card S >
+      max ((1 + 1 / (2 * m : ℝ))^7 * m^7 * (Fintype.card ι)^2 * (l + 1) / (3 * sqrtRate^3))
+          ((2 * m + 1) * (M * Fintype.card ι + 1) * (l + 1) / sqrtRate.toReal)
+    ) →
+  ∃ v : Fin (l + 2) → ι → F,
+    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
+    mu_set μ {i : ι | ∀ j, u j i = v j i} ≥ α := sorry
+
+open Uniform in
+open scoped Pointwise in
+open ProbabilityTheory in
+/-- Weighted correlated agreement over affine spaces.
+Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
+pair `(δ, ε)` and an affine space generated by vectors `u`, such that the probability that a random
+point from the space is `δ`-close to Reed-Solomon code is at most `ε`.
+Then, the words `u` have weighted correlated agreement.
+-/
+theorem weighted_correlated_agreement_over_affine_spaces
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {M : ℕ}
+  {α : ℝ≥0} :
+  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  (hα : sqrtRate < α) →
+  (hα₁ : α < 1) →
+  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) →
+  letI ε := ProximityGap.errorBound α deg domain
+  letI pr :=
+    Pr_{let u ←$ᵖ (u 0 +ᵥ affineSpan F (Finset.univ.image (Fin.tail u)).toSet)
+    }[agree_set μ u (finCarrier domain deg) ≥ α]
+  pr > ε →
+  pr ≥ ENNReal.ofReal (
+         ((M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
+         *
+         (1 / min (α - sqrtRate) (sqrtRate / 20) + 3 / sqrtRate)
+       ) →
+  ∃ ι' : Finset ι, ∃ v : Fin (l + 2) → ι → F,
+    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
+    mu_set μ ι' ≥ α ∧
+    ∀ i, ∀ x ∈ ι', u i x = v i x := by sorry
+
+open scoped ProbabilityTheory in
+open scoped Pointwise in
+open Uniform in
+/-- Weighted correlated agreement over affine spaces.
+Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
+pair `(δ, ε)` and an affine space generated by vectors `u`, such that the probability that a random
+point from the space is `δ`-close to Reed-Solomon code is at most `ε`.
+Then, the words `u` have weighted correlated agreement.
+
+Version with different bounds.
+-/
+theorem weighted_correlated_agreement_over_affine_spaces'
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {α : ℝ≥0}
+  {M m : ℕ}
+  (hm : 3 ≤ m)
+  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
+  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
+  letI pr :=
+    Pr_{let u ←$ᵖ (u 0 +ᵥ affineSpan F (Finset.univ.image (Fin.tail u)).toSet)
+    }[agree_set μ u (finCarrier domain deg) ≥ α]
+  (hα : sqrtRate * (1 + 1 / (2 * m : ℝ)) ≤ α) →
+  letI numeratorl : ℝ := (1 + 1 / (2 * m : ℝ))^7 * m^7 * (Fintype.card ι)^2
+  letI denominatorl : ℝ := (3 * sqrtRate^3) * Fintype.card F
+  letI numeratorr : ℝ := (2 * m + 1) * (M * Fintype.card ι + 1)
+  letI denominatorr : ℝ := sqrtRate * Fintype.card F
+  pr > ENNReal.ofReal (max (numeratorl / denominatorl) (numeratorr / denominatorr)) →
+  ∃ v : Fin (l + 2) → ι → F,
+    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
+    mu_set μ {i : ι | ∀ j, u j i = v j i} ≥ α := by sorry
+
+/--
+Lemma 7.5 in [BCIKS20].
+
+This is the “list agreement on a curve implies correlated agreement” lemma.
+
+We are given two lists of functions `u, v : Fin (l + 2) → ι → F`, where each `v i` is a
+Reed–Solomon codeword of degree `deg` over the evaluation domain `domain`.  From these
+lists we form the bivariate “curves”
+
+* `w   x z = ∑ i, z^(i.1) * u i x`,
+* `wtilde x z = ∑ i, z^(i.1) * v i x`.
+
+Fix a finite set `S' ⊆ F` with `S'.card > l + 1`, and a (product) measure `μ` on the
+evaluation domain `ι`.  Assume that for every `z ∈ S'` the one-dimensional functions
+`w · z` and `wtilde · z` have agreement at least `α` with respect to `μ`.  Then the set
+of points `x` on which *all* coordinates agree, i.e. `u i x = v i x` for every `i`,
+has μ-measure strictly larger than
+
+`α - (l + 1) / (S'.card - (l + 1))`.
+-/
+lemma list_agreement_on_curve_implies_correlated_agreement_bound
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {α : ℝ≥0}
+  {v : Fin (l + 2) → ι → F}
+  (hv : ∀ i, v i ∈ (ReedSolomon.code domain deg))
+  {S' : Finset F}
+  (hS'_card : S'.card > l + 1) :
+  letI w (x : ι) (z : F) : F := ∑ i, z ^ i.1 * u i x
+  letI wtilde (x : ι) (z : F) : F := ∑ i, z ^ i.1 * v i x
+  (hS'_agree : ∀ z ∈ S', agree μ (w · z) (wtilde · z) ≥ α) →
+  mu_set μ {x : ι | ∀ i, u i x = v i x} >
+  α - ((l + 1) : ℝ) / (S'.card - (l + 1)) := by sorry
+
+/--
+Lemma 7.6 in [BCIKS20].
+
+This is the “integral-weight” strengthening of the list-agreement-on-a-curve ⇒
+correlated-agreement bound.
+
+We have two lists of functions `u, v : Fin (l + 2) → ι → F`, where each `v i` is a
+Reed–Solomon codeword of degree `deg` over the evaluation domain `domain`.  From
+these lists we form the bivariate “curves”
+* `w x z     = ∑ i, z^(i.1) * u i x`,
+* `wtilde x z = ∑ i, z^(i.1) * v i x`.
+
+The domain `ι` is finite and is equipped with a weighted measure `μ`, where each
+weight `μ i` is a rational with common denominator `M`.  Let `S' ⊆ F` be a set of
+field points with
+* `S'.card > l + 1`, and
+* `S'.card ≥ (M * Fintype.card ι + 1) * (l + 1)`.
+
+Assume that for every `z ∈ S'` the µ-weighted agreement between `w · z` and
+`wtilde · z` is at least `α`.  Then the µ-measure of the set of points where *all*
+coordinates agree, i.e. where `u i x = v i x` for every `i`, is at least `α`:
+
+`mu_set μ {x | ∀ i, u i x = v i x} ≥ α`.
+-/
+lemma sufficiently_large_list_agreement_on_curve_implies_correlated_agreement
+  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
+  {deg : ℕ} {domain : ι ↪ F}
+  {μ : ι → Set.Icc (0 : ℚ) 1}
+  {α : ℝ≥0}
+  {M : ℕ}
+  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ))
+  {v : Fin (l + 2) → ι → F}
+  (hv : ∀ i, v i ∈ ReedSolomon.code domain deg)
+  {S' : Finset F}
+  (hS'_card : S'.card > l + 1)
+  (hS'_card₁ : S'.card ≥ (M * Fintype.card ι + 1) * (l + 1)) :
+  letI w (x : ι) (z : F) : F := ∑ i, z ^ i.1 * u i x
+  letI wtilde (x : ι) (z : F) : F := ∑ i, z ^ i.1 * v i x
+  (hS'_agree : ∀ z ∈ S', agree μ (w · z) (wtilde · z) ≥ α) →
+  mu_set μ {x : ι | ∀ i, u i x = v i x} ≥ α := by sorry
+end
+
+end WeightedAgreement
+
+end BCIKS20ProximityGapSection7
+
+theorem ca_agree_uniform_eq_card_div {ι : Type} [Fintype ι] [DecidableEq ι]
+  {F : Type} [Field F] [DecidableEq F]
+  (w v : ι → F) :
+  WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v
+    = ((#{i : ι | w i = v i} : ℝ) / (Fintype.card ι : ℝ)) := by
+  classical
+  -- unfold the definition of agreement and the uniform weight function
+  simp [WeightedAgreement.agree, ca_uniformMu, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc]
+
+
+theorem ca_agree_set_ge_of_relDistFromCode_le {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} {w : ι → F} :
+  (δᵣ(w, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal)) →
+    WeightedAgreement.agree_set (μ := ca_uniformMu (ι := ι)) w (ReedSolomonCode.finCarrier domain deg) ≥ (1 - δ : ℝ≥0) := by
+  intro hδw
+  classical
+  rcases (Code.relCloseToCode_iff_relCloseToCodeword_of_minDist (u := w)
+      (C := (ReedSolomon.code domain deg : Set (ι → F))) (δ := δ)).1 hδw with ⟨v, hvC, hvδ⟩
+
+  have hvFin : v ∈ ReedSolomonCode.finCarrier domain deg := by
+    simp [ReedSolomonCode.finCarrier, hvC]
+
+  have hmax :
+      WeightedAgreement.agree_set (μ := ca_uniformMu (ι := ι)) w (ReedSolomonCode.finCarrier domain deg)
+        ≥ WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v := by
+    unfold WeightedAgreement.agree_set
+    set s : Finset ℝ :=
+      Finset.image (WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w)
+        (ReedSolomonCode.finCarrier domain deg)
+    have hs_mem :
+        WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v ∈ s := by
+      dsimp [s]
+      refine Finset.mem_image.2 ?_
+      exact ⟨v, hvFin, rfl⟩
+    have hs_nonempty : s.Nonempty := ⟨_, hs_mem⟩
+
+    have hgreat : IsGreatest (↑s : Set ℝ) (s.max' hs_nonempty) :=
+      Finset.isGreatest_max' (s := s) (H := hs_nonempty)
+
+    have hle : WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v ≤ s.max' hs_nonempty := by
+      exact hgreat.2 hs_mem
+
+    dsimp [s] at hle ⊢
+    simpa [ge_iff_le] using hle
+
+  -- Now lower bound the agreement of `w` with this particular `v`.
+  have hagree :
+      WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v ≥ (1 - δ : ℝ≥0) := by
+    rcases (Code.relCloseToWord_iff_exists_agreementCols (u := w) (v := v) (δ := δ)).1 hvδ with
+      ⟨S, hS_card, hS⟩
+
+    have hS_subset : S ⊆ ({ i : ι | w i = v i } : Finset ι) := by
+      intro i hi
+      have hi' : w i = v i := (hS i).1 hi
+      simpa using hi'
+
+    have hcard_le : (S.card : ℝ≥0) ≤ (({ i : ι | w i = v i } : Finset ι).card : ℝ≥0) := by
+      exact_mod_cast Finset.card_le_card hS_subset
+
+    have hS_card_nnreal :
+        (1 - δ) * (Fintype.card ι : ℝ≥0) ≤ (S.card : ℝ≥0) := by
+      exact (Code.relDist_floor_bound_iff_complement_bound (n := Fintype.card ι)
+        (upperBound := S.card) (δ := δ)).1 hS_card
+
+    -- Work in NNReal first, then cast to ℝ.
+    have hn_pos : 0 < (Fintype.card ι : ℝ≥0) := by
+      exact_mod_cast (Fintype.card_pos : 0 < Fintype.card ι)
+
+    -- From the cardinality bound, obtain a bound on normalized size.
+    have hnorm : (1 - δ : ℝ≥0) ≤ (S.card : ℝ≥0) / (Fintype.card ι : ℝ≥0) := by
+      -- `a ≤ b / n` ↔ `a*n ≤ b`
+      exact (le_div_iff₀ hn_pos).2 hS_card_nnreal
+
+    -- compare with the full agreement set
+    have hnorm_le :
+        (S.card : ℝ≥0) / (Fintype.card ι : ℝ≥0)
+          ≤ (({ i : ι | w i = v i } : Finset ι).card : ℝ≥0) / (Fintype.card ι : ℝ≥0) := by
+      -- divide the card inequality by n
+      exact div_le_div_of_nonneg_right hcard_le (by exact le_of_lt hn_pos)
+
+    have hnorm' :
+        (1 - δ : ℝ≥0)
+          ≤ (({ i : ι | w i = v i } : Finset ι).card : ℝ≥0) / (Fintype.card ι : ℝ≥0) := by
+      exact le_trans hnorm hnorm_le
+
+    -- rewrite agree via cardinalities
+    have hagree_eq :
+        WeightedAgreement.agree (μ := ca_uniformMu (ι := ι)) w v
+          = ((#{i : ι | w i = v i} : ℝ) / (Fintype.card ι : ℝ)) := by
+      simpa using (ca_agree_uniform_eq_card_div (ι := ι) (F := F) w v)
+
+    -- cast the NNReal inequality to ℝ and finish
+    -- TODO: relate finset card to `#{i | ...}`
+    -- fallback: try `exact_mod_cast` and simp
+    
+    -- We'll try to close using `nlinarith` after rewriting.
+    
+    -- convert hnorm' to ℝ
+    have hnormR : ((1 - δ : ℝ≥0) : ℝ) ≤
+        ((({ i : ι | w i = v i } : Finset ι).card : ℝ≥0) / (Fintype.card ι : ℝ≥0) : ℝ) := by
+      exact_mod_cast hnorm'
+
+    -- now rewrite the RHS to match hagree_eq and conclude
+    --
+    -- try simp to identify the finset card with the fintype card of the subtype
+    --
+    have hcard_ident :
+        ((({ i : ι | w i = v i } : Finset ι).card : ℝ≥0) / (Fintype.card ι : ℝ≥0) : ℝ)
+          = ((#{i : ι | w i = v i} : ℝ) / (Fintype.card ι : ℝ)) := by
+      -- hope simp knows this
+      simp
+
+    -- put together
+    have hfinal : ((1 - δ : ℝ≥0) : ℝ) ≤ ((#{i : ι | w i = v i} : ℝ) / (Fintype.card ι : ℝ)) := by
+      simpa [hcard_ident] using hnormR
+
+    -- conclude with rewritten agree
+    --
+    -- goal is ≥, so rewrite and use hfinal
+    --
+    simpa [hagree_eq, ge_iff_le] using hfinal
+
+  -- Combine.
+  exact le_trans hagree hmax
+
+theorem ca_mu_set_uniform {ι : Type} [Fintype ι] (S : Finset ι) :
+    WeightedAgreement.mu_set (μ := (ca_uniformMu (ι := ι))) S = (S.card : ℝ) / (Fintype.card ι : ℝ) := by
+  classical
+  unfold WeightedAgreement.mu_set ca_uniformMu
+  simp [div_eq_mul_inv, mul_assoc, mul_left_comm, mul_comm]
+
+theorem ca_weighted_additional_bound_endgame {ι : Type} [Fintype ι] [Nonempty ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  (deg : ℕ) (domain : ι ↪ F) (δ : ℝ≥0)
+  (hδJ : δ ∈ Set.Ioo
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+    (1 - ReedSolomonCode.sqrtRate deg domain)) :
+  let ρ : ℝ≥0 := (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)
+  let m : ℝ≥0 := min (1 - ρ.sqrt - δ) (ρ.sqrt / 20)
+  let n : ℝ := (Fintype.card ι : ℝ)
+  (n + 1) * 23 * (m : ℝ) ^ 6 * 128 ≤ 20 * (deg : ℝ) ^ 2 := by
+  classical
+  dsimp
+  set ρ : ℝ≥0 := (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0) with hρ
+  set s : ℝ≥0 := ρ.sqrt with hs
+  set m : ℝ≥0 := min (1 - s - δ) (s / 20) with hm
+  set n : ℝ := (Fintype.card ι : ℝ) with hn
+
+  -- Step 1: m ≤ s/20
+  have hmle : m ≤ s / 20 := by
+    simpa [hm] using (min_le_right (1 - s - δ) (s / 20))
+
+  -- Step 2: m^6 ≤ (s/20)^6 (in ℝ)
+  have hm_pow : (m : ℝ) ^ 6 ≤ ((s / 20 : ℝ≥0) : ℝ) ^ 6 := by
+    have hm_pow_nn : m ^ 6 ≤ (s / 20) ^ 6 := by
+      exact pow_le_pow_left' hmle 6
+    exact_mod_cast hm_pow_nn
+
+  have hmul : (n + 1) * 23 * (m : ℝ) ^ 6 * 128 ≤ (n + 1) * 23 * (((s / 20 : ℝ≥0) : ℝ) ^ 6) * 128 := by
+    have hn23 : 0 ≤ (n + 1) * 23 := by positivity
+    have h1 : (n + 1) * 23 * (m : ℝ) ^ 6 ≤ (n + 1) * 23 * (((s / 20 : ℝ≥0) : ℝ) ^ 6) := by
+      have := mul_le_mul_of_nonneg_left hm_pow hn23
+      simpa [mul_assoc] using this
+    have h128 : 0 ≤ (128 : ℝ) := by norm_num
+    have := mul_le_mul_of_nonneg_right h1 h128
+    simpa [mul_assoc] using this
+
+  refine le_trans hmul ?_
+
+  -- Work with A/20
+  have h20pos : (0 : ℝ) < 20 := by norm_num
+  have hAdiv : ((n + 1) * 23 * (((s / 20 : ℝ≥0) : ℝ) ^ 6) * 128) / 20 ≤ (deg : ℝ) ^ 2 := by
+    -- rewrite A/20 into the nice form
+    have hrewrite : ((n + 1) * 23 * (((s / 20 : ℝ≥0) : ℝ) ^ 6) * 128) / 20
+        = (n + 1) * ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) * (s : ℝ) ^ 6 := by
+      simp [NNReal.coe_div, div_pow]
+      ring
+    -- switch to this form
+    rw [hrewrite]
+    -- now use the constant inequality
+    have hconst : ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) ≤ (1 / 2 : ℝ) :=
+      ca_const_128_23_div_20_pow7_le_half
+    have hstep1 : (n + 1) * ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) * (s : ℝ) ^ 6
+        ≤ (n + 1) * (1 / 2 : ℝ) * (s : ℝ) ^ 6 := by
+      have hn1 : 0 ≤ (n + 1 : ℝ) := by positivity
+      have hs6 : 0 ≤ (s : ℝ) ^ 6 := by positivity
+      have : (n + 1) * ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) ≤ (n + 1) * (1 / 2 : ℝ) := by
+        exact mul_le_mul_of_nonneg_left hconst hn1
+      have := mul_le_mul_of_nonneg_right this hs6
+      simpa [mul_assoc] using this
+
+    -- card inequality
+    have hcard : ((n + 1) / 2) ≤ n ^ 2 := by
+      simpa [hn] using (ca_card_add_one_div_two_le_card_sq (ι := ι))
+
+    -- deduce s < 1
+    have hδ_lt : δ < 1 - s := by
+      simpa [ReedSolomonCode.sqrtRate, hρ.symm, hs.symm] using hδJ.2
+    have hs_lt_one_nnr : s < 1 := by
+      have hpos : (0 : ℝ≥0) < 1 - s :=
+        lt_of_le_of_lt (show (0 : ℝ≥0) ≤ δ from by simp) hδ_lt
+      simpa using (tsub_pos_iff_lt).1 hpos
+    have hs_le_one : (s : ℝ) ≤ 1 := by
+      exact le_of_lt (by exact_mod_cast hs_lt_one_nnr)
+    have hs6_le_hs4 : (s : ℝ) ^ 6 ≤ (s : ℝ) ^ 4 := by
+      have hs0 : (0 : ℝ) ≤ (s : ℝ) := by positivity
+      exact pow_le_pow_of_le_one hs0 hs_le_one (by decide : (4 : ℕ) ≤ 6)
+
+    -- rewrite s^4 = ρ^2
+    have hs4_eq : (s : ℝ) ^ 4 = (ρ : ℝ) ^ 2 := by
+      have hs2 : (s : ℝ) ^ 2 = (ρ : ℝ) := by
+        have : s ^ 2 = ρ := by
+          simpa [hs] using (NNReal.sq_sqrt ρ)
+        exact_mod_cast this
+      calc
+        (s : ℝ) ^ 4 = ((s : ℝ) ^ 2) ^ 2 := by
+          ring
+        _ = (ρ : ℝ) ^ 2 := by
+          simp [hs2]
+
+    -- rate*card^2 ≤ deg^2
+    have hrate : ((ρ : ℝ) ^ 2) * (n ^ 2) ≤ (deg : ℝ) ^ 2 := by
+      have := ca_RS_rate_mul_card_sq_le_deg_sq (ι := ι) (F := F) deg domain
+      simpa [hρ, hn, pow_two] using this
+
+    -- final chaining
+    calc
+      (n + 1) * ((128 * 23 : ℝ) / (20 ^ 7 : ℝ)) * (s : ℝ) ^ 6
+          ≤ (n + 1) * (1 / 2 : ℝ) * (s : ℝ) ^ 6 := hstep1
+      _ = ((n + 1) / 2) * (s : ℝ) ^ 6 := by
+            ring
+      _ ≤ (n ^ 2) * (s : ℝ) ^ 6 := by
+            have hs6' : 0 ≤ (s : ℝ) ^ 6 := by positivity
+            have := mul_le_mul_of_nonneg_right hcard hs6'
+            simpa [mul_assoc] using this
+      _ ≤ (n ^ 2) * (s : ℝ) ^ 4 := by
+            have hn2 : 0 ≤ (n ^ 2 : ℝ) := by positivity
+            have := mul_le_mul_of_nonneg_left hs6_le_hs4 hn2
+            simpa [mul_assoc] using this
+      _ = (n ^ 2) * (ρ : ℝ) ^ 2 := by
+            simp [hs4_eq, mul_assoc]
+      _ = ((ρ : ℝ) ^ 2) * (n ^ 2) := by
+            ring
+      _ ≤ (deg : ℝ) ^ 2 := hrate
+
+  -- convert back from /20
+  have hA : (n + 1) * 23 * (((s / 20 : ℝ≥0) : ℝ) ^ 6) * 128 ≤ (deg : ℝ) ^ 2 * 20 :=
+    (div_le_iff₀ h20pos).1 hAdiv
+  simpa [mul_assoc, mul_comm, mul_left_comm] using hA
+
+theorem ca_weighted_additional_bound_le_k_mul_errorBound {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  (k deg : ℕ) (domain : ι ↪ F) (δ : ℝ≥0)
+  (hδJ : δ ∈ Set.Ioo
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+    (1 - ReedSolomonCode.sqrtRate deg domain)) :
+  ENNReal.ofReal (
+      ((k) * ((Fintype.card ι) + 1) : ℝ) / (Fintype.card F : ℝ)
+      *
+      (1 / min ((1 - δ) - ReedSolomonCode.sqrtRate deg domain) ((ReedSolomonCode.sqrtRate deg domain) / 20) +
+        3 / (ReedSolomonCode.sqrtRate deg domain))
+    )
+    ≤ (k : ENNReal) * (errorBound δ deg domain : ENNReal) := by
+  classical
+  by_cases hk0 : k = 0
+  · subst hk0
+    simp
+
+  set ρ : ℝ≥0 := (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)
+  have hδJρ : δ ∈ Set.Ioo (((1 : ℝ≥0) - ρ) / 2) (1 - ρ.sqrt) := by
+    simpa [ρ, ReedSolomonCode.sqrtRate] using hδJ
+
+  by_cases hs0 : ρ.sqrt = 0
+  · have hs0' : ReedSolomonCode.sqrtRate deg domain = 0 := by
+      simpa [ReedSolomonCode.sqrtRate, ρ] using hs0
+    simp [ProximityGap.errorBound, ρ, hs0, hs0', hδJρ, hk0]
+
+  have hs : ρ.sqrt ≠ 0 := hs0
+
+  -- Define the min-parameter `m`
+  set m : ℝ≥0 := min (1 - ρ.sqrt - δ) (ρ.sqrt / 20)
+  have hmle : m ≤ ρ.sqrt / 20 := by
+    exact min_le_right _ _
+
+  -- Show `m ≠ 0`
+  have hpos1 : 0 < (1 - ρ.sqrt - δ) := by
+    exact (tsub_pos_iff_lt.2 hδJρ.2)
+  have hs_pos : 0 < ρ.sqrt := by
+    exact lt_of_le_of_ne (by exact zero_le _) (Ne.symm hs)
+  have hpos2 : 0 < ρ.sqrt / 20 := by
+    have h20 : (0 : ℝ≥0) < (20 : ℝ≥0) := by norm_num
+    exact div_pos hs_pos h20
+  have hm_pos : 0 < m := by
+    have : (0 : ℝ≥0) < min (1 - ρ.sqrt - δ) (ρ.sqrt / 20) := lt_min hpos1 hpos2
+    simpa [m] using this
+  have hm : m ≠ 0 := ne_of_gt hm_pos
+
+  -- `δ` is not in the unique-decoding regime interval
+  have h_notIcc : ¬ δ ∈ Set.Icc (0 : ℝ≥0) ((1 - ρ) / 2) := by
+    intro hIcc
+    exact (not_lt_of_ge hIcc.2) hδJρ.1
+
+  -- Unfold `errorBound` in the Johnson regime
+  have h_errorBound :
+      errorBound δ deg domain =
+        ⟨(deg ^ 2 : ℝ≥0) / ((2 * m) ^ 7 * (Fintype.card F : ℝ)), by positivity⟩ := by
+    have hmin : min (1 - ρ.sqrt - δ) (ρ.sqrt / 20) = m := by
+      simp [m]
+    simpa [ProximityGap.errorBound, ρ, h_notIcc, hδJρ, hmin]
+
+  -- Rewrite the LHS min to `m`
+  have hmin_LHS :
+      min ((1 - δ) - ReedSolomonCode.sqrtRate deg domain)
+          (ReedSolomonCode.sqrtRate deg domain / 20)
+        = m := by
+    simp [ReedSolomonCode.sqrtRate, ρ, m, ca_one_sub_tsub_comm (a := (ρ.sqrt)) (b := δ)]
+
+  -- Bound the inverse expression by a constant multiple
+  have h_inv_bound : ((m : ℝ)⁻¹ + 3 / (ρ.sqrt : ℝ)) ≤ (23 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+    exact ca_inv_add_three_le_const_inv (s := ρ.sqrt) (m := m) hs hm hmle
+
+  -- First compare with the simplified real expression using `h_inv_bound`
+  have hLHS_le :
+      ENNReal.ofReal (
+          ((k) * ((Fintype.card ι) + 1) : ℝ) / (Fintype.card F : ℝ)
+          *
+            (1 /
+                  min ((1 - δ) - ReedSolomonCode.sqrtRate deg domain)
+                    (ReedSolomonCode.sqrtRate deg domain / 20) +
+                3 / (ReedSolomonCode.sqrtRate deg domain))
+        )
+        ≤
+        ENNReal.ofReal (
+          ((k) * ((Fintype.card ι) + 1) : ℝ) / (Fintype.card F : ℝ)
+          * ((23 / 20 : ℝ) * (m : ℝ)⁻¹)) := by
+    refine ENNReal.ofReal_le_ofReal ?_
+    have hfactor_nonneg :
+        0 ≤ ((k) * ((Fintype.card ι) + 1) : ℝ) / (Fintype.card F : ℝ) := by
+      positivity
+    have hinner :
+        (1 /
+              min ((1 - δ) - ReedSolomonCode.sqrtRate deg domain)
+                (ReedSolomonCode.sqrtRate deg domain / 20) +
+            3 / (ReedSolomonCode.sqrtRate deg domain))
+          ≤
+          (23 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+      have : (1 / (m : ℝ) + 3 / (ρ.sqrt : ℝ)) ≤ (23 / 20 : ℝ) * (m : ℝ)⁻¹ := by
+        simpa [one_div] using h_inv_bound
+      simpa [hmin_LHS, ReedSolomonCode.sqrtRate, ρ, one_div] using this
+    have := mul_le_mul_of_nonneg_left hinner hfactor_nonneg
+    simpa [mul_assoc, mul_left_comm, mul_comm, add_assoc] using this
+
+  -- reduce to proving the bound with the simplified LHS
+  refine le_trans hLHS_le ?_
+
+  -- compare via `toReal` on the RHS
+  refine ENNReal.ofReal_le_of_le_toReal ?_
+
+  have hRHS_toReal :
+      ENNReal.toReal ((k : ENNReal) * (errorBound δ deg domain : ENNReal)) =
+        (k : ℝ) * ((deg ^ 2 : ℝ≥0) / ((2 * m) ^ 7 * (Fintype.card F : ℝ)) : ℝ) := by
+    simp [h_errorBound, ENNReal.toReal_mul, mul_assoc, mul_left_comm, mul_comm]
+
+  -- rewrite RHS, then work purely in `ℝ`
+  simp [hRHS_toReal]
+
+  set n : ℝ := (Fintype.card ι : ℝ)
+  set q : ℝ := (Fintype.card F : ℝ)
+
+  have hkpos : (0 : ℝ) < (k : ℝ) := by
+    exact_mod_cast (Nat.pos_of_ne_zero hk0)
+  have hqpos : (0 : ℝ) < q := by
+    subst q
+    exact_mod_cast (Fintype.card_pos : 0 < Fintype.card F)
+  have hmposR : (0 : ℝ) < (m : ℝ) := by
+    simpa [NNReal.coe_pos] using hm_pos
+
+  have hkne : (k : ℝ) ≠ 0 := ne_of_gt hkpos
+  have hqne : q ≠ 0 := ne_of_gt hqpos
+  have hmne : (m : ℝ) ≠ 0 := ne_of_gt hmposR
+
+  -- clear denominators and simplify to a polynomial inequality
+  field_simp [hkne, hqne, hmne]
+
+  have hpow2 : (2 : ℝ) ^ 7 = (128 : ℝ) := by norm_num
+
+  -- finish via the endgame lemma
+  have hend :=
+    ca_weighted_additional_bound_endgame (ι := ι) (F := F) (deg := deg) (domain := domain) (δ := δ) hδJ
+  simpa [ρ, m, n, hpow2] using hend
+
+theorem correlatedAgreement_affine_curves_listDecodingRegime_k0 [DecidableEq ι]
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  : δ_ε_correlatedAgreementCurves (k := 0) (A := F) (F := F) (ι := ι)
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  simp [δ_ε_correlatedAgreementCurves]
+  intro u hprob
+
+  have hcurve : Curve.polynomialCurveFinite (F := F) (A := F) u = {u 0} := by
+    ext v
+    simp [Curve.polynomialCurveFinite, Fin.sum_univ_one]
+
+  have hu0_close : δᵣ(u 0, (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ := by
+    let T := (↥(Curve.polynomialCurveFinite (F := F) (A := F) u))
+    let p : PMF T := $ᵖ T
+    let f : T → Prop := fun a =>
+      δᵣ((a : ι → F), (ReedSolomon.code domain deg : Set (ι → F))) ≤ δ
+
+    have hprob' : (0 : ENNReal) < (f <$> p) True := by
+      dsimp [p, f, T]
+      simpa using hprob
+
+    have hTrue_support : True ∈ (PMF.map f p).support := by
+      refine (PMF.mem_support_iff (PMF.map f p) True).2 ?_
+      have hprob'' : (0 : ENNReal) < (PMF.map f p) True := by
+        -- avoid unfolding `PMF.map`; just change to the `<$>` form.
+        change (0 : ENNReal) < (f <$> p) True
+        exact hprob'
+      exact ne_of_gt hprob''
+
+    rcases (PMF.mem_support_map_iff (p := p) (f := f) (b := True)).1 hTrue_support with
+      ⟨a, -, ha_eq⟩
+
+    have ha : f a := by
+      simpa [ha_eq] using (show True from trivial)
+
+    have ha_mem' : (a : ι → F) ∈ ({u 0} : Finset (ι → F)) := by
+      simpa [T, hcurve] using a.property
+    have ha_eq_u0 : (a : ι → F) = u 0 := by
+      simpa using ha_mem'
+
+    simpa [f, ha_eq_u0] using ha
+
+  have hAgree :
+      jointAgreement (C := (ReedSolomon.code domain deg : Set (ι → F))) (δ := δ) (W := u) := by
+    rcases
+        (Code.relCloseToCode_iff_relCloseToCodeword_of_minDist
+            (u := u 0) (C := (ReedSolomon.code domain deg : Set (ι → F))) (δ := δ)).1
+          hu0_close with
+      ⟨v0, hv0_mem, hv0_close⟩
+
+    rcases
+        (Code.relCloseToWord_iff_exists_agreementCols
+            (u := u 0) (v := v0) (δ := δ)).1
+          hv0_close with
+      ⟨S, hS_card, hS_agree⟩
+
+    refine ⟨S, ?_, ?_⟩
+    · have hS_card' : (1 - δ) * (Fintype.card ι : ℝ≥0) ≤ (S.card : ℝ≥0) :=
+        (Code.relDist_floor_bound_iff_complement_bound
+            (n := Fintype.card ι) (upperBound := S.card) (δ := δ)).1
+          hS_card
+      simpa [ge_iff_le] using hS_card'
+    · refine ⟨fun _ : Fin 1 => v0, ?_⟩
+      intro i
+      fin_cases i
+      constructor
+      · exact hv0_mem
+      · intro j hj
+        refine Finset.mem_filter.2 ?_
+        refine ⟨Finset.mem_univ j, ?_⟩
+        exact ((hS_agree j).1 hj).symm
+
+  exact
+    (Code.jointAgreement_iff_jointProximity
+        (C := (ReedSolomon.code domain deg : Set (ι → F))) (u := u) (δ := δ)).1
+      hAgree
+
+
+theorem correlatedAgreement_affine_curves_listDecodingRegime_succ [DecidableEq ι] {k : ℕ}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδJ : δ ∈ Set.Ioo
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+    (1 - ReedSolomonCode.sqrtRate deg domain))
+  : δ_ε_correlatedAgreementCurves (k := Nat.succ k) (A := F) (F := F) (ι := ι)
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  unfold δ_ε_correlatedAgreementCurves
+  intro U hPrClose
+
+  -- Uniform weights, agreement threshold α = 1 - δ
+  let μ : ι → Set.Icc (0 : ℚ) 1 := ca_uniformMu (ι := ι)
+  let α : ℝ≥0 := 1 - δ
+  let M : ℕ := 1
+
+  have hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ) := by
+    intro i
+    refine ⟨1, ?_⟩
+    simp [μ, M, ca_uniformMu]
+
+  -- Probabilities over the finite polynomial curve
+  let curve : Finset (ι → F) := Curve.polynomialCurveFinite (F := F) (A := F) U
+  let prClose : ENNReal :=
+    Pr_{let y ←$ᵖ ↥curve}[δᵣ(y.1, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal)]
+  let prAgree : ENNReal :=
+    Pr_{let y ←$ᵖ ↥curve}[
+      WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α]
+
+  have hprClose : prClose > (Nat.succ k : ℝ≥0) * (errorBound δ deg domain) := by
+    simpa [prClose, curve] using hPrClose
+
+  have hprClose_le_prAgree : prClose ≤ prAgree := by
+    have hpq :
+        ∀ y : ↥curve,
+          (δᵣ(y.1, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal)) →
+            WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α := by
+      intro y hy
+      have h :=
+        ca_agree_set_ge_of_relDistFromCode_le (ι := ι) (F := F)
+          (deg := deg) (domain := domain) (δ := δ) (w := y.1) hy
+      simpa [μ, α] using h
+
+    simpa [prClose, prAgree] using
+      (ca_Pr_uniform_mono (α := ↥curve)
+        (p := fun y : ↥curve =>
+          δᵣ(y.1, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal))
+        (q := fun y : ↥curve =>
+          WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α)
+        hpq)
+
+  have hproximity : prAgree > (Nat.succ k : ℝ≥0) * (errorBound δ deg domain) :=
+    lt_of_lt_of_le hprClose hprClose_le_prAgree
+
+  -- Rewrite `hproximity` into the exact shape used by the weighted theorem.
+  have hproximity' :
+      (let curve := Curve.polynomialCurveFinite (F := F) (A := F) U;
+        Pr_{let y ←$ᵖ ↥curve}[
+          WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α])
+        > (k + 1 : ℝ≥0) * (errorBound δ deg domain) := by
+    simpa [prAgree, curve, Nat.succ_eq_add_one, add_assoc, add_comm, add_left_comm] using hproximity
+
+  -- Additional bound needed by the weighted theorem.
+  have h_additionally' :
+      (let curve := Curve.polynomialCurveFinite (F := F) (A := F) U;
+        Pr_{let y ←$ᵖ ↥curve}[
+          WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α])
+      ≥
+        ENNReal.ofReal (
+          ((k + 1) * (M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
+          *
+          (1 / min (α - ReedSolomonCode.sqrtRate deg domain)
+                ((ReedSolomonCode.sqrtRate deg domain) / 20) +
+            3 / (ReedSolomonCode.sqrtRate deg domain))
+        ) := by
+    have h_bound :
+        ENNReal.ofReal (
+            ((Nat.succ k) * ((Fintype.card ι) + 1) : ℝ) / (Fintype.card F : ℝ)
+            *
+            (1 /
+                min ((1 - δ) - ReedSolomonCode.sqrtRate deg domain)
+                    ((ReedSolomonCode.sqrtRate deg domain) / 20) +
+              3 / (ReedSolomonCode.sqrtRate deg domain))
+          )
+          ≤ (Nat.succ k : ENNReal) * (errorBound δ deg domain : ENNReal) :=
+      ca_weighted_additional_bound_le_k_mul_errorBound (ι := ι) (F := F)
+        (k := Nat.succ k) (deg := deg) (domain := domain) (δ := δ) hδJ
+
+    have h_bound' :
+        ENNReal.ofReal (
+            ((k + 1) * (M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
+            *
+            (1 / min (α - ReedSolomonCode.sqrtRate deg domain)
+                  ((ReedSolomonCode.sqrtRate deg domain) / 20) +
+              3 / (ReedSolomonCode.sqrtRate deg domain))
+          )
+          ≤ (Nat.succ k : ENNReal) * (errorBound δ deg domain : ENNReal) := by
+      simpa [α, M, Nat.succ_eq_add_one, add_assoc, add_comm, add_left_comm, mul_add] using h_bound
+
+    have h_threshold_le :
+        (Nat.succ k : ENNReal) * (errorBound δ deg domain : ENNReal)
+          ≤
+        (let curve := Curve.polynomialCurveFinite (F := F) (A := F) U;
+          Pr_{let y ←$ᵖ ↥curve}[
+            WeightedAgreement.agree_set (μ := μ) y.1 (ReedSolomonCode.finCarrier domain deg) ≥ α]) := by
+      have : (Nat.succ k : ENNReal) * (errorBound δ deg domain : ENNReal) ≤ prAgree :=
+        le_of_lt hproximity
+      simpa [prAgree, curve] using this
+
+    exact le_trans h_bound' h_threshold_le
+
+  -- Rate / Johnson regime gives the gap condition sqrtRate < α and α < 1
+  have hsqrt_lt : ReedSolomonCode.sqrtRate deg domain < α := by
+    have hδ_lt : δ < 1 - ReedSolomonCode.sqrtRate deg domain := hδJ.2
+    have hsqrt_add : ReedSolomonCode.sqrtRate deg domain + δ < (1 : ℝ≥0) :=
+      (lt_tsub_iff_left).1 (by simpa using hδ_lt)
+    apply (lt_tsub_iff_left).2
+    simpa [α, add_comm, add_left_comm, add_assoc] using hsqrt_add
+
+  have hα_lt_one : α < 1 := by
+    have hδ_pos : 0 < δ := lt_of_le_of_lt (zero_le _) hδJ.1
+    simpa [α] using
+      (tsub_lt_self (a := (1 : ℝ≥0)) (b := δ)
+        (by simpa using (show (0 : ℝ≥0) < (1 : ℝ≥0) from zero_lt_one)) hδ_pos)
+
+  have h_weighted :
+      ∃ ι' : Finset ι, ∃ v : Fin (k + 2) → ι → F,
+        (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
+        WeightedAgreement.mu_set (μ := μ) ι' ≥ α ∧
+        ∀ i, ∀ x ∈ ι', U i x = v i x := by
+    simpa [Nat.succ_eq_add_one, add_assoc, add_comm, add_left_comm] using
+      (WeightedAgreement.weighted_correlated_agreement_for_parameterized_curves
+        (ι := ι) (F := F) (l := k) (k := k) (u := U) (deg := deg) (domain := domain) (δ := δ)
+        (μ := μ) (M := M) (α := α) hμ
+        hsqrt_lt hα_lt_one
+        (hproximity := hproximity')
+        (h_additionally := h_additionally'))
+
+  rcases h_weighted with ⟨S, v, hvC, hμS, hEq⟩
+  refine ⟨S, ?_, ?_⟩
+  · have hμ_uniform :
+        WeightedAgreement.mu_set (μ := μ) S = (S.card : ℝ) / (Fintype.card ι : ℝ) := by
+      simpa [μ] using (ca_mu_set_uniform (ι := ι) S)
+
+    have hα_le_div : (α : ℝ) ≤ (S.card : ℝ) / (Fintype.card ι : ℝ) := by
+      have : (α : ℝ) ≤ WeightedAgreement.mu_set (μ := μ) S := by
+        simpa [ge_iff_le] using hμS
+      simpa [hμ_uniform] using this
+
+    have hn_pos : 0 < (Fintype.card ι : ℝ) := by
+      exact_mod_cast (Fintype.card_pos (α := ι))
+
+    have hcard_ge : (α : ℝ) * (Fintype.card ι : ℝ) ≤ (S.card : ℝ) := by
+      simpa [mul_comm, mul_left_comm, mul_assoc] using (le_div_iff₀ hn_pos).1 hα_le_div
+
+    exact_mod_cast hcard_ge
+
+  · refine ⟨v, ?_⟩
+    intro i
+    constructor
+    · exact hvC i
+    · intro x hx
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact (hEq i x hx).symm
+
+
+theorem correlatedAgreement_affine_curves_listDecodingRegime [DecidableEq ι] {k : ℕ}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδJ : δ ∈ Set.Ioo
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+    (1 - ReedSolomonCode.sqrtRate deg domain))
+  : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  cases k with
+  | zero =>
+      simpa using
+        (correlatedAgreement_affine_curves_listDecodingRegime_k0 (deg := deg) (domain := domain) (δ := δ)
+          (ι := ι) (F := F))
+  | succ k' =>
+      simpa using
+        (correlatedAgreement_affine_curves_listDecodingRegime_succ (k := k') (deg := deg) (domain := domain)
+          (δ := δ) (ι := ι) (F := F) hδJ)
+
+theorem errorBound_eq_div_card_of_mem_Icc {ι : Type} [Fintype ι] [Nonempty ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  (deg : ℕ) (domain : ι ↪ F) (δ : ℝ≥0)
+  (hδUD : δ ∈ Set.Icc (0 : ℝ≥0)
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)) :
+  errorBound δ deg domain = (Fintype.card ι : ℝ≥0) / (Fintype.card F : ℝ≥0) := by
+  simp [ProximityGap.errorBound, hδUD]
+
+theorem polynomialCurveFinite_card_le_field {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k : ℕ} (u : Fin k → ι → F) :
+  (Curve.polynomialCurveFinite (F := F) (A := F) u).card ≤ Fintype.card F := by
+  classical
+  -- define the parameterization map
+  let f : F → (ι → F) := fun r => ∑ i : Fin k, (r ^ (i : ℕ)) • u i
+  have hs : Curve.polynomialCurveFinite (F := F) (A := F) u = Finset.univ.image f := by
+    ext v
+    -- unfold the definitions of membership
+    -- note: `polynomialCurveFinite` is defined by set-builder on a finite type
+    simp [Curve.polynomialCurveFinite, f, eq_comm]
+  -- now use card_image_le
+  calc
+    (Curve.polynomialCurveFinite (F := F) (A := F) u).card
+        = (Finset.univ.image f).card := by simpa [hs]
+    _ ≤ (Finset.univ : Finset F).card := Finset.card_image_le
+    _ = Fintype.card F := by simpa
+
+noncomputable def polynomialCurveFinite_param
+  {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k : ℕ} (u : WordStack F (Fin (k + 1)) ι) :
+  {y // y ∈ Curve.polynomialCurveFinite (F := F) (A := F) u} → F :=
+fun y =>
+  Classical.choose (
+    (show ∃ r : F, y.1 = ∑ i : Fin (k + 1), (r ^ (i : ℕ)) • u i from by
+      classical
+      have hy : y.1 ∈ Curve.polynomialCurveFinite (F := F) (A := F) u := y.property
+      -- unfold to expose the filter form
+      dsimp [Curve.polynomialCurveFinite] at hy
+      -- membership in a filtered univ gives the predicate
+      exact (Finset.mem_filter.mp hy).2
+    )
+  )
+
+theorem polynomialCurveFinite_param_spec {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k : ℕ} (u : WordStack F (Fin (k + 1)) ι)
+  (y : {y // y ∈ Curve.polynomialCurveFinite (F := F) (A := F) u}) :
+  y.1 = ∑ i : Fin (k + 1), (polynomialCurveFinite_param (u := u) y) ^ (i : ℕ) • u i := by
+  classical
+  -- Unfold the definition and use `Classical.choose_spec` for the witness packed into `polynomialCurveFinite_param`.
+  simpa [polynomialCurveFinite_param] using
+    (Classical.choose_spec
+      (show ∃ r : F, y.1 = ∑ i : Fin (k + 1), (r ^ (i : ℕ)) • u i from by
+        classical
+        have hy : y.1 ∈ Curve.polynomialCurveFinite (F := F) (A := F) u := y.property
+        dsimp [Curve.polynomialCurveFinite] at hy
+        exact (Finset.mem_filter.mp hy).2))
+
+theorem polynomialCurveFinite_param_injective {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k : ℕ} (u : WordStack F (Fin (k + 1)) ι) :
+  Function.Injective (polynomialCurveFinite_param (u := u)) := by
+  classical
+  intro y₁ y₂ h
+  apply Subtype.ext
+  -- show equality of the underlying points
+  calc
+    y₁.1
+        = ∑ i : Fin (k + 1),
+            (polynomialCurveFinite_param (u := u) y₁) ^ (i : ℕ) • u i := by
+          simpa using (polynomialCurveFinite_param_spec (u := u) y₁)
+    _ = ∑ i : Fin (k + 1),
+            (polynomialCurveFinite_param (u := u) y₂) ^ (i : ℕ) • u i := by
+          simpa [h]
+    _ = y₂.1 := by
+          simpa using (polynomialCurveFinite_param_spec (u := u) y₂).symm
+
+theorem RS_correlatedAgreement_affineCurves_uniqueDecodingRegime_weighted {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδUD : δ ∈ Set.Icc (0 : ℝ≥0)
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2))
+  (u : WordStack F (Fin (k + 1)) ι)
+  (hPr :
+    Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[
+      WeightedAgreement.agree_set (μ := ca_uniformMu (ι := ι)) y.1
+        (ReedSolomonCode.finCarrier domain deg) ≥ (1 - δ : ℝ≥0)]
+    > (k : ENNReal) * ((Fintype.card ι : ENNReal) / (Fintype.card F : ENNReal)))
+  :
+  ∃ S : Finset ι, ∃ v : Fin (k + 1) → ι → F,
+    (∀ i, v i ∈ (ReedSolomon.code domain deg : Set (ι → F))) ∧
+    (WeightedAgreement.mu_set (μ := ca_uniformMu (ι := ι)) S ≥ (1 - δ : ℝ≥0)) ∧
+    (∀ i x, x ∈ S → u i x = v i x) := by
+  -- Key clarification (fixing earlier doubt): the sampling model here is **uniform over the curve as a Finset of distinct points** `Curve.polynomialCurveFinite u`, which matches the statement of BCIKS20 Thm 1.5 as it is commonly presented (Pr over `curve(u)`). So we should not try to rewrite the goal into parameter-sampling `z ←$ F` nor assume `curve.card = |F|`.
+  -- 
+  -- Target shape:
+  -- - Hypothesis: `Pr_{y←uniform curve}[agree_set y ≥ 1-δ] > k * (|ι|/|F|)`.
+  -- - Conclusion: ∃ large coordinate set `S` (μ_set ≥ 1-δ) and codewords `v i ∈ RS` with `u i = v i` on `S`.
+  -- 
+  -- High-level proof skeleton (BCIKS20 §6.1 / Thm 6.1 style):
+  -- 
+  -- 0) **Case split on `k`**:
+  -- - `k = 0`: curve is a singleton `{u 0}`. From `Pr > 0` get `agree_set u0 ≥ 1-δ`, pick `v0 ∈ RS.finCarrier` witnessing the max, set `S := {x | u0 x = v0 x}`; convert agreement to `S.card ≥ (1-δ)*|ι|` using `ca_agree_uniform_eq_card_div`; finish with `ca_mu_set_uniform`. For `i : Fin 1` the equality `u i = v i` is just `i=0`.
+  -- - `k = succ k'`: proceed with main argument below.
+  -- 
+  -- 1) **Probability → many good curve points**:
+  -- Let `curve := Curve.polynomialCurveFinite u` and `Good (y : ↥curve) : Prop := agree_set y.1 ≥ 1-δ`.
+  -- Use the standard uniform-probability formula on finite spaces (`prob_uniform_eq_card_filter_div_card` / `ProbabilityTheory.prob_eq_count_div_card` depending on the ArkLib instance) to rewrite `hPr` into a strict lower bound on `goodPts.card` where `goodPts := Finset.univ.filter Good`.
+  -- 
+  -- Crucial counting step (avoids any injectivity assumption): show `goodPts.card > Fintype.card ι`.
+  -- - From `hPr` you get `goodPts.card > (k * |ι| / |F|) * curve.card`.
+  -- - Prove the general lower bound `|F| ≤ k * curve.card` for `k>0` (equivalently `curve.card ≥ |F|/k`).
+  --   Idea: consider the map `evalCurve : F → (ι → F), z ↦ ∑ i, z^i • u i`; `curve` is its image.
+  --   Show each fiber has size ≤ k (use a coordinate `x` where the coefficient of the highest nonzero `z`-power is nonzero; then the scalar polynomial equation has ≤ k solutions by `Polynomial.card_roots` / root-count lemma). Handle the degenerate “constant map” case separately (then `curve.card = 1` but the hypothesis is strong enough / or forces higher coefficients 0 when `|F|>k`).
+  -- - Combining gives `goodPts.card > |ι|`.
+  -- 
+  -- 2) **Choose parameters for good points (optional convenience)**:
+  -- Use `polynomialCurveFinite_param` and its injectivity to obtain a Finset `ZGood : Finset F` of distinct parameters corresponding to good curve points, with `ZGood.card = goodPts.card` and thus `ZGood.card > |ι|`.
+  -- This gives a large set of distinct `z` values to run the polynomial-in-`Z` arguments.
+  -- 
+  -- 3) **Decode each good point to a unique RS codeword**:
+  -- For each good curve point `y` (or `z ∈ ZGood`), unfold `WeightedAgreement.agree_set` to obtain a witness codeword `c_z ∈ ReedSolomonCode.finCarrier domain deg` such that
+  -- `WeightedAgreement.agree (μ := ca_uniformMu) (curvePoint z) c_z ≥ 1-δ`.
+  -- Convert to a Hamming-distance / relative-distance bound using `ca_agree_uniform_eq_card_div`:
+  -- - agreement lower bound ⇒ `{x | curvePoint z x = c_z x}` has card ≥ `(1-δ)*|ι|` ⇒ mismatches ≤ `δ*|ι|` ⇒ `δᵣ(curvePoint z, RS.code) ≤ δ`.
+  -- Then use `hδUD : δ ≤ (1-ρ)/2` (unique-decoding radius) to get **uniqueness** of the decoded RS codeword within that radius; this ensures the choice `c_z` is canonical.
+  -- 
+  -- 4) **Glue the decoded codewords into one polynomial curve of RS codewords**:
+  -- This is the core §6.1 step.
+  -- - Represent each decoded codeword `c_z` as evaluation of a polynomial `p_z : F[X]` with `natDegree < deg` (use `ReedSolomon.codewordToPoly` / interpolation lemmas).
+  -- - Show there exists a bivariate polynomial `P : F[X][Z]` with `deg_X < deg` and `deg_Z ≤ k` such that for all `z ∈ ZGood`, the restriction `P(·,z)` equals `p_z`.
+  --   Expected tools:
+  --   - `BerlekampWelch.decoder_eq_some` for existence/correctness of `p_z` from distance ≤ δ.
+  --   - `PolishchukSpielman.polishchuk_spielman` (or auxiliary lemmas in `ArkLib.Data.CodingTheory.PolishchukSpielman`) to conclude global divisibility / interpolation from agreement on many `z`.
+  -- - Expand `P` in `Z`: `P(X,Z) = ∑_{i=0}^k V_i(X) * Z^i`.
+  --   Define `v i : ι → F := fun x => (V_i.eval (domain x))`.
+  --   Prove `v i ∈ ReedSolomon.code domain deg` from the `deg_X` bound.
+  -- 
+  -- 5) **Root counting / double counting to get a large coordinate set `S`**:
+  -- For each `x : ι`, consider the univariate polynomial
+  -- `Q_x(Z) := (∑ i, Z^i • u i x) - (∑ i, Z^i • v i x)` of degree ≤ k.
+  -- For each good `z`, from the decoding correctness we have that the curve point at `z` agrees with `∑ i, z^i • v i` on at least `(1-δ)` fraction of coordinates. Double count pairs `(x,z)` to show there is a set `S ⊆ ι` with `S.card ≥ (1-δ)*|ι|` such that for each `x ∈ S`, the polynomial `Q_x` has more than `k` roots (coming from many `z ∈ ZGood`), hence `Q_x = 0` identically, hence `u i x = v i x` for all i.
+  -- Finally translate `S.card ≥ (1-δ)*|ι|` to `mu_set S ≥ 1-δ` using `ca_mu_set_uniform`.
+  -- 
+  -- Proof engineering notes:
+  -- - Prefer `simp only [...]` over `simp`.
+  -- - Keep coercions explicit between `ℝ≥0`, `ℝ`, `ENNReal`.
+  -- - Use `ca_agree_uniform_eq_card_div` and `ca_mu_set_uniform` as the main bridges between weighted objects and cardinalities.
+  sorry
+
+theorem RS_correlatedAgreement_affineCurves_uniqueDecodingRegime {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  {k deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδUD : δ ∈ Set.Icc (0 : ℝ≥0)
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2))
+  : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
+      (C := (ReedSolomon.code domain deg : Set (ι → F))) (δ := δ)
+      (ε := (Fintype.card ι : ℝ≥0) / (Fintype.card F : ℝ≥0)) := by
+  classical
+  unfold δ_ε_correlatedAgreementCurves
+  intro u hPr_close
+  -- Define the two predicates
+  let p : (↥(Curve.polynomialCurveFinite (F := F) (A := F) u)) → Prop :=
+    fun y => δᵣ(y.1, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal)
+  let q : (↥(Curve.polynomialCurveFinite (F := F) (A := F) u)) → Prop :=
+    fun y =>
+      WeightedAgreement.agree_set (μ := ca_uniformMu (ι := ι)) y.1
+        (ReedSolomonCode.finCarrier domain deg) ≥ (1 - δ : ℝ≥0)
+  have hpq : ∀ y, p y → q y := by
+    intro y hy
+    -- apply agreement lemma pointwise
+    exact ca_agree_set_ge_of_relDistFromCode_le (ι := ι) (F := F) (deg := deg)
+      (domain := domain) (δ := δ) (w := y.1) hy
+  have hPr_mono :
+      Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[p y]
+        ≤
+      Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[q y] :=
+    ca_Pr_uniform_mono (α := ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)) p q hpq
+  have hPr_agree :
+      Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[q y]
+        > (k : ENNReal) * ((Fintype.card ι : ENNReal) / (Fintype.card F : ENNReal)) := by
+    -- derive from hPr_close using monotonicity
+    have hPr_close' :
+        (k : ENNReal) * ((Fintype.card ι : ENNReal) / (Fintype.card F : ENNReal))
+          < Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[p y] := by
+      -- hPr_close is already this statement up to rewriting
+      simpa [p, div_eq_mul_inv, mul_assoc, mul_left_comm, mul_comm] using hPr_close
+    -- now use lt_of_lt_of_le
+    exact (lt_of_lt_of_le hPr_close' hPr_mono)
+  -- Apply the weighted correlated agreement theorem
+  rcases
+      RS_correlatedAgreement_affineCurves_uniqueDecodingRegime_weighted (ι := ι) (F := F)
+        (k := k) (deg := deg) (domain := domain) (δ := δ) hδUD u hPr_agree
+    with ⟨S, v, hv_code, hmuS, huv⟩
+  -- Package the result into jointAgreement
+  refine ⟨S, ?_, ?_⟩
+  · -- Convert the weighted measure bound into a cardinality bound
+    -- First rewrite `mu_set` using the uniform lemma
+    have hmuS' :
+        ((S.card : ℝ) / (Fintype.card ι : ℝ)) ≥ ((1 - δ : ℝ≥0) : ℝ) := by
+      -- rewrite mu_set
+      simpa [ca_mu_set_uniform (ι := ι) S] using hmuS
+    -- Multiply through by card ι
+    have hcardι_pos : (0 : ℝ) < (Fintype.card ι : ℝ) := by
+      exact_mod_cast (Fintype.card_pos (α := ι))
+    have hcard_le :
+        ((1 - δ : ℝ≥0) : ℝ) * (Fintype.card ι : ℝ) ≤ (S.card : ℝ) := by
+      -- from hmuS'
+      have := (le_div_iff₀ hcardι_pos).1 hmuS'
+      simpa [mul_comm, mul_left_comm, mul_assoc] using this
+    -- cast back to ℝ≥0
+    have hcard_le_nnreal :
+        (1 - δ : ℝ≥0) * (Fintype.card ι : ℝ≥0) ≤ (S.card : ℝ≥0) := by
+      -- use norm_cast / exact_mod_cast
+      exact_mod_cast hcard_le
+    -- goal has reversed inequality
+    simpa [ge_iff_le, mul_comm, mul_left_comm, mul_assoc] using hcard_le_nnreal
+  · refine ⟨v, ?_⟩
+    intro i
+    refine ⟨hv_code i, ?_⟩
+    -- show agreement on S
+    intro x hx
+    -- membership in filter
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    -- use huv
+    exact (huv i x hx).symm
+
+theorem correlatedAgreement_affine_curves_uniqueDecodingRegime_core {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  {F : Type} [Field F] [Fintype F] [DecidableEq F]
+  [DecidableEq ι]
+  {k : ℕ} {u : WordStack F (Fin (k + 1)) ι}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδUD : δ ∈ Set.Icc (0 : ℝ≥0)
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2))
+  (hPr :
+    (Pr_{let y ←$ᵖ ↥(Curve.polynomialCurveFinite (F := F) (A := F) u)}[
+        δᵣ(y.1, (ReedSolomon.code domain deg : Set (ι → F))) ≤ (δ : ENNReal)]
+      )
+      > (k : ℝ≥0) * ((Fintype.card ι : ℝ≥0) / (Fintype.card F : ℝ≥0))) :
+  jointAgreement (F := F) (κ := Fin (k + 1)) (ι := ι)
+    (C := (ReedSolomon.code domain deg : Set (ι → F))) (W := u) (δ := δ) := by
+  classical
+  -- We proceed by applying a (missing) correlated-agreement theorem for RS over polynomial curves.
+  have hCA :
+      δ_ε_correlatedAgreementCurves (F := F) (ι := ι)
+        (C := (ReedSolomon.code domain deg : Set (ι → F))) (k := k)
+        (δ := δ) (ε := (Fintype.card ι : ℝ≥0) / (Fintype.card F : ℝ≥0)) :=
+    RS_correlatedAgreement_affineCurves_uniqueDecodingRegime (ι := ι) (F := F)
+      (k := k) (deg := deg) (domain := domain) (δ := δ) hδUD
+  -- unfold the definition and apply to the specific curve/wordstack `u`
+  exact hCA u (by
+    -- `hPr` already matches the required bound
+    simpa [mul_assoc] using hPr)
+
+
+theorem correlatedAgreement_affine_curves_uniqueDecodingRegime [DecidableEq ι] {k : ℕ} {u : Fin k → ι → F}
+  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
+  (hδUD : δ ∈ Set.Icc (0 : ℝ≥0)
+    (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2))
+  : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  -- unfold the wrapper definition
+  unfold δ_ε_correlatedAgreementCurves
+  intro u hPr
+  -- rewrite the error bound using the unique-decoding-regime hypothesis
+  have hPr' := (by
+    simpa [errorBound_eq_div_card_of_mem_Icc (deg := deg) (domain := domain) (δ := δ) hδUD] using hPr
+    )
+  -- apply the core unique-decoding lemma
+  exact
+    correlatedAgreement_affine_curves_uniqueDecodingRegime_core (ι := ι) (F := F)
+      (k := k) (u := u) (deg := deg) (domain := domain) (δ := δ) (hδUD := hδUD) hPr'
+
 theorem correlatedAgreement_affine_curves [DecidableEq ι] {k : ℕ} {u : Fin k → ι → F}
   {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  (hδ : δ ≤ 1 - ReedSolomonCode.sqrtRate deg domain)
+  (hδ : δ < 1 - ReedSolomonCode.sqrtRate deg domain)
   : δ_ε_correlatedAgreementCurves (k := k) (A := F) (F := F) (ι := ι)
-    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by sorry
+    (C := ReedSolomon.code domain deg) (δ := δ) (ε := errorBound δ deg domain) := by
+  classical
+  by_cases hUD :
+      δ ∈
+        Set.Icc (0 : ℝ≥0)
+          (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+  ·
+    exact
+      correlatedAgreement_affine_curves_uniqueDecodingRegime (ι := ι) (F := F) (k := k) (u := u)
+        (deg := deg) (domain := domain) (δ := δ) hUD
+  ·
+    have hnotle :
+        ¬ δ ≤
+            (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2) := by
+      intro hle
+      apply hUD
+      refine ⟨zero_le δ, hle⟩
+    have hlower :
+        (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2) < δ := by
+      exact lt_of_not_ge hnotle
+    have hJ :
+        δ ∈
+          Set.Ioo
+            (((1 : ℝ≥0) - (LinearCode.rate (ReedSolomon.code domain deg) : ℝ≥0)) / 2)
+            (1 - ReedSolomonCode.sqrtRate deg domain) := by
+      exact ⟨hlower, hδ⟩
+    exact
+      correlatedAgreement_affine_curves_listDecodingRegime (ι := ι) (F := F) (k := k) (deg := deg)
+        (domain := domain) (δ := δ) hJ
+
 
 open Affine in
 /-- Theorem 1.6 (Correlated agreement over affine spaces) in [BCIKS20].
@@ -653,269 +2048,5 @@ theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] 
 end
 
 end BCIKS20ProximityGapSection6
-
-section BCIKS20ProximityGapSection7
-
-variable {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
-variable {n k m : ℕ}
-
-namespace WeightedAgreement
-
-open NNReal Finset Function
-
-open scoped BigOperators
-
-section
-
-variable {n : Type} [Fintype n] [DecidableEq n]
-
-variable {ι : Type} [Fintype ι] [Nonempty ι]
-variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
-
-variable (C : Submodule F (n → F)) [DecidablePred (· ∈ C)]
-         (μ : ι → Set.Icc (0 : ℚ) 1)
-
-/-- Relative μ-agreement between words `u` and `v`. -/
-noncomputable def agree (u v : ι → F) : ℝ :=
-  1 / (Fintype.card ι) * ∑ i ∈ { i | u i = v i }, (μ i).1
-
-/-- `μ`-agreement between a word and a set `V`. -/
-noncomputable def agree_set (u : ι → F) (V : Finset (ι → F)) [Nonempty V] : ℝ :=
-  (Finset.image (agree μ u) V).max' (nonempty_coe_sort.1 (by aesop))
-
-/-- Weighted size of a subdomain. -/
-noncomputable def mu_set (ι' : Finset ι) : ℝ :=
-  1/(Fintype.card ι) * ∑ i ∈ ι', (μ i).1
-
-/-- `μ`-weighted correlated agreement. -/
-noncomputable def weightedCorrelatedAgreement
-  (C : Set (ι → F)) [Nonempty C] {k : ℕ} (U : Fin k → ι → F) : ℝ :=
-  sSup {x |
-    ∃ D' ⊆ (Finset.univ (α := ι)),
-      x = mu_set μ D' ∧
-      ∃ v : Fin k → ι → F, ∀ i, v i ∈ C ∧ ∀ j ∈ D', v i j = U i j
-  }
-
-open ReedSolomonCode
-
-instance {domain : ι ↪ F} {deg : ℕ} : Nonempty (finCarrier domain deg) := by
-  unfold finCarrier
-  apply Nonempty.to_subtype
-  simp [ReedSolomon.code]
-  exact Submodule.nonempty (Polynomial.degreeLT F deg)
-
-open ProbabilityTheory in
-/-- Weighted correlated agreement over curves.
-    Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and a curve generated by vectors `u`, such that the probability that a random
-point on the curve is `δ`-close to Reed-Solomon code is at most `ε`.
-Then, the words `u` have weighted correlated agreement.
--/
-theorem weighted_correlated_agreement_for_parameterized_curves
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] [Fintype F]
-  {l : ℕ}
-  {k : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {M : ℕ}
-  {α : ℝ≥0}
-  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
-  (hα : sqrtRate < α) →
-  (hα₁ : α < 1) →
-  letI ε := ProximityGap.errorBound δ deg domain
-  letI pr :=
-    let curve := Curve.polynomialCurveFinite (F := F) (A := F) u
-    Pr_{let u ←$ᵖ curve}[agree_set μ u (finCarrier domain deg) ≥ α]
-  (hproximity : pr > (l + 1 : NNReal) * ε) →
-  (h_additionally : pr ≥
-    ENNReal.ofReal (
-      ((l + 1) * (M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
-      *
-      (1 / min (α - sqrtRate) (sqrtRate / 20) + 3 / sqrtRate)
-    )
-  ) →
-  ∃ ι' : Finset ι, ∃ v : Fin (l + 2) → ι → F,
-    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
-    mu_set μ ι' ≥ α ∧
-    ∀ i, ∀ x ∈ ι', u i x = v i x := sorry
-
-/-- Weighted correlated agreement over curves.
-Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and a curve generated by vectors `u`, such that the probability that a random
-point on the curve is `δ`-close to Reed-Solomon code is at most `ε`.
-Then, the words `u` have weighted correlated agreement.
-
-Version with different bounds.
--/
-theorem weighted_correlated_agreement_for_parameterized_curves'
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {M m : ℕ}
-  (hm : 3 ≤ m)
-  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ))
-  {α : ℝ≥0} :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
-  letI S : Finset F := {
-    z : F | agree_set μ (fun i ↦ ∑ j, z ^ j.1 * u j i) (finCarrier domain deg) ≥ α
-  }
-  (hα : sqrtRate * (1 + 1 / (2 * m : ℝ)) ≤ α) →
-  (hS :
-    Finset.card S >
-      max ((1 + 1 / (2 * m : ℝ))^7 * m^7 * (Fintype.card ι)^2 * (l + 1) / (3 * sqrtRate^3))
-          ((2 * m + 1) * (M * Fintype.card ι + 1) * (l + 1) / sqrtRate.toReal)
-    ) →
-  ∃ v : Fin (l + 2) → ι → F,
-    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
-    mu_set μ {i : ι | ∀ j, u j i = v j i} ≥ α := sorry
-
-open Uniform in
-open scoped Pointwise in
-open ProbabilityTheory in
-/-- Weighted correlated agreement over affine spaces.
-Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and an affine space generated by vectors `u`, such that the probability that a random
-point from the space is `δ`-close to Reed-Solomon code is at most `ε`.
-Then, the words `u` have weighted correlated agreement.
--/
-theorem weighted_correlated_agreement_over_affine_spaces
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {M : ℕ}
-  {α : ℝ≥0} :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
-  (hα : sqrtRate < α) →
-  (hα₁ : α < 1) →
-  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) →
-  letI ε := ProximityGap.errorBound α deg domain
-  letI pr :=
-    Pr_{let u ←$ᵖ (u 0 +ᵥ affineSpan F (Finset.univ.image (Fin.tail u)).toSet)
-    }[agree_set μ u (finCarrier domain deg) ≥ α]
-  pr > ε →
-  pr ≥ ENNReal.ofReal (
-         ((M * Fintype.card ι + 1) : ℝ) / (Fintype.card F : ℝ)
-         *
-         (1 / min (α - sqrtRate) (sqrtRate / 20) + 3 / sqrtRate)
-       ) →
-  ∃ ι' : Finset ι, ∃ v : Fin (l + 2) → ι → F,
-    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
-    mu_set μ ι' ≥ α ∧
-    ∀ i, ∀ x ∈ ι', u i x = v i x := by sorry
-
-open scoped ProbabilityTheory in
-open scoped Pointwise in
-open Uniform in
-/-- Weighted correlated agreement over affine spaces.
-Take a Reed-Solomon code of length `ι` and degree `deg`, a proximity-error parameter
-pair `(δ, ε)` and an affine space generated by vectors `u`, such that the probability that a random
-point from the space is `δ`-close to Reed-Solomon code is at most `ε`.
-Then, the words `u` have weighted correlated agreement.
-
-Version with different bounds.
--/
-theorem weighted_correlated_agreement_over_affine_spaces'
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {α : ℝ≥0}
-  {M m : ℕ}
-  (hm : 3 ≤ m)
-  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ)) :
-  letI sqrtRate := ReedSolomonCode.sqrtRate deg domain
-  letI pr :=
-    Pr_{let u ←$ᵖ (u 0 +ᵥ affineSpan F (Finset.univ.image (Fin.tail u)).toSet)
-    }[agree_set μ u (finCarrier domain deg) ≥ α]
-  (hα : sqrtRate * (1 + 1 / (2 * m : ℝ)) ≤ α) →
-  letI numeratorl : ℝ := (1 + 1 / (2 * m : ℝ))^7 * m^7 * (Fintype.card ι)^2
-  letI denominatorl : ℝ := (3 * sqrtRate^3) * Fintype.card F
-  letI numeratorr : ℝ := (2 * m + 1) * (M * Fintype.card ι + 1)
-  letI denominatorr : ℝ := sqrtRate * Fintype.card F
-  pr > ENNReal.ofReal (max (numeratorl / denominatorl) (numeratorr / denominatorr)) →
-  ∃ v : Fin (l + 2) → ι → F,
-    (∀ i, v i ∈ ReedSolomon.code domain deg) ∧
-    mu_set μ {i : ι | ∀ j, u j i = v j i} ≥ α := by sorry
-
-/--
-Lemma 7.5 in [BCIKS20].
-
-This is the “list agreement on a curve implies correlated agreement” lemma.
-
-We are given two lists of functions `u, v : Fin (l + 2) → ι → F`, where each `v i` is a
-Reed–Solomon codeword of degree `deg` over the evaluation domain `domain`.  From these
-lists we form the bivariate “curves”
-
-* `w   x z = ∑ i, z^(i.1) * u i x`,
-* `wtilde x z = ∑ i, z^(i.1) * v i x`.
-
-Fix a finite set `S' ⊆ F` with `S'.card > l + 1`, and a (product) measure `μ` on the
-evaluation domain `ι`.  Assume that for every `z ∈ S'` the one-dimensional functions
-`w · z` and `wtilde · z` have agreement at least `α` with respect to `μ`.  Then the set
-of points `x` on which *all* coordinates agree, i.e. `u i x = v i x` for every `i`,
-has μ-measure strictly larger than
-
-`α - (l + 1) / (S'.card - (l + 1))`.
--/
-lemma list_agreement_on_curve_implies_correlated_agreement_bound
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {α : ℝ≥0}
-  {v : Fin (l + 2) → ι → F}
-  (hv : ∀ i, v i ∈ (ReedSolomon.code domain deg))
-  {S' : Finset F}
-  (hS'_card : S'.card > l + 1) :
-  letI w (x : ι) (z : F) : F := ∑ i, z ^ i.1 * u i x
-  letI wtilde (x : ι) (z : F) : F := ∑ i, z ^ i.1 * v i x
-  (hS'_agree : ∀ z ∈ S', agree μ (w · z) (wtilde · z) ≥ α) →
-  mu_set μ {x : ι | ∀ i, u i x = v i x} >
-  α - ((l + 1) : ℝ) / (S'.card - (l + 1)) := by sorry
-
-/--
-Lemma 7.6 in [BCIKS20].
-
-This is the “integral-weight” strengthening of the list-agreement-on-a-curve ⇒
-correlated-agreement bound.
-
-We have two lists of functions `u, v : Fin (l + 2) → ι → F`, where each `v i` is a
-Reed–Solomon codeword of degree `deg` over the evaluation domain `domain`.  From
-these lists we form the bivariate “curves”
-* `w x z     = ∑ i, z^(i.1) * u i x`,
-* `wtilde x z = ∑ i, z^(i.1) * v i x`.
-
-The domain `ι` is finite and is equipped with a weighted measure `μ`, where each
-weight `μ i` is a rational with common denominator `M`.  Let `S' ⊆ F` be a set of
-field points with
-* `S'.card > l + 1`, and
-* `S'.card ≥ (M * Fintype.card ι + 1) * (l + 1)`.
-
-Assume that for every `z ∈ S'` the µ-weighted agreement between `w · z` and
-`wtilde · z` is at least `α`.  Then the µ-measure of the set of points where *all*
-coordinates agree, i.e. where `u i x = v i x` for every `i`, is at least `α`:
-
-`mu_set μ {x | ∀ i, u i x = v i x} ≥ α`.
--/
-lemma sufficiently_large_list_agreement_on_curve_implies_correlated_agreement
-  [DecidableEq ι] [Fintype ι] [DecidableEq F] {k l : ℕ} {u : Fin (l + 2) → ι → F}
-  {deg : ℕ} {domain : ι ↪ F}
-  {μ : ι → Set.Icc (0 : ℚ) 1}
-  {α : ℝ≥0}
-  {M : ℕ}
-  (hμ : ∀ i, ∃ n : ℤ, (μ i).1 = (n : ℚ) / (M : ℚ))
-  {v : Fin (l + 2) → ι → F}
-  (hv : ∀ i, v i ∈ ReedSolomon.code domain deg)
-  {S' : Finset F}
-  (hS'_card : S'.card > l + 1)
-  (hS'_card₁ : S'.card ≥ (M * Fintype.card ι + 1) * (l + 1)) :
-  letI w (x : ι) (z : F) : F := ∑ i, z ^ i.1 * u i x
-  letI wtilde (x : ι) (z : F) : F := ∑ i, z ^ i.1 * v i x
-  (hS'_agree : ∀ z ∈ S', agree μ (w · z) (wtilde · z) ≥ α) →
-  mu_set μ {x : ι | ∀ i, u i x = v i x} ≥ α := by sorry
-end
-
-end WeightedAgreement
-
-end BCIKS20ProximityGapSection7
 
 end ProximityGap
