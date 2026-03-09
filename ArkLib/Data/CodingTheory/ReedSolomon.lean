@@ -119,6 +119,7 @@ lemma codewordIsZero_makeZero {ι : ℕ} {F : Type*} [Zero F] :
 
 open LinearCode
 
+set_option linter.unusedDecidableInType false
 /-- The Vandermonde matrix is the generator matrix for an RS code of length `ι` and dimension `deg`.
 -/
 lemma genMatIsVandermonde [Fintype ι] [Field F] [DecidableEq F] [inst : NeZero m] {α : ι ↪ F} :
@@ -152,8 +153,8 @@ lemma dim_eq_deg_of_le [NeZero n] (inj : Function.Injective α) (h : n ≤ m) :
 
 open Finset in
 /-- Generalized dimension formula for a Reed-Solomon code with arbitrary finite index type `ι`. -/
-lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
-    {n : ℕ} {α : ι ↪ F} [NeZero n] (h : n ≤ Fintype.card ι) :
+lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F] {n : ℕ} {α : ι ↪ F} [NeZero n]
+ (h : n ≤ Fintype.card ι) :
   LinearCode.dim (ReedSolomon.code α n) = n := by
   rw [LinearCode.dim]
   let f := ReedSolomon.evalOnPoints (F := F) α
@@ -198,7 +199,7 @@ lemma length_eq_domain_card' {ι : Type*} [Fintype ι] {F : Type*} [Field F] {de
     length (ReedSolomon.code α deg) = Fintype.card ι := by
   simp [length]
 
-lemma rateOfLinearCode_eq_div' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
+lemma rateOfLinearCode_eq_div' {ι : Type*} [Fintype ι] {F : Type*} [Field F]
     {n : ℕ} {α : ι ↪ F} [NeZero n] (h : n ≤ Fintype.card ι) :
     rate (ReedSolomon.code α n) = n / Fintype.card ι := by
   rw [rate, dim_eq_deg_of_le' h, length_eq_domain_card']
@@ -258,8 +259,7 @@ lemma wt_constantCode [DecidableEq F] [NeZero x] :
 end
 
 open Finset in
-/-- The minimal code distance of an RS code of length `ι` and dimension `deg` is `ι - deg + 1`
--/
+/-- The minimal code distance of an RS code of length `ι` and dimension `deg` is `ι - deg + 1`. -/
 theorem minDist [Field F] [DecidableEq F] (inj : Function.Injective α) [NeZero n] (h : n ≤ m) :
   minDist ((ReedSolomon.code ⟨α, inj⟩ n) : Set (Fin m → F)) = m - n + 1 := by
   have : NeZero m := by constructor; aesop
@@ -267,7 +267,7 @@ theorem minDist [Field F] [DecidableEq F] (inj : Function.Injective α) [NeZero 
   case p₁ =>
     have distUB := singletonBound (LC := ReedSolomon.code ⟨α, inj⟩ n)
     rw [dim_eq_deg_of_le inj h] at distUB
-    simp at distUB
+    simp only [length_eq_domain_card', Fintype.card_fin] at distUB
     zify [dist_le_length] at distUB
     omega
   case p₂ =>
@@ -292,6 +292,7 @@ theorem minDist [Field F] [DecidableEq F] (inj : Function.Injective α) [NeZero 
       simp
     omega
 
+set_option linter.unusedDecidableInType false
 /-- Generalized minimal code distance for RS code with arbitrary finite index type `ι`. -/
 theorem minDist' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} [Field F] [DecidableEq F]
     {α : ι ↪ F} [NeZero n] (h : n ≤ Fintype.card ι) :
@@ -333,6 +334,7 @@ theorem minDist' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} [Field F
       simp
     omega
 
+set_option linter.unusedDecidableInType false
 /-- Generalized distance equality for RS code with arbitrary finite index type `ι`. -/
 theorem dist_eq' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} {n : ℕ} {α : ι ↪ F}
     [Field F] [DecidableEq F] [NeZero n] (h : n ≤ Fintype.card ι) :
@@ -346,6 +348,7 @@ theorem dist_eq {F : Type*} {m n : ℕ} {α : Fin m → F} [Field F] [DecidableE
   simp_rw [dist_eq_minDist]
   rw [ReedSolomon.minDist inj h]
 
+set_option linter.unusedDecidableInType false
 /-- Generalized unique decoding radius for RS code with arbitrary finite index type `ι`. -/
 theorem uniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
     {F : Type*} {n : ℕ} {α : ι ↪ F} [Field F] [DecidableEq F] [NeZero n]
@@ -355,8 +358,9 @@ theorem uniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
   simp only [uniqueDecodingRadius]
   rw [dist_eq_minDist]
   rw [ReedSolomon.minDist' h]
-  simp only [add_tsub_cancel_right]
+  simp [add_tsub_cancel_right]
 
+set_option linter.unusedDecidableInType false
 open NNReal in
 /-- Generalized relative unique decoding radius for RS code with arbitrary finite index type `ι`. -/
 theorem relativeUniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
@@ -416,7 +420,7 @@ variable {F : Type*} [Field F]
          {deg : ℕ}
 
 /-- The linear map that maps a codeword `f : ι → F` to a degree < |ι| polynomial p,
-    such that p(x) = f(x) for all x ∈ ι -/
+such that p(x) = f(x) for all x ∈ ι -/
 private noncomputable def interpolate : (ι → F) →ₗ[F] F[X] :=
   Lagrange.interpolate univ domain
 
