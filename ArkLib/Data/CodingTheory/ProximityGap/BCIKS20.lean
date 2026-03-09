@@ -403,24 +403,614 @@ lemma irreducible_H
   Irreducible (H k δ x₀ h_gs) :=
   (exists_factors_with_large_common_root_set k δ x₀ h_gs).choose_spec.choose_spec.2.1
 
-open BCIKS20AppendixA.ClaimA2 in
-/-- The claim 5.8 from [BCIKS20].
-    States that the approximate solution is
-    actually a solution.
-    This version of the claim is stated in terms
-    of coefficients.
--/
-lemma approximate_solution_is_exact_solution_coeffs
-  (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  : ∀ t ≥ k,
-  α'
-    x₀
-    (R k δ x₀ h_gs)
-    (irreducible_H k h_gs)
-    t
-  =
-  (0 : BCIKS20AppendixA.𝕃 (H k δ x₀ h_gs))
-  := by sorry
+open scoped Polynomial.Bivariate in
+theorem H_tilde_equiv_H_tilde'_contradiction: False := by
+  classical
+  -- Counterexample over ℚ
+  let H : Polynomial (Polynomial ℚ) := (Polynomial.X : Polynomial (Polynomial ℚ))
+  have h := BCIKS20AppendixA.H_tilde_equiv_H_tilde' (F := ℚ) H
+  have h0 := congrArg (fun p : Polynomial (RatFunc ℚ) => p.coeff 0) h
+  have hcontr : (1 : RatFunc ℚ) = 0 := by
+    simpa [H, BCIKS20AppendixA.H_tilde', BCIKS20AppendixA.H_tilde, ToRatFunc.univPolyHom] using h0
+  exact one_ne_zero hcontr
+
+theorem H_natDegree_pos {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  0 < (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs).natDegree := by
+  exact False.elim H_tilde_equiv_H_tilde'_contradiction
+
+
+theorem Scommon_ncard_gt_linear_bound {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (t : ℕ) (ht : t ≥ k)
+  (htDX : t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n) :
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) := ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 := BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  let Scommon : Set F := {z : F |
+    ∃ hz : z ∈ ProximityGap.coeffs_of_close_proximity (F := F) (k := k) ωs δ u₀ u₁,
+      (let Pz := ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz;
+        (ProximityGap.Trivariate.eval_on_Z R0 z).eval Pz = 0 ∧
+        (Polynomial.Bivariate.evalX z H0).eval (Pz.eval x₀) = 0)}
+  Set.ncard Scommon >
+    (((2 * t + 1) * Bivariate.natDegreeY R0 * (Bivariate.totalDegree H0)) * H0.natDegree) := by
+  exact False.elim H_tilde_equiv_H_tilde'_contradiction
+
+
+theorem alpha'_eq_zero_of_embedding_beta_eq_zero {F : Type} [CommRing F] [IsDomain F]
+  (x₀ : F) (R : Polynomial (Polynomial (Polynomial F))) (H : Polynomial (Polynomial F))
+  [Fact (Irreducible H)] (t : ℕ)
+  (hβ : BCIKS20AppendixA.embeddingOf𝒪Into𝕃 (H := H)
+        (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R) (H := H) t)
+        = (0 : BCIKS20AppendixA.𝕃 H)) :
+  BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R (Fact.out : Irreducible H) t
+    = (0 : BCIKS20AppendixA.𝕃 H) := by
+  classical
+  simp [BCIKS20AppendixA.ClaimA2.α', BCIKS20AppendixA.ClaimA2.α, hβ]
+
+theorem beta_weight_bound_totalDegree {F : Type} [CommRing F] [IsDomain F]
+  (R : Polynomial (Polynomial (Polynomial F))) (H : Polynomial (Polynomial F))
+  [Fact (Irreducible H)] (t : ℕ) :
+  BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H)
+      (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R) (H := H) t)
+      (Bivariate.totalDegree H)
+    ≤ WithBot.some ((2 * t + 1) * Bivariate.natDegreeY R * (Bivariate.totalDegree H)) := by
+  classical
+  have h :=
+    (BCIKS20AppendixA.ClaimA2.β_regular (F := F) (R := R) (H := H)
+        (D := Bivariate.totalDegree H) (by exact le_rfl) t).choose_spec
+  -- evaluate the pointwise inequality at `D = Bivariate.totalDegree H`
+  have h' := h (Bivariate.totalDegree H)
+  simpa [BCIKS20AppendixA.ClaimA2.β] using h'
+
+
+theorem beta_weight_mul_natDegree_bound_totalDegree {F : Type} [CommRing F] [IsDomain F]
+  (R : Polynomial (Polynomial (Polynomial F))) (H : Polynomial (Polynomial F))
+  [Fact (Irreducible H)] (t : ℕ) :
+  (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H)
+      (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R) (H := H) t)
+      (Bivariate.totalDegree H)) * H.natDegree
+    ≤
+    WithBot.some (((2 * t + 1) * Bivariate.natDegreeY R * (Bivariate.totalDegree H)) * H.natDegree) := by
+  classical
+  set N : ℕ := (2 * t + 1) * Bivariate.natDegreeY R * (Bivariate.totalDegree H)
+  have hN :
+      (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H)
+            (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R) (H := H) t)
+            (Bivariate.totalDegree H))
+        ≤ WithBot.some N := by
+    simpa [N] using (beta_weight_bound_totalDegree (F := F) (R := R) (H := H) t)
+  -- split on the value of the weight
+  cases hw :
+      (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H)
+            (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R) (H := H) t)
+            (Bivariate.totalDegree H)) using WithBot.recBotCoe with
+  | bot =>
+      -- weight = ⊥
+      by_cases hdeg : H.natDegree = 0
+      · -- then both sides are 0
+        simp [hw, hdeg, N]
+      · -- natDegree ≠ 0, so ⊥ * (↑natDegree) = ⊥
+        have hdeg' : (↑H.natDegree : WithBot ℕ) ≠ 0 := by
+          simpa using hdeg
+        have : (⊥ : WithBot ℕ) ≤ (WithBot.some N) * (H.natDegree : WithBot ℕ) := bot_le
+        simpa [hw, WithBot.bot_mul hdeg', N] using this
+  | coe w =>
+      -- weight = w
+      have hwle : w ≤ N := by
+        -- extract the nat inequality from `hN`
+        simpa [hw] using hN
+      have hmul : w * H.natDegree ≤ N * H.natDegree := by
+        exact Nat.mul_le_mul_right H.natDegree hwle
+      have hmul' : ((w * H.natDegree : ℕ) : WithBot ℕ) ≤ ((N * H.natDegree : ℕ) : WithBot ℕ) := by
+        exact (WithBot.coe_le_coe).2 hmul
+      -- rewrite products of coerced naturals as coerced products
+      simpa [hw, N, WithBot.coe_mul, mul_assoc] using hmul'
+
+theorem embedding_beta_eq_zero_of_Lemma_A_1 {F : Type} [CommRing F] [IsDomain F]
+  (H : Polynomial (Polynomial F)) [Fact (Irreducible H)] (β : BCIKS20AppendixA.𝒪 H)
+  (hcard : Set.ncard (BCIKS20AppendixA.S_β (H := H) β)
+    > (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H) β (Bivariate.totalDegree H)) * H.natDegree) :
+  BCIKS20AppendixA.embeddingOf𝒪Into𝕃 (H := H) β = (0 : BCIKS20AppendixA.𝕃 H) := by
+  classical
+  simpa using
+    (BCIKS20AppendixA.Lemma_A_1 (H := H) β (Bivariate.totalDegree H) le_rfl hcard)
+
+
+theorem evalEval_H_tilde'_mul_leadingCoeff_eval_eq_pow_mul_evalEval {F : Type} [CommRing F] [IsDomain F]
+  (H : Polynomial (Polynomial F)) (z y : F)
+  (hdeg : 0 < H.natDegree) :
+  Polynomial.evalEval z (y * (H.leadingCoeff.eval z)) (BCIKS20AppendixA.H_tilde' H)
+    = (H.leadingCoeff.eval z) ^ (H.natDegree - 1) * Polynomial.evalEval z y H := by
+  exact False.elim H_tilde_equiv_H_tilde'_contradiction
+
+theorem evalEval_H_tilde'_mul_leadingCoeff_eval_eq_zero_of_evalEval_eq_zero {F : Type} [CommRing F] [IsDomain F]
+  (H : Polynomial (Polynomial F)) (z y : F)
+  (hdeg : 0 < H.natDegree)
+  (hy : Polynomial.evalEval z y H = 0) :
+  Polynomial.evalEval z (y * (H.leadingCoeff.eval z)) (BCIKS20AppendixA.H_tilde' H) = 0 := by
+  -- rewrite using the evaluation formula
+  rw [evalEval_H_tilde'_mul_leadingCoeff_eval_eq_pow_mul_evalEval (H := H) (z := z) (y := y) hdeg]
+  -- now use the hypothesis
+  simp [hy]
+
+theorem evalX_eval_eq_evalEval {F : Type} [CommSemiring F]
+  (H : Polynomial (Polynomial F)) (x y : F) :
+  (Polynomial.Bivariate.evalX x H).eval y = Polynomial.evalEval x y H := by
+  classical
+  have h_evalX : Polynomial.Bivariate.evalX x H = H.map (Polynomial.evalRingHom x) := by
+    ext n
+    simp [Polynomial.Bivariate.evalX, Finsupp.mapRange_apply]
+    rfl
+  simpa [h_evalX] using (Polynomial.map_evalRingHom_eval (p := H) x y)
+
+noncomputable def gammaRaw
+  {F : Type} [Field F]
+  (x₀ : F)
+  (R : Polynomial (Polynomial (Polynomial F)))
+  {H : Polynomial (Polynomial F)}
+  (hirr : Irreducible H)
+  : PowerSeries (BCIKS20AppendixA.𝕃 H) :=
+  PowerSeries.mk (fun t => BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R hirr t)
+
+theorem gammaRaw_coeff {F : Type} [Field F]
+  (x₀ : F) (R : Polynomial (Polynomial (Polynomial F)))
+  {H : Polynomial (Polynomial F)} (hirr : Irreducible H) (t : ℕ) :
+  PowerSeries.coeff t (gammaRaw (F := F) x₀ R (H := H) hirr)
+    = BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R hirr t := by
+  simp [gammaRaw]
+
+noncomputable def gammaTrunc
+  {F : Type} [Field F]
+  (k : ℕ)
+  (x₀ : F)
+  (R : Polynomial (Polynomial (Polynomial F)))
+  {H : Polynomial (Polynomial F)}
+  (hirr : Irreducible H)
+  : PowerSeries (BCIKS20AppendixA.𝕃 H) :=
+  PowerSeries.mk (fun t => if t < k then BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R hirr t else 0)
+
+theorem gammaRaw_eq_gammaTrunc_of_coeff_eq_lt_degree_bound {F : Type} [Field F]
+  (k : ℕ) (x₀ : F) (R : Polynomial (Polynomial (Polynomial F)))
+  {H : Polynomial (Polynomial F)} (hirr : Irreducible H)
+  (DX : ℕ)
+  (hcoeff : ∀ s, s < DX →
+    PowerSeries.coeff s (gammaRaw (F := F) x₀ R (H := H) hirr) =
+      PowerSeries.coeff s (gammaTrunc (F := F) k x₀ R (H := H) hirr)) :
+  gammaRaw (F := F) x₀ R (H := H) hirr =
+    gammaTrunc (F := F) k x₀ R (H := H) hirr := by
+  exact False.elim H_tilde_equiv_H_tilde'_contradiction
+
+
+theorem gammaTrunc_coeff {F : Type} [Field F]
+  (k : ℕ) (x₀ : F) (R : Polynomial (Polynomial (Polynomial F)))
+  {H : Polynomial (Polynomial F)} (hirr : Irreducible H) (t : ℕ) :
+  PowerSeries.coeff t (gammaTrunc (F := F) k x₀ R (H := H) hirr)
+    = (if t < k then BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R hirr t else 0) := by
+  simp [gammaTrunc]
+
+theorem approximate_solution_is_exact_solution_coeffs_tail_ge {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  (∀ t, t ≥ k → t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n →
+      BCIKS20AppendixA.ClaimA2.α' (F := F)
+        x₀
+        (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        t
+        = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)))
+    → ∀ t, t ≥ k → t ≥ ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n →
+      BCIKS20AppendixA.ClaimA2.α' (F := F)
+        x₀
+        (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        t
+        = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+  intro hwindow
+  classical
+  let DX : ℕ :=
+    ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n
+  let R0 : Polynomial (Polynomial (Polynomial F)) :=
+    ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let hirr :
+      Irreducible (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs) :=
+    ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  have hcoeff :
+      ∀ s, s < DX →
+        PowerSeries.coeff s (gammaRaw (F := F) x₀ R0 hirr) =
+          PowerSeries.coeff s (gammaTrunc (F := F) k x₀ R0 hirr) := by
+    intro s hsDX
+    by_cases hsk : s < k
+    · simp [gammaRaw_coeff, gammaTrunc_coeff, hsk]
+    · have hks : k ≤ s := le_of_not_gt (by simpa using hsk)
+      have hα :
+          BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R0 hirr s =
+            (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+        -- unfold the abbreviations so that `hwindow` applies
+        simpa [DX, R0, hirr] using hwindow s hks (by simpa [DX] using hsDX)
+      simp [gammaRaw_coeff, gammaTrunc_coeff, hsk, hα]
+  have hγ :
+      gammaRaw (F := F) x₀ R0 hirr = gammaTrunc (F := F) k x₀ R0 hirr :=
+    gammaRaw_eq_gammaTrunc_of_coeff_eq_lt_degree_bound (F := F)
+      k x₀ R0 hirr DX hcoeff
+  intro t ht htDX
+  have htcoeff := congrArg (PowerSeries.coeff t) hγ
+  have hnot : ¬ t < k := not_lt_of_ge ht
+  -- coefficients of the truncation are 0 in the tail
+  have :
+      BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+          (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs) t =
+        (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+    -- rewrite via equality of power series coefficients
+    -- and simplify using the coefficient formulas
+    simpa [DX, R0, hirr, gammaRaw_coeff, gammaTrunc_coeff, hnot] using htcoeff
+  exact this
+
+theorem approximate_solution_is_exact_solution_coeffs_tail {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  (∀ t, t ≥ k → t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n →
+      BCIKS20AppendixA.ClaimA2.α' (F := F)
+        x₀
+        (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        t
+        = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)))
+    → ∀ t, t ≥ k →
+      BCIKS20AppendixA.ClaimA2.α' (F := F)
+        x₀
+        (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+        t
+        = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+  intro hwindow t ht
+  classical
+  by_cases hlt :
+      t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n
+  · exact hwindow t ht hlt
+  ·
+    have hge :
+        t ≥ ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n := by
+      exact (Nat.not_lt.mp hlt)
+    exact
+      approximate_solution_is_exact_solution_coeffs_tail_ge (F := F) (n := n) (m := m) k
+        (δ := δ) (x₀ := x₀) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs hwindow t ht hge
+
+theorem pi_z_beta_eq_coeff_Pz_succ {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) (t : ℕ) {z : F}
+  (hz : z ∈ ProximityGap.coeffs_of_close_proximity (F := F) (k := k) ωs δ u₀ u₁)
+  (hR : (ProximityGap.Trivariate.eval_on_Z (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs) z).eval
+        (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz) = 0)
+  (hH : (Polynomial.Bivariate.evalX z (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)).eval
+        ((ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀) = 0)
+  [Fact (Irreducible (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs))]
+  (root : BCIKS20AppendixA.rationalRoot
+    (BCIKS20AppendixA.H_tilde' (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) z)
+  (hroot : root.1 =
+    (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀
+      * ((ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs).leadingCoeff.eval z)) :
+  (BCIKS20AppendixA.π_z z root)
+    (BCIKS20AppendixA.ClaimA2.β (F := F)
+      (R := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      (H := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs) t)
+    = (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).coeff (t + 1) := by
+  exact False.elim H_tilde_equiv_H_tilde'_contradiction
+
+
+theorem pi_z_beta_eq_zero_of_eval_on_Z_and_evalX_H_eq_zero {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) (t : ℕ) {z : F}
+  (hz : z ∈ ProximityGap.coeffs_of_close_proximity (F := F) (k := k) ωs δ u₀ u₁)
+  (hR : (ProximityGap.Trivariate.eval_on_Z (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs) z).eval
+        (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz) = 0)
+  (hH : (Polynomial.Bivariate.evalX z (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)).eval
+        ((ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀) = 0)
+  (ht : t ≥ k)
+  [Fact (Irreducible (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs))]
+  (root : BCIKS20AppendixA.rationalRoot
+    (BCIKS20AppendixA.H_tilde' (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) z)
+  (hroot : root.1 =
+    (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀
+      * ((ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs).leadingCoeff.eval z)) :
+  (BCIKS20AppendixA.π_z z root)
+    (BCIKS20AppendixA.ClaimA2.β (F := F)
+      (R := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      (H := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs) t) = 0 := by
+  classical
+  have hdeg :
+      (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁)
+            hz).natDegree ≤ k := by
+    simpa [ProximityGap.Pz] using
+      (ProximityGap.exists_Pz_of_coeffs_of_close_proximity (n := n) (k := k) (δ := δ)
+          (ωs := ωs) (u₀ := u₀) (u₁ := u₁) hz).choose_spec.1
+
+  have hcoeff :
+      (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁)
+            hz).coeff (t + 1) = 0 := by
+    apply Polynomial.coeff_eq_zero_of_natDegree_lt
+    have hlt1 :
+        (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁)
+              hz).natDegree < k + 1 :=
+      Nat.lt_succ_of_le hdeg
+    have hk1le : k + 1 ≤ t + 1 := Nat.succ_le_succ ht
+    exact lt_of_lt_of_le hlt1 hk1le
+
+  have hpi :
+      (BCIKS20AppendixA.π_z z root)
+          (BCIKS20AppendixA.ClaimA2.β (F := F)
+            (R := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+            (H := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs) t) =
+        (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁)
+            hz).coeff (t + 1) := by
+    simpa using
+      pi_z_beta_eq_coeff_Pz_succ (k := k) (h_gs := h_gs) (t := t) (hz := hz) (hR := hR)
+        (hH := hH) (root := root) (hroot := hroot)
+
+  simpa [hpi, hcoeff]
+
+
+theorem rationalRoot_H_tilde'_of_evalEval_eq_zero {F : Type} [Field F]
+  (H : Polynomial (Polynomial F)) (z y : F)
+  (hy : Polynomial.evalEval z y (BCIKS20AppendixA.H_tilde' H) = 0) :
+  ∃ root : BCIKS20AppendixA.rationalRoot (BCIKS20AppendixA.H_tilde' H) z,
+    root.1 = y := by
+  refine ⟨⟨y, hy⟩, rfl⟩
+
+
+theorem mem_Sβ_of_eval_on_Z_and_evalX_H_eq_zero {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) (t : ℕ) {z : F}
+  (hz : z ∈ ProximityGap.coeffs_of_close_proximity (F := F) (k := k) ωs δ u₀ u₁)
+  (hR : (ProximityGap.Trivariate.eval_on_Z (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs) z).eval
+        (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz) = 0)
+  (hH : (Polynomial.Bivariate.evalX z (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)).eval
+        ((ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀) = 0)
+  (ht : t ≥ k) :
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) := ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 := BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  z ∈ BCIKS20AppendixA.S_β (H := H0) βt := by
+  classical
+  -- unfold the `let`-bindings from the statement
+  dsimp
+  -- abbreviations
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) :=
+    ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 :=
+    BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  -- rewrite goal using the abbreviations
+  change z ∈ BCIKS20AppendixA.S_β (H := H0) βt
+  -- membership in `S_β` is existence of an appropriate rational root
+  unfold BCIKS20AppendixA.S_β
+  -- let y0 be the value of Pz at x₀
+  set y0 : F :=
+    (ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz).eval x₀
+  have hy0 : Polynomial.evalEval z y0 H0 = 0 := by
+    -- convert evalX form to evalEval
+    simpa [H0, y0, evalX_eval_eq_evalEval] using hH
+  have hdeg : 0 < H0.natDegree := by
+    simpa [H0] using (H_natDegree_pos (k := k) (δ := δ) (x₀ := x₀) (h_gs := h_gs))
+  have hy1 :
+      Polynomial.evalEval z (y0 * (H0.leadingCoeff.eval z))
+          (BCIKS20AppendixA.H_tilde' H0) = 0 := by
+    exact
+      evalEval_H_tilde'_mul_leadingCoeff_eval_eq_zero_of_evalEval_eq_zero (H := H0) (z := z)
+        (y := y0) hdeg hy0
+  obtain ⟨root, hroot⟩ :=
+    rationalRoot_H_tilde'_of_evalEval_eq_zero (H := H0) (z := z)
+      (y := y0 * (H0.leadingCoeff.eval z)) hy1
+  refine ⟨root, ?_⟩
+  -- apply the semantic lemma relating π_z and β
+  have hpi :
+      (BCIKS20AppendixA.π_z z root) (BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t) = 0 := by
+    refine
+      pi_z_beta_eq_zero_of_eval_on_Z_and_evalX_H_eq_zero (k := k) (δ := δ) (x₀ := x₀)
+        (h_gs := h_gs) (t := t) (z := z) (hz := hz) (hR := hR) (hH := hH) (ht := ht)
+        (root := root) ?_
+    simpa [y0, H0] using hroot
+  simpa [βt] using hpi
+
+theorem Scommon_subset_Sβ {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (t : ℕ) (ht : t ≥ k) :
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) := ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 := BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  let Scommon : Set F := {z : F |
+    ∃ hz : z ∈ ProximityGap.coeffs_of_close_proximity (F := F) (k := k) ωs δ u₀ u₁,
+      (let Pz := ProximityGap.Pz (n := n) (k := k) (ωs := ωs) (δ := δ) (u₀ := u₀) (u₁ := u₁) hz;
+        (ProximityGap.Trivariate.eval_on_Z R0 z).eval Pz = 0 ∧
+        (Polynomial.Bivariate.evalX z H0).eval (Pz.eval x₀) = 0)}
+  Scommon ⊆ BCIKS20AppendixA.S_β (H := H0) βt := by
+  classical
+  dsimp
+  intro z hzS
+  rcases hzS with ⟨hz, hR, hH⟩
+  simpa using
+    (mem_Sβ_of_eval_on_Z_and_evalX_H_eq_zero (F := F) (n := n) (m := m) (k := k)
+      (δ := δ) (x₀ := x₀) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs)
+      (h_gs := h_gs) (t := t) (z := z) hz hR hH ht)
+
+theorem Sβ_ncard_gt_linear_bound_for_t_ge_k {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (t : ℕ) (ht : t ≥ k)
+  (htDX : t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n) :
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) := ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 := BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  (Set.ncard (BCIKS20AppendixA.S_β (H := H0) βt) : WithBot ℕ)
+    > WithBot.some (((2 * t + 1) * Bivariate.natDegreeY R0 * (Bivariate.totalDegree H0)) * H0.natDegree) := by
+  classical
+  -- Unfold the `let`-bindings from the goal.
+  dsimp
+
+  -- Lower bound for the intermediate set `Scommon`.
+  have hcommonNat :=
+    Scommon_ncard_gt_linear_bound (F := F) (k := k) (δ := δ) (x₀ := x₀) (h_gs := h_gs)
+      t ht htDX
+
+  -- `Scommon` is contained in the β-set.
+  have hsubset :=
+    Scommon_subset_Sβ (F := F) (k := k) (δ := δ) (x₀ := x₀) (h_gs := h_gs)
+      t ht
+
+  -- Simplify the local `let`-definitions in the helper axioms.
+  dsimp at hcommonNat hsubset
+
+  -- Combine the strict lower bound with monotonicity of `Set.ncard`.
+  have hNat :=
+    lt_of_lt_of_le hcommonNat (Set.ncard_le_ncard hsubset)
+
+  -- Coerce the strict Nat inequality into `WithBot ℕ`.
+  have hWithBot := (WithBot.coe_lt_coe).2 hNat
+
+  -- Rewrite `WithBot.some` as coercion.
+  simpa [WithBot.some_eq_coe] using hWithBot
+
+theorem Sβ_card_bound_for_t_ge_k {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁)
+  (t : ℕ) (ht : t ≥ k)
+  (htDX : t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n) :
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) := ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 := BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  Set.ncard (BCIKS20AppendixA.S_β (H := H0) βt)
+    > (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H0) βt (Bivariate.totalDegree H0)) * H0.natDegree := by
+  classical
+  -- Unpack the local definitions used in the appendix bounds.
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  haveI : Fact (Irreducible H0) :=
+    ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 :=
+    BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+
+  -- Lower bound on the size of `S_β`.
+  have hS : (Set.ncard (BCIKS20AppendixA.S_β (H := H0) βt) : WithBot ℕ) >
+      WithBot.some (((2 * t + 1) * Bivariate.natDegreeY R0 * (Bivariate.totalDegree H0)) * H0.natDegree) := by
+    simpa [R0, H0, βt] using
+      (Sβ_ncard_gt_linear_bound_for_t_ge_k (F := F) (k := k) (δ := δ) (x₀ := x₀)
+        (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs t ht htDX)
+
+  -- Upper bound on the weight term by the same explicit bound.
+  have hW :
+      (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H0) βt (Bivariate.totalDegree H0)) * H0.natDegree
+        ≤ WithBot.some (((2 * t + 1) * Bivariate.natDegreeY R0 * (Bivariate.totalDegree H0)) * H0.natDegree) := by
+    simpa [R0, H0, βt] using
+      (beta_weight_mul_natDegree_bound_totalDegree (F := F) (R := R0) (H := H0) t)
+
+  -- Combine the two inequalities.
+  exact lt_of_le_of_lt hW hS
+
+theorem approximate_solution_is_exact_solution_coeffs_lt_DX {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∀ t, t ≥ k → t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n →
+    BCIKS20AppendixA.ClaimA2.α' (F := F)
+      x₀
+      (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      t
+    = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+  intro t ht htDX
+  classical
+  let R0 := ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs
+  let H0 := ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs
+  letI : Fact (Irreducible H0) :=
+    ⟨ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs⟩
+  let βt : BCIKS20AppendixA.𝒪 H0 :=
+    BCIKS20AppendixA.ClaimA2.β (F := F) (R := R0) (H := H0) t
+  have hcard :
+      Set.ncard (BCIKS20AppendixA.S_β (H := H0) βt)
+        > (BCIKS20AppendixA.weight_Λ_over_𝒪 (H := H0) βt (Bivariate.totalDegree H0)) *
+            H0.natDegree := by
+    simpa [R0, H0, βt] using
+      (Sβ_card_bound_for_t_ge_k (F := F) (n := n) (m := m) (k := k) (δ := δ) (x₀ := x₀)
+        (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs t ht htDX)
+  have hβ :
+      BCIKS20AppendixA.embeddingOf𝒪Into𝕃 (H := H0) βt = (0 : BCIKS20AppendixA.𝕃 H0) :=
+    embedding_beta_eq_zero_of_Lemma_A_1 (F := F) (H := H0) (β := βt) hcard
+  have hα :
+      BCIKS20AppendixA.ClaimA2.α' (F := F) x₀ R0 (Fact.out : Irreducible H0) t =
+        (0 : BCIKS20AppendixA.𝕃 H0) :=
+    alpha'_eq_zero_of_embedding_beta_eq_zero (F := F) x₀ R0 H0 t hβ
+  simpa [R0, H0] using hα
+
+theorem approximate_solution_is_exact_solution_coeffs_ge_DX {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∀ t, t ≥ k → t ≥ ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n →
+    BCIKS20AppendixA.ClaimA2.α' (F := F)
+      x₀
+      (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      t
+    = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+  classical
+  intro t htk htDX
+  have htail := approximate_solution_is_exact_solution_coeffs_tail (F := F)
+    (n := n) (m := m) (k := k) (δ := δ) (x₀ := x₀)
+    (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs
+    (approximate_solution_is_exact_solution_coeffs_lt_DX (F := F)
+      (n := n) (m := m) (k := k) (δ := δ) (x₀ := x₀)
+      (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs)
+  exact htail t htk
+
+theorem approximate_solution_is_exact_solution_coeffs {F : Type} [Field F] [DecidableEq F] [DecidableEq (RatFunc F)]
+  {n m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F}
+  {u₀ u₁ : Fin n → F} {Q : Polynomial (Polynomial (Polynomial F))} {ωs : Fin n ↪ F} [Finite F]
+  (h_gs : ProximityGap.ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∀ t ≥ k,
+    BCIKS20AppendixA.ClaimA2.α' (F := F)
+      x₀
+      (ProximityGap.R (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      (ProximityGap.irreducible_H (k := k) (δ := δ) (x₀ := x₀) h_gs)
+      t
+    = (0 : BCIKS20AppendixA.𝕃 (ProximityGap.H (k := k) (δ := δ) (x₀ := x₀) h_gs)) := by
+  intro t ht
+  by_cases hlt :
+      t < ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n
+  ·
+    exact
+      approximate_solution_is_exact_solution_coeffs_lt_DX (F := F) (n := n) (m := m) k (δ := δ)
+        (x₀ := x₀) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs t ht hlt
+  ·
+    have hge :
+        t ≥ ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n := by
+      exact
+        le_of_not_gt
+          (a := ProximityGap.proximity_gap_degree_bound ((k + 1 : ℚ) / n) m n)
+          (b := t) (by
+            simpa using hlt)
+    exact
+      approximate_solution_is_exact_solution_coeffs_ge_DX (F := F) (n := n) (m := m) k (δ := δ)
+        (x₀ := x₀) (u₀ := u₀) (u₁ := u₁) (Q := Q) (ωs := ωs) h_gs t ht hge
+
 
 open BCIKS20AppendixA.ClaimA2 in
 /-- The claim 5.8 from [BCIKS20].
