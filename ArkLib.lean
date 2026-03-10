@@ -177,6 +177,7 @@ import ArkLib.ToMathlib.Data.IndexedBinaryTree.Basic
 import ArkLib.ToMathlib.Data.IndexedBinaryTree.Equiv
 import ArkLib.ToMathlib.Data.IndexedBinaryTree.Lemmas
 import ArkLib.ToMathlib.Finset.Basic
+import ArkLib.ToMathlib.MvPolynomial.Equiv
 import ArkLib.ToMathlib.List.Basic
 import ArkLib.ToVCVio.DistEq
 import ArkLib.ToVCVio.Lemmas
