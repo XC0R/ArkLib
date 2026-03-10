@@ -80,6 +80,7 @@ open RatFunc
 -/
 noncomputable def D_X (rho : ℚ) (n m : ℕ) : ℝ := (m + 1/2) * (Real.sqrt rho) * n
 
+omit [DecidableEq (RatFunc F)] in
 /-- The first part of lemma 5.3 from [BCIKS20].
     Given the D_X (`proximity_gap_degree_bound`) and δ₀ (`proximity_gap_johnson`),
     a solution to Guruswami-Sudan system exists.
@@ -89,6 +90,7 @@ lemma guruswami_sudan_for_proximity_gap_existence {k m : ℕ} {ωs : Fin n ↪ F
   ∃ Q, Conditions (k + 1) m (_root_.proximity_gap_degree_bound (k + 1) n m) ωs f Q :=
   GuruswamiSudan.proximity_gap_existence (k + 1) n ωs f hm
 
+omit [DecidableEq (RatFunc F)] in
 open Polynomial in
 /-- The second part of lemma 5.3 from [BCIKS20].
     For any solution Q of the Guruswami-Sudan system, and for any
@@ -167,6 +169,7 @@ structure ModifiedGuruswami
   Q_D_YZ :
     D_YZ Q ≤ n * (m + 1/(2 : ℚ))^3 / (6 * Real.sqrt ((k + 1) / n))
 
+omit [DecidableEq (RatFunc F)] in
 /-- The claim 5.4 from [BCIKS20].
     It essentially claims that there exists
     a soultion to the Guruswami-Sudan constraints above.
@@ -224,6 +227,7 @@ noncomputable def Pz
   F[X]
   := (exists_Pz_of_coeffs_of_close_proximity (n := n) (k := k) hS).choose
 
+omit [DecidableEq (RatFunc F)] in
 /-- Proposition 5.5 from [BCIKS20].
     There exists a subset `S'` of the set `S` and
     a bivariate polynomial `P(X, Z)` that matches
@@ -247,6 +251,7 @@ noncomputable def matching_set
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
   : Finset F := (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose
 
+omit [DecidableEq (RatFunc F)] in
 /-- `S'` is indeed a subset of `S` -/
 lemma matching_set_is_a_sub_of_coeffs_of_close_proximity
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)

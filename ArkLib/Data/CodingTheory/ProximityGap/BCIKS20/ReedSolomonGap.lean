@@ -16,7 +16,7 @@ open Code
 
 section CoreResults
 
-variable {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+variable {ι : Type} [Fintype ι] [Nonempty ι]
          {F : Type} [Field F] [Fintype F] [DecidableEq F]
 
 /-- Theorem 1.2 (Proximity Gaps for Reed-Solomon codes) in [BCIKS20].

@@ -35,6 +35,7 @@ noncomputable def errorBound (δ : ℝ≥0) (deg : ℕ) (domain : ι ↪ F) : �
   else
     0
 
+omit [DecidableEq ι] in
 theorem errorBound_eq_n_div_q_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
     (hδ : δ ≤ relativeUniqueDecodingRadius (ι := ι) (F := F) (C := ReedSolomon.code domain deg)) :
     errorBound δ deg domain = Fintype.card ι / Fintype.card F := by
@@ -50,10 +51,10 @@ theorem errorBound_eq_n_div_q_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ :
   have hSB : kdim ≤ n - d + 1 := by
     simpa [n, d, kdim] using (LinearCode.singleton_bound_linear (LC := C))
   have hdle : d ≤ n := by
-    simpa [d, n] using (Code.dist_le_card (C := (C : Set (ι → F))))
+    exact Code.dist_le_card (C := (C : Set (ι → F)))
   have hdistNat : d - 1 ≤ n - kdim := by
     omega
-
+  -- Compare the unique-decoding radius with the rate-based threshold.
   have hrel :
       relativeUniqueDecodingRadius (ι := ι) (F := F) (C := C) ≤
         ((1 - (↑(LinearCode.rate C) : ℝ≥0)) / 2) := by
@@ -63,16 +64,14 @@ theorem errorBound_eq_n_div_q_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ :
       simp [Code.relativeUniqueDecodingRadius, d, n]
     have hrate : (↑(LinearCode.rate C) : ℝ≥0) = (kdim : ℝ≥0) / (n : ℝ≥0) := by
       simp [LinearCode.rate, LinearCode.dim, LinearCode.length, kdim, n]
-
+    -- Cast the distance-gap inequality into `ℝ≥0`.
     have hdistNN : ((d : ℝ≥0) - 1) ≤ (n - kdim : ℝ≥0) := by
-      have hcast : (d - 1 : ℝ≥0) ≤ (n - kdim : ℝ≥0) := by
-        exact_mod_cast hdistNat
-      simpa [Nat.cast_tsub, Nat.cast_one] using hcast
-
+      exact_mod_cast hdistNat
+    -- The blocklength is positive because the index type is nonempty.
     have hn0 : (n : ℝ≥0) ≠ 0 := by
       apply Nat.cast_ne_zero.mpr
-      simpa [n] using (Fintype.card_ne_zero (α := ι))
-
+      exact Fintype.card_ne_zero (α := ι)
+    -- Rewrite the rate term using the codimension expression.
     have hR :
         ((1 : ℝ≥0) - (kdim : ℝ≥0) / (n : ℝ≥0)) / 2 =
           ((n - kdim : ℝ≥0) / 2) / (n : ℝ≥0) := by
@@ -83,16 +82,16 @@ theorem errorBound_eq_n_div_q_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ :
         _ = (((n : ℝ≥0) - (kdim : ℝ≥0)) / (n : ℝ≥0)) / 2 := by
               rw [← NNReal.sub_div (a := (n : ℝ≥0)) (b := (kdim : ℝ≥0)) (c := (n : ℝ≥0))]
         _ = ((n - kdim : ℝ≥0) / (n : ℝ≥0)) / 2 := by
-              simp [Nat.cast_tsub, Nat.cast_one]
+              simp
         _ = ((n - kdim : ℝ≥0) / 2) / (n : ℝ≥0) := by
-              simp [div_div, mul_comm, mul_left_comm, mul_assoc]
-
+              simp [div_div, mul_comm]
+    -- Substitute the distance and rate identities into the target bound.
     rw [hUDR, hrate, hR]
     gcongr
-
+  -- The assumed radius bound puts `δ` in the unique-decoding branch.
   have hmem : δ ∈ Set.Icc 0 ((1 - (↑(LinearCode.rate C) : ℝ≥0)) / 2) := by
     refine ⟨by simp, le_trans hδ hrel⟩
-
+  -- Evaluate `errorBound` on that branch.
   simp [errorBound, C, hmem]
 
 end CoreResults

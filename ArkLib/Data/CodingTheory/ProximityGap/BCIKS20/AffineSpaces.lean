@@ -58,13 +58,12 @@ theorem exists_of_weighted_avg_gt {α : Type} (p : PMF α) (f : α → ENNReal) 
     exact le_of_not_gt this
   have hmul : ∀ a, p a * f a ≤ p a * ε := by
     intro a
-    exact mul_le_mul_of_nonneg_left (hle a) (by simpa using (zero_le (p a)))
+    exact mul_le_mul_of_nonneg_left (hle a) (zero_le (p a))
   have htsum : (∑' a, p a * f a) ≤ ∑' a, p a * ε := by
     exact ENNReal.tsum_le_tsum hmul
   have htsum' : (∑' a, p a * f a) ≤ ε := by
     refine le_trans htsum ?_
-    simpa [ENNReal.tsum_mul_right, p.tsum_coe] using
-      (le_rfl : (∑' a, p a * ε) ≤ (∑' a, p a * ε))
+    simp [ENNReal.tsum_mul_right, p.tsum_coe]
   exact (not_lt_of_ge htsum') hgt
 
 theorem jointAgreement_implies_second_proximity {ι : Type} [Fintype ι] [Nonempty ι]
@@ -99,7 +98,7 @@ theorem jointAgreement_implies_second_proximity {ι : Type} [Fintype ι] [Nonemp
     (Code.relCloseToCode_iff_relCloseToCodeword_of_minDist (u := W 1) (C := C) (δ := δ)).2 hclose
 
 theorem prob_uniform_congr_equiv {α : Type} [Fintype α] [Nonempty α]
-    (e : α ≃ α) (P : α → Prop) [DecidablePred P] :
+    (e : α ≃ α) (P : α → Prop) :
     Pr_{let x ←$ᵖ α}[P (e x)] = Pr_{let x ←$ᵖ α}[P x] := by
   classical
   rw [prob_uniform_eq_card_filter_div_card (F := α) (P := fun x => P (e x))]
@@ -118,12 +117,12 @@ theorem prob_uniform_congr_equiv {α : Type} [Fintype α] [Nonempty α]
     · intro b hb
       refine ⟨e.symm b, ?_, ?_⟩
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hb
-        simpa [Finset.mem_filter, hb]
+        simp [Finset.mem_filter, hb]
       · simp
   simp [hcard]
 
-theorem prob_uniform_shift_invariant {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
-    {F : Type} [Field F] [Fintype F] [DecidableEq F]
+theorem prob_uniform_shift_invariant {ι : Type} [Fintype ι] [Nonempty ι]
+    {F : Type} [Field F] [DecidableEq F]
     {U : Finset (ι → F)} [Nonempty U]
     (dir : ι → F)
     (hshift : ∀ a ∈ (U : Finset (ι → F)), ∀ z : F, a + z • dir ∈ (U : Finset (ι → F)))
@@ -140,18 +139,17 @@ theorem prob_uniform_shift_invariant {ι : Type} [Fintype ι] [Nonempty ι] [Dec
         intro a
         apply Subtype.ext
         ext i
-        simp [add_assoc, add_left_comm, add_comm, add_smul]
+        simp [add_left_comm, add_comm]
       right_inv := by
         intro a
         apply Subtype.ext
         ext i
-        simp [add_assoc, add_left_comm, add_comm, add_smul] }
+        simp [add_comm] }
   simpa [shiftEquiv] using
     (prob_uniform_congr_equiv (α := (U : Type)) (e := shiftEquiv)
       (P := fun a : (U : Type) => δᵣ(a.1, V) ≤ δ))
 
 theorem exists_basepoint_with_large_line_prob_aux {ι : Type} [Fintype ι] [Nonempty ι]
-    [DecidableEq ι]
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     {U : Finset (ι → F)} [Nonempty U]
     (dir : ι → F)
@@ -164,14 +162,14 @@ theorem exists_basepoint_with_large_line_prob_aux {ι : Type} [Fintype ι] [None
   let good : (ι → F) → Prop := fun w => δᵣ(w, V) ≤ δ
   let lineProb (a : U) : ENNReal := Pr_{let z ←$ᵖ F}[good (a.1 + z • dir)]
   let P2 : ENNReal := Pr_{let a ←$ᵖ U; let z ←$ᵖ F}[good (a.1 + z • dir)]
-
+  -- Expand the joint probability as an average over basepoints.
   have hP2 : P2 = ∑' a : U, ($ᵖ U) a * lineProb a := by
     simpa [P2, lineProb] using
       (prob_tsum_form_split_first (D := ($ᵖ U))
         (D_rest := fun a : U => (do
           let z ← $ᵖ F
           return good (a.1 + z • dir))))
-
+  -- Swap the order of sampling the basepoint and line parameter.
   have hswap :
       (do
           let a ← $ᵖ U
@@ -183,11 +181,11 @@ theorem exists_basepoint_with_large_line_prob_aux {ι : Type} [Fintype ι] [None
           return good (a.1 + z • dir) : PMF Prop) := by
     simpa [Bind.bind, PMF.bind] using
       (PMF.bind_comm ($ᵖ U) ($ᵖ F) (fun a z => (pure (good (a.1 + z • dir)) : PMF Prop)))
-
+  -- Turn the swapped bind identity into an equality of probabilities.
   have hP2_swap : P2 = Pr_{let z ←$ᵖ F; let a ←$ᵖ U}[good (a.1 + z • dir)] := by
     have hswap' := congrArg (fun p : PMF Prop => (p True : ENNReal)) hswap
     simpa [P2] using hswap'
-
+  -- Reduce the shifted average back to the original uniform probability.
   have hP2_eq : P2 = Pr_{let u ←$ᵖ U}[good u.1] := by
     rw [hP2_swap]
     have hsplit :
@@ -214,18 +212,18 @@ theorem exists_basepoint_with_large_line_prob_aux {ι : Type} [Fintype ι] [None
       exact hconst z
     rw [this]
     simp only [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-
+  -- Rewrite the original hypothesis as a lower bound on `P2`.
   have hP2_gt : P2 > ε := by
     simpa [hP2_eq] using hprob
-
+  -- Rewrite that lower bound using the weighted-sum formula for `P2`.
   have hsum_gt : (∑' a : U, ($ᵖ U) a * lineProb a) > ε := by
     simpa [hP2] using hP2_gt
-
+  -- Choose a basepoint whose line probability exceeds the threshold.
   rcases exists_of_weighted_avg_gt ($ᵖ U) lineProb (ε : ENNReal) hsum_gt with ⟨a, ha⟩
   refine ⟨a, ?_⟩
   simpa [lineProb] using ha
 
-theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty ι]
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     {U'_sub : Submodule F (ι → F)} {u0 dir : ι → F} (hdir : dir ∈ U'_sub)
     {V : Set (ι → F)} {δ ε : ℝ≥0} :
@@ -237,8 +235,9 @@ theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty
       refine ⟨u0, ?_⟩
       refine Finset.mem_image.2 ?_
       refine ⟨0, ?_, by simp⟩
-      simpa [U', Set.mem_toFinset] using
-        (show (0 : ι → F) ∈ (U'_sub : Set (ι → F)) from U'_sub.zero_mem)
+      change (0 : ι → F) ∈ ((U'_sub : Set (ι → F)).toFinset)
+      rw [Set.mem_toFinset]
+      exact U'_sub.zero_mem
     Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε →
       ∃ a : U, Pr_{let z ←$ᵖ F}[δᵣ(a.1 + z • dir, V) ≤ δ] > ε := by
   classical
@@ -250,8 +249,9 @@ theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty
     refine ⟨u0, ?_⟩
     refine Finset.mem_image.2 ?_
     refine ⟨0, ?_, by simp⟩
-    simpa [U', Set.mem_toFinset] using
-      (show (0 : ι → F) ∈ (U'_sub : Set (ι → F)) from U'_sub.zero_mem)
+    change (0 : ι → F) ∈ ((U'_sub : Set (ι → F)).toFinset)
+    rw [Set.mem_toFinset]
+    exact U'_sub.zero_mem
   intro hprob
   have hshift : ∀ a ∈ (U : Finset (ι → F)), ∀ z : F, a + z • dir ∈ (U : Finset (ι → F)) := by
     intro a ha z
@@ -263,13 +263,14 @@ theorem exists_basepoint_with_large_line_prob {ι : Type} [Fintype ι] [Nonempty
       have hxzsub : x + z • dir ∈ U'_sub := by
         exact U'_sub.add_mem hxsub (U'_sub.smul_mem z hdir)
       simpa [U', Set.mem_toFinset] using hxzsub
-    · simpa [add_assoc]
+    · simp [add_assoc]
   have :=
     exists_basepoint_with_large_line_prob_aux (U := U) (dir := dir) hshift
       (V := V) (δ := δ) (ε := ε)
   simpa [U, U'] using (this (by simpa [U, U'] using hprob))
 
-theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] [DecidableEq F]
+omit [NeZero l] in
+theorem average_proximity_implies_proximity_of_linear_subspace
     {u : Fin (l + 2) → ι → F} {k : ℕ} {domain : ι ↪ F} {δ : ℝ≥0}
     (hδ : δ ∈ Set.Ioo 0 (1 - ReedSolomonCode.sqrtRate (k + 1) domain)) :
     letI U'_submodule : Submodule F (ι → F) :=
@@ -282,8 +283,9 @@ theorem average_proximity_implies_proximity_of_linear_subspace [DecidableEq ι] 
       refine ⟨u 0, ?_⟩
       refine Finset.mem_image.2 ?_
       refine ⟨0, ?_, by simp⟩
-      simpa [U', Set.mem_toFinset] using
-        (show (0 : ι → F) ∈ (U'_submodule : Set (ι → F)) from U'_submodule.zero_mem)
+      change (0 : ι → F) ∈ ((U'_submodule : Set (ι → F)).toFinset)
+      rw [Set.mem_toFinset]
+      exact U'_submodule.zero_mem
     letI ε : ℝ≥0 := ProximityGap.errorBound δ (k + 1) domain
     letI V := ReedSolomon.code domain (k + 1)
     Pr_{let u ←$ᵖ U}[δᵣ(u.1, V) ≤ δ] > ε → ∀ u' ∈ U', δᵣ(u', V) ≤ δ := by
