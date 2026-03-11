@@ -1092,8 +1092,8 @@ lemma R_star_star_upper_bound
   -- 3. The card of R_ss is the sum of the cards of the disjoint partition.
   have h_card_split : R_ss.card = R_ss_notin_D.card + R_ss_in_D.card := by
     rw [← Finset.card_union_of_disjoint]
-    congr
-    · exact R_star_star_eq_union MC U₀ U₁ V₀ V₁ e D
+    · congr
+      exact R_star_star_eq_union MC U₀ U₁ V₀ V₁ e D
     · exact Disjoint.symm (disjoint_R_star_star_filter_columns_in_D_not_in_D MC U₀ U₁ V₀ V₁ e D)
   simp only [ge_iff_le]
   -- 4. Apply the split
@@ -1435,13 +1435,15 @@ def multilinearCombine_affineComb_split_last_close {ϑ : ℕ}
       (affineLineEvaluation U₀ U₁ r_last) r_init, ↑MC) ≤ (e : ℕ∞)
 
 omit [Nonempty ι] [NoZeroDivisors F] [Fintype A] [Module.Free F A] [Nontrivial ↥MC]
-  [DecidableEq ι] in
+  [DecidableEq ι] [DecidableEq F] in
 open Classical in
 lemma prob_R_star_gt_threshold
   {ϑ : ℕ}
   (u : WordStack A (Fin (2 ^ (ϑ + 1))) ι) (e : ℕ)
   (hP_multilinearCombine_affine_close_gt :
-    Pr_{ let r_last ← $ᵖ F; let r_init ← $ᵖ (Fin (ϑ) → F)}[multilinearCombine_affineComb_split_last_close (MC := MC) (u := u) (e := e) r_last r_init]
+    Pr_{ let r_last ← $ᵖ F;
+         let r_init ← $ᵖ (Fin (ϑ) → F)}[multilinearCombine_affineComb_split_last_close
+      (MC := MC) (u := u) (e := e) r_last r_init]
     > (((Nat.cast (R := ℝ≥0) (ϑ + 1)) * ε : ℝ≥0) / ((Fintype.card F : ℝ≥0) : ℝ≥0))) :
     let U₀ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).1
     let U₁ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).2
