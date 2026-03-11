@@ -186,7 +186,10 @@ theorem correctness (hpG1 : Nat.card G₁ = p) (n : ℕ) (a : ZMod p)
     ext x : 1
     simp only [Function.comp_apply, coeff]
     rw [Raw.Trim.coeff_eq_coeff]
-    simp [Raw.coeff]
+    simp only [Raw.coeff, Raw.mk]
+    have : ↑x < (Array.ofFn coeffs).size := by simp; omega
+    simp [Array.getD]
+    omega
 
   -- the (mathematical) degree of poly is at most n
   have hpdeg : degree poly ≤ n := by

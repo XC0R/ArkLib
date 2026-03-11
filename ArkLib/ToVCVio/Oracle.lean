@@ -285,7 +285,6 @@ instance instSampleableTypeZMod' (p : ℕ) : SampleableType (ZMod (p + 1)) where
   probOutput_selectElem_eq x y := by
     change Pr[= x | $[0..p]] = Pr[= y | $[0..p]]
     simp
-  probFailure_selectElem := by simp
 
 /-- `ZMod p` is selectable when `p > 0`, by rewriting as `ZMod ((p - 1) + 1)`. -/
 instance instSampleableTypeZMod (p : ℕ) [Fact (0 < p)] : SampleableType (ZMod p) := by
