@@ -1,14 +1,35 @@
 /-
 Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Katerina Hristova, František Silváši, Julian Sutherland
+Authors: Katerina Hristova, František Silváši, Julian Sutherland, Chung Thai Nguyen
 -/
 
 import Mathlib.Algebra.Lie.OfAssociative
-import Mathlib.Data.Matrix.Rank
+import Mathlib.LinearAlgebra.Matrix.Rank
 import Mathlib.LinearAlgebra.AffineSpace.Pointwise
 
+section TensorCombination
+variable {F : Type*} [CommRing F] [Fintype F] [DecidableEq F]
+variable {A : Type*} [AddCommMonoid A] [Module F A]
+/--
+The tensor product weight `⊗_{i=0}^{ϑ-1}(1 - rᵢ, rᵢ)` for a specific index `i` given randomness `r`.
+Corresponds to `eq(i, r)` in multilinear polynomial literature.
+-/
+def multilinearWeight {ϑ : ℕ} (r : Fin ϑ → F) (i : Fin (2 ^ ϑ)) : F :=
+  ∏ j : Fin ϑ,
+    if i.val.testBit j.val then (r j) else (1 - r j)
 
+/-- Linear combination of the rows of `u` according to the tensor product of `r`:
+`[tensor_product r i] ·|u₀|`
+                      `|u₁|`
+                      `|⋮|`
+                      `|u_{2^ϑ-1}|`
+= `∑_{i=0}^{2^ϑ-1} (multilinearWeight r i) • u_i` -/
+def multilinearCombine {ϑ : ℕ} {ι : Type*}
+    (u : (Fin (2 ^ ϑ)) → ι → A) (r : Fin ϑ → F) : (ι → A) :=
+  fun colIdx => ∑ rowIdx : Fin (2^ϑ), ((multilinearWeight r rowIdx) : F) • ((u rowIdx colIdx) : A)
+notation:20 r " |⨂| " u => multilinearCombine (u := u) (r := r)
+end TensorCombination
 noncomputable section
 
 variable {F : Type*}
@@ -77,7 +98,7 @@ lemma cRank_rank_conversion :
   ]
   calc U.cRank ≤ ↑(Fintype.card (Fin n)) := by exact Matrix.cRank_le_card_width U
          _ = ↑n := by rw[Fintype.card_fin]
-  exact Cardinal.nat_lt_aleph0 n
+  exact Cardinal.natCast_lt_aleph0
 
 /-- An m×n matrix has full rank if the submatrix consisting of columns 1 through m has rank m. -/
 lemma full_row_rank_via_rank_subLeftFull (h : m ≤ n) :
@@ -155,16 +176,42 @@ end
 namespace Affine
 section
 variable {ι : Type*} [Fintype ι]
-         {F : Type*}
+         {F A : Type*}
          {k : ℕ}
 
-/-- Affine line between two vectors with coefficients in a semiring. -/
-def line [Ring F] (u v : ι → F) : AffineSubspace F (ι → F) :=
-  affineSpan _ {u, v}
+/-- Affine line at origin `u`: `{u + α • v : α ∈ F}`, the line through `u` with direction `v`.
+This definition is used in **Theorems 1.4, 4.1, 5.1, [BCIKS20]** and **Lemma 4.4, [AHIV22]**. -/
+@[reducible]
+def affineLineAtOrigin [Ring F] [AddCommGroup A] [Module F A] (origin direction : ι → A) :
+    AffineSubspace F (ι → A) :=
+    AffineSubspace.mk' (p := origin) (direction := Submodule.span F {direction})
 
-variable [DecidableEq F]
+omit [Fintype ι] in
+lemma mem_affineLineAtOrigin_iff [Ring F] [AddCommGroup A] [Module F A] (origin direction : ι → A)
+    (x : ι → A) : x ∈ affineLineAtOrigin (F := F) (origin := origin) (direction := direction)
+    ↔ ∃ α : F, x = origin + α • direction := by
+  rw [affineLineAtOrigin, AffineSubspace.mem_mk', vsub_eq_sub, Submodule.mem_span_singleton]
+  simp only [eq_sub_iff_add_eq, add_comm, eq_comm]
 
-variable [Field F] [Fintype F]
+variable [DecidableEq F] [Ring F] [Fintype F]
+
+/-- **Affine subspace from base origin and direction generators**.
+Constructs the affine subspace `{origin + span{directions}}`.
+Used in **Theorem 1.6, [BCIKS20]**. -/
+@[reducible]
+def affineSubspaceAtOrigin [AddCommGroup A] [DecidableEq A] [Module F A]
+    (origin : ι → A) (directions : Fin k → ι → A) : AffineSubspace F (ι → A) :=
+  AffineSubspace.mk' (p := origin) (direction := Submodule.span F (Finset.univ.image directions))
+
+omit [DecidableEq F] [Ring F] [Fintype F] in
+lemma mem_affineSubspaceFrom_iff [Ring F] [AddCommGroup A] [DecidableEq A] [Module F A]
+    (origin : ι → A) (directions : Fin k → ι → A) (x : ι → A) :
+    x ∈ affineSubspaceAtOrigin (F := F) (A := A) origin directions ↔
+    ∃ β : Fin k → F, x = origin + ∑ i : Fin k, β i • directions i := by
+  rw [affineSubspaceAtOrigin, AffineSubspace.mem_mk']
+  rw [Finset.coe_image, Finset.coe_univ, Set.image_univ]
+  rw [Submodule.mem_span_range_iff_exists_fun]
+  conv_lhs => rw [vsub_eq_sub]; simp only [eq_sub_iff_add_eq]; simp only [add_comm, eq_comm]
 
 /-- Vector addition action on affine subspaces. -/
 instance : VAdd (ι → F) (AffineSubspace F (ι → F)) := AffineSubspace.pointwiseVAdd
@@ -196,10 +243,15 @@ noncomputable instance {v : ι → F} {s : AffineSubspace F (ι → F)} [inst : 
 abbrev AffSpanSet [NeZero k] (U : Fin k → ι → F) : Set (ι → F) :=
   (affineSpan F (Finset.univ.image U : Set (ι → F))).carrier
 
+omit [Fintype F] in
 /-- The affine span of a finite set of vectors is finite over a finite field. -/
-instance AffSpanSet.instFinite [NeZero k] (u : Fin k → ι → F) : (AffSpanSet u).Finite := by
+lemma AffSpanSet.instFinite [Finite F] [NeZero k] (u : Fin k → ι → F) :
+    (AffSpanSet u).Finite := by
+  letI : Fintype F := Fintype.ofFinite F
   unfold AffSpanSet
   exact Set.toFinite _
+
+attribute [instance] AffSpanSet.instFinite
 
 /-- The affine span as a `Finset`, using `AffSpanFinite` to convert from the set. -/
 noncomputable def AffSpanFinset [NeZero k] (U : Fin k → ι → F) : Finset (ι → F) :=
@@ -211,10 +263,19 @@ noncomputable def AffSpanFinsetCollection {t : ℕ} [NeZero k] [NeZero t]
   Set.range (fun i => AffSpanFinset (C i))
 
 /-- The carrier set of a nonempty finset is nonempty. -/
-instance {α : Type*} {s : Finset α} [inst : Nonempty s] : Nonempty (s.toSet) := by
-    rcases inst with ⟨w, h⟩
-    refine nonempty_subtype.mpr ?_
-    exists w
+instance {α : Type*} {s : Finset α} [inst : Nonempty s] : Nonempty ((s : Set α)) := by
+  rcases inst with ⟨w, h⟩
+  refine nonempty_subtype.mpr ?_
+  exact ⟨w, h⟩
+
+/-- Affine subspace carriers are Fintype when the ambient space is Fintype -/
+noncomputable instance instFintypeAffineSubspace {V : Type*} [AddCommGroup V]
+    [Module F V] [Fintype V] (S : AffineSubspace F V) : Fintype S := Fintype.ofFinite S
+
+/-- Affine subspaces constructed with mk' are always nonempty -/
+instance instNonemptyAffineSubspace_mk' {V : Type*} [AddCommGroup V] [Module F V]
+    (p : V) (direction : Submodule F V) : Nonempty (AffineSubspace.mk' p direction) :=
+  nonempty_subtype.mpr ⟨p, AffineSubspace.self_mem_mk' p direction⟩
 
 end
 end Affine
@@ -223,41 +284,51 @@ namespace Curve
 
 section
 
+variable {ι : Type*}
+         {F A : Type*} [Semiring F]
+         [AddCommMonoid A] [Module F A]
+
+/-- Evaluate the polynomial curve generated by `u` at parameter `r`. -/
+@[reducible]
+def polynomialCurveEval {k : ℕ} (u : Fin k → ι → A) (r : F) : ι → A :=
+  ∑ i : Fin k, (r ^ (i : ℕ)) • u i
+
+end
+
+section
+
 open Finset
+variable {ι : Type*} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+         -- For usage with linear code, we set A = F
+         {F A : Type*} [Semiring F] [Fintype F]
+         [AddCommMonoid A] [Module F A] [Fintype A] [DecidableEq A]
 
-variable {ι : Type*} [Fintype ι] [Nonempty ι]
-         {F : Type*}
+/-- **(Parameterised) polynomial curve, Thm 1.5, [BCIKS20]**:
+Let `u := {u₀, ..., u_{k-1}}` be a collection of vectors with coefficients in a semiring.
+The polynomial curve of degree `k-1` generated by `u` is the set of linear
+combinations of the form `{∑ i ∈ k, r ^ i • u_i | r ∈ F}`. -/
+@[reducible]
+def polynomialCurve {k : ℕ} (u : Fin k → ι → A) : Set (ι → A)
+  := {v | ∃ r : F, v = polynomialCurveEval u r}
 
-/-- Let `u := {u_1, ..., u_l}` be a collection of vectors with coefficients in a semiring.
-  The parameterised curve of degree `l` generated by `u` is the set of linear combinations of the
-  form `{∑ i ∈ l r ^ i • u_i | r ∈ F}`. -/
-def parametrisedCurve {l : ℕ} [Semiring F] (u : Fin l → ι → F) : Set (ι → F)
-  := {v | ∃ r : F, v = ∑ i : Fin l, (r ^ (i : ℕ)) • u i}
-
-/-- A parametrised curve over a finite field, as a `Finset`. Requires `DecidableEq ι` and
+/-- A polynomial curve over a finite field, as a `Finset`. Requires `DecidableEq ι` and
   `DecidableEq F` to be able to construct the `Finset`. -/
-def parametrisedCurveFinite [DecidableEq ι] [Fintype F] [DecidableEq F] [Semiring F]
-  {l : ℕ} (u : Fin l → ι → F) : Finset (ι → F) :=
-  {v | ∃ r : F, v = ∑ i : Fin l, (r ^ (i : ℕ)) • u i}
+def polynomialCurveFinite
+  {k : ℕ} (u : Fin k → ι → A) : Finset (ι → A) :=
+  {v | ∃ r : F, v = polynomialCurveEval u r}
 
-/-- A parametrised curve over a nonempty finite field contains at least one point. -/
-instance [Fintype F] [Nonempty F] [Semiring F] [DecidableEq ι] [DecidableEq F] {l : ℕ} :
-  ∀ u : Fin l → ι → F, Nonempty {x // x ∈ parametrisedCurveFinite u } := by
+/-- A polynomial curve over a nonempty finite field contains at least one point. -/
+instance [Nonempty F] {k : ℕ} :
+  ∀ u : Fin k → ι → A, Nonempty {x // x ∈ polynomialCurveFinite (F := F) u } := by
   intro u
-  unfold parametrisedCurveFinite
+  unfold polynomialCurveFinite
   simp only [mem_filter, mem_univ, true_and, nonempty_subtype]
   have ⟨r⟩ := ‹Nonempty F›
-  use ∑ i : Fin l, r ^ (i : ℕ) • u i, r
+  use ∑ i : Fin k, r ^ (i : ℕ) • u i, r
 
 open Finset
-
-variable {ι : Type*} [Fintype ι] [Nonempty ι]
-         {F : Type*}
-
-instance [Fintype F] [Nonempty F] [Semiring F] [DecidableEq ι] [DecidableEq F] {l : ℕ}
-  {u : Fin l → ι → F} : Nonempty {x // x ∈ parametrisedCurveFinite u} := by
-  simp [parametrisedCurveFinite]
-  use ∑ i : Fin l, Classical.arbitrary F ^ (i : ℕ) • u i, Classical.arbitrary F
+instance {k : ℕ} {u : Fin k → ι → A} : Nonempty {x // x ∈ polynomialCurveFinite (F := F) u} := by
+  simp [polynomialCurveFinite]
 
 end
 end Curve
@@ -276,11 +347,7 @@ lemma sInf_UB_of_le_UB {S : Set ℕ} {i : ℕ} : (∀ s ∈ S, s ≤ i) → sInf
 /-- If `i` is a lower bound for all elements in a nonempty set, then `i` is at most the infimum. -/
 lemma le_sInf_of_LB {S : Set ℕ} (hne : S.Nonempty) {i : ℕ}
     (hLB : ∀ s ∈ S, i ≤ s) : i ≤ sInf S := by
-  rw [Nat.sInf_def hne]
-  contrapose hLB
-  simp at hLB ⊢
-  rcases hLB with ⟨s, hsS, hsle⟩
-  exact ⟨s, hsle, hsS⟩
+  exact hLB (sInf S) (Nat.sInf_mem hne)
 
 end sInf
 
@@ -300,13 +367,25 @@ variable {α : Type*} [DecidableEq α] {s : Finset α}
 theorem card_filter_prod_self_eq :
   #({x ∈ s ×ˢ s | x.1 = x.2}) = #s := by
   rw [Finset.card_eq_of_equiv]
-  simp
-  exact ⟨
-    fun ⟨x, _⟩ ↦ ⟨x.1, by tauto⟩,
-    fun ⟨x, hx⟩ ↦ ⟨(x, x), by tauto⟩,
-    by simp [Function.LeftInverse],
-    by simp [Function.LeftInverse, Function.RightInverse]
-  ⟩
+  exact
+    { toFun := fun ⟨⟨x, y⟩, hxy⟩ ↦
+        ⟨x, by
+          have hxy' : (x ∈ s ∧ y ∈ s) ∧ x = y := by
+            simpa only [Finset.mem_filter, Finset.mem_product] using hxy
+          exact hxy'.1.1⟩
+      invFun := fun ⟨x, hx⟩ ↦
+        ⟨⟨x, x⟩, by
+          simpa only [Finset.mem_filter, Finset.mem_product] using
+            (show (x ∈ s ∧ x ∈ s) ∧ x = x from ⟨⟨hx, hx⟩, rfl⟩)⟩
+      left_inv := by
+        intro ⟨⟨x, y⟩, hxy⟩
+        have hxy' : (x ∈ s ∧ y ∈ s) ∧ x = y := by
+          simpa only [Finset.mem_filter, Finset.mem_product] using hxy
+        rcases hxy' with ⟨_, rfl⟩
+        rfl
+      right_inv := by
+        intro ⟨x, hx⟩
+        rfl }
 
 variable [Fintype α]
 
@@ -325,13 +404,28 @@ theorem card_univ_filter_eq {e : α} :
 theorem card_prod_self_eq :
   #(((s ×ˢ s : Finset _) ∩ ({x : α × α | x.1 = x.2} : Finset _)) : Finset _) = #s := by
   rw [Finset.card_eq_of_equiv]
-  simp
-  exact ⟨
-    fun ⟨⟨x, _⟩, hx⟩ ↦ ⟨x, by tauto⟩,
-    (fun ⟨x, _⟩ ↦ by use ⟨x, x⟩),
-    by simp [Function.LeftInverse],
-    by simp [Function.RightInverse, Function.LeftInverse]
-  ⟩
+  exact
+    { toFun := fun ⟨⟨x, y⟩, hxy⟩ ↦
+        ⟨x, by
+          have hxy' : (x ∈ s ∧ y ∈ s) ∧ x = y := by
+            simpa only [Finset.mem_inter, Finset.mem_product, Finset.mem_filter,
+              Finset.mem_univ, true_and] using hxy
+          exact hxy'.1.1⟩
+      invFun := fun ⟨x, hx⟩ ↦
+        ⟨⟨x, x⟩, by
+          simpa only [Finset.mem_inter, Finset.mem_product, Finset.mem_filter,
+            Finset.mem_univ, true_and] using
+            (show (x ∈ s ∧ x ∈ s) ∧ x = x from ⟨⟨hx, hx⟩, rfl⟩)⟩
+      left_inv := by
+        intro ⟨⟨x, y⟩, hxy⟩
+        have hxy' : (x ∈ s ∧ y ∈ s) ∧ x = y := by
+          simpa only [Finset.mem_inter, Finset.mem_product, Finset.mem_filter,
+            Finset.mem_univ, true_and] using hxy
+        rcases hxy' with ⟨_, rfl⟩
+        rfl
+      right_inv := by
+        intro ⟨x, hx⟩
+        rfl }
 
 end
 

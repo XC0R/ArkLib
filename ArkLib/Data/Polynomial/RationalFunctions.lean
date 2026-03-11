@@ -22,10 +22,10 @@ import Mathlib.RingTheory.PowerSeries.Substitution
 
   We define the notions of Appendix A of [BCIKS20].
 
-  [BCIKS20] refers to the paper "Proximity Gaps for Reed-Solomon Codes" by Eli Ben-Sasson,
-  Dan Carmon, Yuval Ishai, Swastik Kopparty, and Shubhangi Saraf.
+  ## References
 
-
+  * [Ben-Sasson, E., Carmon, D., Ishai, Y., Kopparty, S., and Saraf, S.,
+      *Proximity Gaps for Reed-Solomon Codes*][BCIKS20]
 
   ## Main Definitions
 
@@ -36,7 +36,7 @@ open Polynomial.Bivariate
 open ToRatFunc
 open Ideal
 
-namespace AppendixA
+namespace BCIKS20AppendixA
 
 section
 
@@ -104,7 +104,14 @@ noncomputable instance {H : F[X][Y]} : Ring (𝒪 H) :=
 noncomputable def embeddingOf𝒪Into𝕃 (H : F[X][Y]) : 𝒪 H →+* 𝕃 H :=
   Ideal.quotientMap
         (I := Ideal.span {H_tilde' H}) (Ideal.span {H_tilde H})
-        bivPolyHom sorry
+        bivPolyHom (by
+          rw [Ideal.span_le]
+          intro x hx
+          rw [Set.mem_singleton_iff] at hx; subst hx
+          change bivPolyHom (H_tilde' H) ∈ span {H_tilde H}
+          rw [show bivPolyHom (H_tilde' H) = (H_tilde' H).map univPolyHom from rfl,
+              H_tilde_equiv_H_tilde']
+          exact Ideal.subset_span rfl)
 
 /-- The set of regular elements inside `𝕃 H`, i.e. the set of elements of `𝕃 H`
 that in fact lie in `𝒪 H`. -/
@@ -130,7 +137,13 @@ noncomputable def π_z_lift {H : F[X][Y]} (z : F) (root : rationalRoot (H_tilde'
 /-- The rational substitution `π_z` from Appendix A.3 of [BCIKS20] is a well-defined map on the
 quotient ring `𝒪`. -/
 noncomputable def π_z {H : F[X][Y]} (z : F) (root : rationalRoot (H_tilde' H) z) : 𝒪 H →+* F :=
-  Ideal.Quotient.lift (Ideal.span {H_tilde' H}) (π_z_lift z root) sorry
+  Ideal.Quotient.lift (Ideal.span {H_tilde' H}) (π_z_lift z root) (by
+    intro a ha
+    rw [Ideal.mem_span_singleton] at ha
+    obtain ⟨c, rfl⟩ := ha
+    simp only [π_z_lift, map_mul]
+    rw [show (Polynomial.evalEvalRingHom z root.1) (H_tilde' H) = 0 from root.2]
+    ring)
 
 /-- The canonical representative of an element of `F[X][Y]` inside
 the ring of regular elements `𝒪`. -/
@@ -261,4 +274,4 @@ def γ' (x₀ : F) (R : F[X][X][Y]) (H_irreducible : Irreducible H) : PowerSerie
 
 end ClaimA2
 end
-end AppendixA
+end BCIKS20AppendixA

@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 
-import ArkLib.Data.FieldTheory.NonBinaryField.KoalaBear
-import ArkLib.Data.Vector.Basic
+import CompPoly.Fields.KoalaBear
+import CompPoly.Data.Vector.Basic
 
 /-!
   # Poseidon2 Reference Implementation
@@ -17,11 +17,10 @@ import ArkLib.Data.Vector.Basic
 
   ## References
 
-  - Poseidon2: [Poseidon2: A Faster Version of the Poseidon Hash
-    Function](https://eprint.iacr.org/2023/323)
-
-  - Lean Ethereum spec:
-    https://github.com/leanEthereum/leanSpec/blob/main/src/lean_spec/subspecs/poseidon2
+  * [Grassi, L., Khovratovich, D., Rechberger, C., Roy, A., and Schofnegger, M.,
+      *Poseidon2: A Faster Version of the Poseidon Hash Function*][Poseidon2]
+  * See also the Lean Ethereum spec
+    <https://github.com/leanEthereum/leanSpec/blob/main/src/lean_spec/subspecs/poseidon2/>
 -/
 
 set_option linter.style.nativeDecide false

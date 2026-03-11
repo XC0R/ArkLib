@@ -15,9 +15,17 @@ import Mathlib.Probability.ProbabilityMassFunction.Basic
 import Mathlib.Probability.Distributions.Uniform
 import Mathlib.RingTheory.MvPolynomial.Groebner
 
-/-! Section 4.4, [ACFY24] -/
+/-! Section 4.4, [ACFY24stir]
 
-open Polynomial ReedSolomon LinearMap Finset ListDecodable STIR
+## References
+
+* [Arnon, G., Chiesa, A., Fenzi, G., and Yogev, E., *STIR: Reed-Solomon proximity testing
+    with fewer queries*][ACFY24stir]
+* [Sudan, M., *Reed-Solomon codes and polynomial reconstruction*][STIR2005]
+* [Ben-Sasson, E. and Sudan, M., *Short PCPs with polylog query complexity*][BSS08]
+-/
+
+open Polynomial NNReal ReedSolomon LinearMap Finset ListDecodable STIR
 
 namespace Domain
 
@@ -48,9 +56,8 @@ variable {F : Type*} [Field F] [Fintype F]
 
    This is MonomialOrder.div from Mathlib.RingTheory.MvPolynomial.Groebner
 
-   Using the usual lexicographic order x₀ > x₁ is equal to proposition 6.3 in
-   https://people.csail.mit.edu/madhu/papers/2005/rspcpp-full.pdf under the
-   substitution z = x₀ and y = x₁, hence the following definition constructs
+   Using the usual lexicographic order x₀ > x₁ is equal to proposition 6.3 in [BSS08]
+   under the substitution z = x₀ and y = x₁, hence the following definition constructs
    Q ∈ 𝔽[Z,Y] with P(z,y) = Q'(z,y) * R(z,y) + Q(z,y)
 
    Below we present Fact 4.6.1 from STIR -/
@@ -78,14 +85,31 @@ noncomputable def uni2bi (p : Polynomial F) : MvPolynomial (Fin 2) F :=
   Polynomial.eval₂ MvPolynomial.C (MvPolynomial.X 0) p
 
 /-- Computes Q(z,y) with P(z) = Q'(z,y) * (y- q(z)) + Q(z,y) as in
-    proposition 6.3 from https://people.csail.mit.edu/madhu/papers/2005/rspcpp-full.pdf -/
+    proposition 6.3 from [BSS08] -/
 noncomputable def polyQ (P q : Polynomial F) : MvPolynomial (Fin 2) F :=
   -- Pbi(z,y):= P(z)
   let Pbi : MvPolynomial (Fin 2) F := uni2bi P
   -- P'(z,y) := (y - q(z))
   let P' : MvPolynomial (Fin 2) F := (MvPolynomial.X 1) - uni2bi q
   -- proof that leading coefficient f q is not zero
-  have h_unit : IsUnit ((MonomialOrder.lex).leadingCoeff P') := sorry
+  have h_unit : IsUnit ((MonomialOrder.lex).leadingCoeff P') := by
+    apply IsUnit.mk0
+    rw [ne_eq, MonomialOrder.leadingCoeff_eq_zero_iff]
+    intro h
+    have h1 := sub_eq_zero.mp h
+    have h2 := congr_arg (MvPolynomial.coeff (Finsupp.single 1 1)) h1
+    simp only [uni2bi, MvPolynomial.coeff_X] at h2
+    suffices ∀ r : Polynomial F, MvPolynomial.coeff (Finsupp.single 1 1)
+        (Polynomial.eval₂ (MvPolynomial.C (σ := Fin 2)) (MvPolynomial.X 0) r) = 0 by
+      rw [this q] at h2; exact one_ne_zero h2
+    intro r
+    induction r using Polynomial.induction_on' with
+    | add p q hp hq =>
+      simp only [Polynomial.eval₂_add, MvPolynomial.coeff_add, hp, hq, add_zero]
+    | monomial n a =>
+      simp only [Polynomial.eval₂_monomial, MvPolynomial.coeff_C_mul,
+        MvPolynomial.X_pow_eq_monomial, MvPolynomial.coeff_monomial]
+      simp [Finsupp.single_eq_single_iff]
   modBivar Pbi P' h_unit
 
 /-- Helper For Readability: Evaluate a bivariate polynomial Q at (a, b) ∈ F×F -/
@@ -117,7 +141,7 @@ lemma exists_unique_bivariate
   /- The proof can follow `def polyQ` using the properties guranteed
   from MonomialOrder.div from Mathlib.RingTheory.MvPolynomial.Groebner -/
   by sorry
-
+set_option linter.flexible false in
 /-- Fact 4.6.2 in STIR -/
 lemma degree_bound_bivariate
   (qPoly : Polynomial F)
@@ -126,9 +150,28 @@ lemma degree_bound_bivariate
   {t : ℕ} (Q : MvPolynomial (Fin 2) F)
   (hdegX : MvPolynomial.degreeOf 0 Q < t)
   (hdegY : MvPolynomial.degreeOf 1 Q < qPoly.natDegree) :
-  (MvPolynomial.eval₂Hom (Polynomial.C : F →+* Polynomial F)
-      (fun i : Fin 2 => if i = 0 then qPoly else Polynomial.X) Q).natDegree < t * qPoly.natDegree :=
-    by sorry
+  (MvPolynomial.eval₂Hom
+      (Polynomial.C : F →+* Polynomial F)
+      (fun i : Fin 2 => if i = 0 then qPoly else Polynomial.X) Q).natDegree <
+    t * qPoly.natDegree := by
+  simp_all +decide only [Fin.isValue, MvPolynomial.coe_eval₂Hom]
+  have h_deg_term : ∀ m ∈ Q.support, (m 0) * qPoly.natDegree + (m 1) < t * qPoly.natDegree := by
+    intro m hm
+    have := hdegX
+    simp_all +decide [MvPolynomial.degreeOf_eq_sup]
+    nlinarith [hdegY m hm,
+      show m 0 < t from lt_of_le_of_lt
+        (Finset.le_sup (f := fun m => m 0) (Finsupp.mem_support_iff.mpr hm)) hdegX]
+  rw [MvPolynomial.eval₂_eq']
+  have ht : 0 < t := Nat.pos_of_ne_zero (by omega)
+  have hpos : (0 : ℕ) < t * qPoly.natDegree := Nat.mul_pos ht hdeg_q_min
+  refine lt_of_le_of_lt (Polynomial.natDegree_sum_le _ _)
+    ((Finset.sup_lt_iff hpos).mpr ?_)
+  intro m hm
+  specialize h_deg_term m hm
+  by_cases h : Q.coeff m = 0 <;>
+    simp_all +decide [Polynomial.natDegree_C_mul]
+  rw [Polynomial.natDegree_mul'] <;> aesop
 
 /-- Definition 4.7
   `polyFold(f, k, r)` "folds" the polynomial `f`
@@ -138,8 +181,10 @@ noncomputable def polyFold
   (k : ℕ) (hk0 : 0 < k) (hkfin : k < Fintype.card F)
   (r : F) : Polynomial F :=
     let qPoly : Polynomial F := Polynomial.X ^ k
-    let hdeg_q_min : qPoly.natDegree > 0 := sorry
-    let hdeg_q_max : qPoly.natDegree < Fintype.card F := sorry
+    let hdeg_q_min : qPoly.natDegree > 0 := by
+      simp only [qPoly, Polynomial.natDegree_X_pow]; exact hk0
+    let hdeg_q_max : qPoly.natDegree < Fintype.card F := by
+      simp only [qPoly, Polynomial.natDegree_X_pow]; exact hkfin
   -- choose the unique bivariate lift Q
     let Q : MvPolynomial (Fin 2) F := polyQ fPoly qPoly
     MvPolynomial.eval₂Hom
@@ -168,9 +213,11 @@ noncomputable def fold
 
 /-- min{δᵣ(f, RSC[F, ι, degree]), 1 − B^⋆(ρ)} -/
 noncomputable def foldingDistRange
-   (degree : ℕ) [Fintype ι] [Nonempty ι] (φ : ι ↪ F) (f : ι → F) : ℝ :=
+   (degree : ℕ) [Fintype ι] [Nonempty ι] (φ : ι ↪ F) (f : ι → F) : ℝ≥0 :=
     let C : Set (ι → F) := code φ degree
-    min δᵣ(f, C) (1 - Bstar (LinearCode.rate (code φ degree)))
+    letI : Nonempty C := by exact Zero.instNonempty
+    letI : Fintype C := by exact Fintype.ofFinite ↑C
+    min δᵣ'(f, C) (1 - Bstar (LinearCode.rate (code φ degree)))
 
 open ProbabilityTheory
 
@@ -184,11 +231,11 @@ lemma folding
   [Nonempty ι] {S : Finset ι} [Fintype ι]
   (φ : ι ↪ F) (f : ι → F) (k : ℕ)
   [Nonempty (indexPow S φ k)]
-  {degree : ℕ} (δ : ℚ) (hδPos : δ > 0)
+  {degree : ℕ} (δ : ℝ≥0) (hδPos : δ > 0)
   (hδLt : δ < foldingDistRange degree φ f) :
   let C : Set ((indexPow S φ k) → F) := code (pow S φ k) (degree / k)
   Pr_{ let r ← $ᵖ F }[ δᵣ((fold φ f k r), C) ≤ δ]
-    ≤ ENNReal.ofReal (proximityError F (degree / k) (LinearCode.rate (code φ degree)) δ k) :=
+    ≤ proximityError F (degree / k) (LinearCode.rate (code φ degree)) δ k :=
 by sorry
 
 end Folding

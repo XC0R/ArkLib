@@ -19,21 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout project
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # --- Lean and Blueprint Build ---
       - name: Cache Lean dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./.lake
-          key: ${{ runner.os }}-lean-${{ hashFiles('lake-manifest.json') }}
+          key: ${{ runner.os }}-lean-docs-${{ hashFiles('lake-manifest.json') }}
           restore-keys: |
-            ${{ runner.os }}-lean-
+            ${{ runner.os }}-lean-docs-
 
       - name: Build the project
-        uses: leanprover/lean-action@v1.3.0
+        uses: leanprover/lean-action@v1.4.0
         with:
           lint: false
+          use-github-cache: false
 
       - name: Build project documentation
         run: lake build ArkLib:docs
@@ -60,8 +61,8 @@ jobs:
       - name: Prepare deployment directory
         run: |
           mkdir _deploy
-          # Copy landing page
-          cp home_page/index.html _deploy/
+          # Copy landing page and assets
+          cp -r home_page/* _deploy/
           # Create docs directory and copy Lean docs
           mkdir -p _deploy/docs
           cp -r ./.lake/build/doc/* _deploy/docs/

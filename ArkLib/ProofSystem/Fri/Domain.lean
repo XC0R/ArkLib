@@ -3,7 +3,7 @@ import Mathlib.GroupTheory.GroupAction.Basic
 import Mathlib.GroupTheory.SpecificGroups.Cyclic
 import Mathlib.MeasureTheory.MeasurableSpace.Defs
 
-import ArkLib.Data.FieldTheory.NonBinaryField.Basic
+import CompPoly.Fields.Basic
 import ArkLib.Data.GroupTheory.Smooth
 import ArkLib.ToMathlib.Finset.Basic
 
@@ -480,11 +480,18 @@ lemma pow_2_pow_i_mem_Di_of_mem_D {F : Type} [NonBinaryField F] [Finite F] {D : 
     a ∈ evalDomain D x 0 → a ^ (2 ^ i) ∈ evalDomain D x i := by
   unfold evalDomain
   intros a i h
-  have h : x⁻¹ * a ∈ Domain.evalDomain D 0 := by aesop_reconcile
-  have : (x⁻¹ * a) ^ 2 ^ i = (x ^ (2 ^ i))⁻¹ * (a ^ (2 ^ i)) := by field_simp
-  simp only [Domain.D_def] at h
-  have := Domain.pow_2_pow_i_mem_Di_of_mem_D D (i := i) h
-  aesop_reconcile
+  have h : x⁻¹ * a ∈ Domain.evalDomain D 0 := by
+    simp only [pow_zero, pow_one] at h
+    apply (mem_leftCoset_iff _).mp
+    convert h
+    exact op_der_eq
+  rw [←Domain.D_def] at h
+  have h := Domain.pow_2_pow_i_mem_Di_of_mem_D D i h
+  have : (x⁻¹ * a) ^ 2 ^ i = (x ^ (2 ^ i))⁻¹ * (a ^ (2 ^ i)) := by
+      simp [mul_pow, inv_pow]
+  rw [this] at h
+  convert (mem_leftCoset_iff _).mpr h
+  exact op_der_eq.symm
 
 omit [Finite F] in
 lemma sqr_mem_D_succ_i_of_mem_D_i : ∀ {a : Fˣ} {i : ℕ},
@@ -493,7 +500,8 @@ lemma sqr_mem_D_succ_i_of_mem_D_i : ∀ {a : Fˣ} {i : ℕ},
   intros a i h
   have h : (x ^ 2 ^ i)⁻¹ * a ∈ Domain.evalDomain D i := by aesop_reconcile
   have : ((x ^ 2 ^ i)⁻¹ * a) ^ 2 = (x ^ 2 ^ (i + 1))⁻¹ * (a ^ 2) := by
-    have : ((x ^ 2 ^ i)⁻¹ * a) ^ 2 = ((x ^ 2 ^ i) ^ 2)⁻¹ * (a ^ 2) := by field_simp
+    have : ((x ^ 2 ^ i)⁻¹ * a) ^ 2 = ((x ^ 2 ^ i) ^ 2)⁻¹ * (a ^ 2) := by
+      simp [mul_pow, inv_pow]
     rw [this]
     have : (x ^ 2 ^ i) ^ 2 = x ^ 2 ^ (i + 1) := by
       rw [pow_two, ←pow_add]
@@ -525,7 +533,8 @@ lemma neg_mem_dom_of_mem_dom : ∀ {a : Fˣ} (i : Fin n),
   have mem : (x ^ 2 ^ i)⁻¹ * a ∈ Domain.evalDomain D i := by
     aesop_reconcile
   have : (x ^ 2 ^ i)⁻¹ * -a ∈ ↑(Domain.evalDomain D i) := by
-    have : (x ^ 2 ^ i)⁻¹ * -a = ((x ^ 2 ^ i)⁻¹ * a) * (- 1) := by field_simp
+    have : (x ^ 2 ^ i)⁻¹ * -a = ((x ^ 2 ^ i)⁻¹ * a) * (- 1) := by
+      simp [mul_neg]
     rw [this]
     exact
       (

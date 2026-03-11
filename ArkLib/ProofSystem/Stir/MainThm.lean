@@ -9,7 +9,13 @@ import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.OracleReduction.VectorIOR
 import ArkLib.ProofSystem.Stir.ProximityBound
 
-/-!Section 5 STIR[ACFY24], Theorem 5.1 and Lemma 5.4 -/
+/-!Section 5 ACFY24stir, Theorem 5.1 and Lemma 5.4
+
+## References
+
+* [Arnon, G., Chiesa, A., Fenzi, G., and Yogev, E., *STIR: Reed-Solomon proximity testing
+    with fewer queries*][ACFY24stir]
+-/
 
 open BigOperators Finset ListDecodable NNReal ReedSolomon VectorIOP OracleComp LinearCode STIR
 
@@ -17,7 +23,6 @@ namespace StirIOP
 
 variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
          {M : ℕ} (ι : Fin (M + 1) → Type) [∀ i : Fin (M + 1), Fintype (ι i)]
-         [∀ i : Fin (M + 1), DecidableEq (ι i)]
 
 /-- **Per‑round protocol parameters:**
   For a fixed depth `M`, the reduction runs `M + 1` rounds.
@@ -88,7 +93,7 @@ instance {ι : Type} : OracleInterface (OracleStatement ι F ()) := OracleInterf
 def stirRelation
     {F : Type} [Field F] [Fintype F] [DecidableEq F]
     {ι : Type} [Fintype ι] [Nonempty ι]
-    (degree : ℕ) (φ : ι ↪ F) (err : ℝ)
+    (degree : ℕ) (φ : ι ↪ F) (err : ℝ≥0)
     : Set ((Unit × ∀ i, (OracleStatement ι F i)) × Unit) :=
   fun ⟨⟨_, oracle⟩, _⟩ => δᵣ(oracle (), ReedSolomon.code φ degree) ≤ err
 
@@ -107,8 +112,8 @@ def stirRelation
   - `query complexity to proof strings = Oₖ(log degree + secpar * log(log degree / log(1/ρ)))`
 -/
 theorem stir_main
-  (secpar : ℕ) [SelectableType F]
-  {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+  (secpar : ℕ) [SampleableType F]
+  {ι : Type} [Fintype ι] [Nonempty ι]
   {φ : ι ↪ F} {degree : ℕ} [hsmooth : Smooth φ]
   {k proofLen qNumtoInput qNumtoProofstr : ℕ}
   (hk : ∃ p, k = 2 ^ p) (hkGe : k ≥ 4)
@@ -149,9 +154,8 @@ open LinearCode
   `rateᵢ = degreeᵢ / |ιᵢ|`
   `Codes : CodeParams ι degree P Dist`, containing smooth ReedSolomon codes `RS[F, ιᵢ, degreeᵢ]`
     where `RS[F, ιᵢ, degreeᵢ]` is `(δᵢ,lᵢ)`-list decodable for all `i ∈ {1, ..., M}`
-  for every `f₀ ∉ RS[F, ι₀, degree₀]`,
-  `δ₀ ∈ (0, δᵣ(f, RS[F, ι₀, degree₀]) ∩ (1 - BStar(ρ₀)))`
-  `∀ i ∈ {1, ..., M}, δᵢ ∈ (0, min{ 1 - ρᵢ - 1/|ιᵢ|, 1 - BStar(ρᵢ)})`
+  `δ₀ < (1 - BStar(ρ₀))`
+  `∀ i ∈ {1, ..., M}, δᵢ < (1 - ρᵢ - 1/|ιᵢ|)` and `δᵢ < (1 - BStar(ρᵢ))`
   then there exists a `vector IOPP π` with parameters as above such that
   `ε_fold ≤ errStar(degree₀/foldingParam₀, ρ₀, δ₀, repeatParam₀)`
   `ε_outᵢ ≤ lᵢ²/2 * (degreeᵢ/ |F| - |ιᵢ|)^s`
@@ -160,14 +164,12 @@ open LinearCode
   `ε_fin ≤ (1 - δ_M)^repeatParam_M`
 -/
 theorem stir_rbr_soundness
-    [SelectableType F] {s : ℕ}
-    {P : Params ι F} {φ : (i : Fin (M + 1)) → (ι i ↪ F)}
+    [SampleableType F] {s : ℕ}
+    {P : Params ι F}
     [h_nonempty : ∀ i : Fin (M + 1), Nonempty (ι i)]
     {hParams : ParamConditions ι P} {Dist : Distances M}
     {Codes : CodeParams ι P Dist}
-    (h_not_code : ∀ f₀ : (ι 0) → F, f₀ ∉ (Codes.C 0))
-    (hδ₀Le : ∀ f₀ : (ι 0) → F, Dist.δ 0 ≤ (δᵣ(f₀, (Codes.C 0)) : ℝ) ∧
-      Dist.δ 0 < (1 - Bstar (rate (code (P.φ 0) P.deg))))
+    (hδ₀ : Dist.δ 0 < (1 - Bstar (rate (code (P.φ 0) P.deg))))
     (hδᵢ : ∀ {j : Fin (M + 1)}, j ≠ 0 →
         Dist.δ j < (1 - rate (code (P.φ j) (degree ι P j))
           - 1 / Fintype.card (ι j) : ℝ) ∧

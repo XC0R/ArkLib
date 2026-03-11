@@ -6,14 +6,20 @@ Authors: Mirco Richter, Poulami Das (Least Authority)
 
 import Mathlib.Tactic.FieldSimp
 
-import ArkLib.Data.CodingTheory.ProximityGap
+import ArkLib.Data.CodingTheory.ProximityGap.Basic
 import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.Probability.Notation
 import ArkLib.ProofSystem.Stir.ProximityBound
 
-/-! Section 4.5 from STIR [ACFY24] -/
+/-! Section 4.5 from STIR [ACFY24stir]
 
-open BigOperators Finset NNReal
+## References
+
+* [Arnon, G., Chiesa, A., Fenzi, G., and Yogev, E., *STIR: Reed-Solomon proximity testing
+    with fewer queries*][ACFY24stir]
+-/
+
+open BigOperators Finset NNReal Code
 
 namespace Combine
 variable {m : ℕ}
@@ -59,7 +65,7 @@ def combine
 -/
 lemma combine_eq_cases {F ι : Type*} [Field F] [DecidableEq F]
   (φ : ι ↪ F) (dstar : ℕ) (r : F) (fs : Fin m → ι → F) (degs : Fin m → ℕ)
-    (hdegs : ∀ i, degs i ≤ dstar) (φ_neq_0 : ∀ i, φ i ≠ 0) :
+    (hdegs : ∀ i, degs i ≤ dstar) :
   combine φ dstar r fs degs =
     fun x =>
       let q := φ x * r
@@ -83,13 +89,19 @@ lemma combine_eq_cases {F ι : Type*} [Field F] [DecidableEq F]
           field_simp
       rw [this]
       congr
-      have := GroupWithZero.eq_zero_or_unit (φ x * r)
-      simp only [mul_eq_zero, φ_neq_0 x, h, or_self, false_or] at this
-      rcases this with ⟨r', this⟩
-      rw [this, geometric_sum_units]
-      have : r' ≠ 1 := by
-        aesop
-      simp [this]
+      by_cases hq0 : φ x * r = 0
+      · -- q = 0: the geometric series collapses to 1, and the closed form is also 1
+        simp [hq0]
+      · have := GroupWithZero.eq_zero_or_unit (φ x * r)
+        rcases this with h0 | ⟨r', hr'⟩
+        · exact (hq0 h0).elim
+        · rw [hr', geometric_sum_units]
+          have : r' ≠ 1 := by
+            -- `q ≠ 1` in this branch and `q = r'`
+            intro hEq
+            apply h'
+            simpa [hEq] using hr'
+          simp [this]
 
 -- def DegCor
 
@@ -101,7 +113,6 @@ def degCor
 
 /-- Definition 4.12.2
     DegCor(d*, r, f, d)(x) := f(x) * conditionalExp(x) -/
-
 lemma degreeCor_eq {F : Type u_1} [Field F] [DecidableEq F] {ι : Type u_2} (φ : ι ↪ F)
   (dstar degree : ℕ) (r : F) (f : ι → F) (hd : degree ≤ dstar) (x : ι) :
   let q := φ x * r
@@ -137,7 +148,7 @@ lemma degreeCor_eq {F : Type u_1} [Field F] [DecidableEq F] {ι : Type u_2} (φ 
 variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
          {ι : Type} [Fintype ι] [Nonempty ι]
 
-open LinearCode ProbabilityTheory ReedSolomon STIR in
+open LinearCode Classical ProbabilityTheory ReedSolomon STIR in
 /-- Lemma 4.13
   Let `dstar` be the target degree, `f₁,...,f_{m-1} : ι → F`,
   `0 < degs₁,...,degs_{m-1} < dstar` be degrees and
@@ -145,14 +156,15 @@ open LinearCode ProbabilityTheory ReedSolomon STIR in
       Pr_{r ← F} [δᵣ(Combine(dstar,r,(f₁,degs₁),...,(fₘ,degsₘ)))]
                    > err' (dstar, ρ, δ, m * (dstar + 1) - ∑ i degsᵢ) -/
 lemma combine_theorem
-  {φ : ι ↪ F} {dstar m degree : ℕ}
+  {φ : ι ↪ F} {dstar m : ℕ}
   (fs : Fin m → ι → F) (degs : Fin m → ℕ) (hdegs : ∀ i, degs i ≤ dstar)
-  (δ : ℝ) (hδPos : δ > 0)
-  (hδLt : δ < (min (1 - Bstar (rate (code φ degree)))
-                   (1 - (rate (code φ degree)) - 1 / Fintype.card ι)))
+  (δ : ℝ≥0) (hδPos : δ > 0)
+  (hδLt : δ < (min (1 - Bstar (rate (code φ dstar)))
+                   (1 - (rate (code φ dstar)) - 1 / Fintype.card ι)))
   (hProb : Pr_{ let r ← $ᵖ F}[δᵣ((combine φ dstar r fs degs), (code φ dstar)) ≤ δ] >
-    ENNReal.ofReal (proximityError F dstar (rate (code φ degree)) δ (m * (dstar + 1) - ∑ i, degs i))) :
-      ProximityGap.correlatedAgreement (code φ degree) ⟨δ, by linarith⟩ fs
-      := by sorry
+    proximityError F dstar (rate (code φ dstar)) δ (m * (dstar + 1) - ∑ i, degs i)) :
+    jointAgreement (F := F) (κ := Fin m) (ι := ι) (C := code φ dstar)
+      (W := fs) (δ := δ)
+    := by sorry
 
 end Combine

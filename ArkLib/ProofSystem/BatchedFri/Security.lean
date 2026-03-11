@@ -251,7 +251,7 @@ noncomputable def oracleImpl
                   OracleSpec.range, OracleSpec.append,
                   OracleInterface.toOracleSpec, Spec.FinalOracleStatement
                 ]
-              unfold OracleInterface.Response Spec.instOracleInterfaceFinalOracleStatement
+              unfold OracleInterface.Response Spec.finalOracleStatementInterface
               simp [h]
               unfold OracleInterface.instDefault Spec.FinalOracleStatement
               rw [h]
@@ -263,14 +263,14 @@ noncomputable def oracleImpl
                   OracleSpec.range, OracleSpec.append,
                   OracleInterface.toOracleSpec, Spec.FinalOracleStatement
                 ]
-              unfold OracleInterface.Response Spec.instOracleInterfaceFinalOracleStatement
+              unfold OracleInterface.Response Spec.finalOracleStatementInterface
               simp [h]
               simp only
                 [
                   OracleSpec.domain, OracleSpec.append,
                   OracleInterface.toOracleSpec, Spec.FinalOracleStatement
                 ] at dom
-              unfold OracleInterface.Query Spec.instOracleInterfaceFinalOracleStatement at dom
+              unfold OracleInterface.Query Spec.finalOracleStatementInterface at dom
               simp only [h, ↓reduceDIte] at dom
               exact fi.eval dom.1.1
           | query (.inr (.inr i)) t => OracleComp.lift (query i t)

@@ -13,7 +13,16 @@ open NNReal ProbabilityTheory ReedSolomon
 
 namespace STIR
 
-/-- Theorem 4.1[BCIKS20] from STIR[ACFY24]
+/-!
+## References
+
+* [Ben-Sasson, E., Carmon, D., Ishai, Y., Kopparty, S., and Saraf, S., *Proximity Gaps
+    for Reed-Solomon Codes*][BCIKS20]
+* [Arnon, G., Chiesa, A., Fenzi, G., and Yogev, E., *STIR: Reed-Solomon proximity testing
+    with fewer queries*][ACFY24stir]
+-/
+
+/-- Theorem 4.1[BCIKS20] from [ACFY24stir]
   Let `C = RS[F, ι, degree]` be a ReedSolomon code with rate `degree / |ι|`
   and let Bstar(ρ) = √ρ. For all `δ ∈ (0, 1 - Bstar(ρ))`, `f₁,...,fₘ : ι → F`, if
   `Pr_{r ← F} [ δᵣ(rⱼ * fⱼ, C) ≤ δ] > err'(degree, ρ, δ, m)`
@@ -23,16 +32,15 @@ lemma proximity_gap
   {F : Type} [Field F] [Fintype F] [DecidableEq F]
   {ι : Type} [Fintype ι] [Nonempty ι] {φ : ι ↪ F}
   {degree m : ℕ} {δ : ℝ≥0} {f : Fin m → ι → F} {GenFun : F → Fin m → F}
-  (h : ∀ (hδLe : δ < 1 - Bstar (LinearCode.rate (code φ degree))) {f : Fin m → ι → F},
-        Pr_{
-          let r ← $ᵖ F}[δᵣ((fun x => ∑ j : Fin m, (GenFun r j) * f j x), code φ degree) ≤ (δ : ℝ)]
-            > ENNReal.ofReal (proximityError F degree (LinearCode.rate (code φ degree)) δ m)) :
-
-        ∃ S : Finset ι,
-          S.card ≥ (1 - δ) * (Fintype.card ι) ∧
-        ∃ u : (ι → F),
-          u ∈ (code φ degree) ∧ ∀ i : Fin m, ∀ x ∈ S, f i x = u x
-
-:= by sorry
+  (hδPos : 0 < δ)
+  (hδLt : δ < 1 - Bstar (LinearCode.rate (code φ degree)))
+  (hProb :
+    Pr_{ let r ← $ᵖ F}[δᵣ((fun x => ∑ j : Fin m, (GenFun r j) * f j x), code φ degree) ≤ δ] >
+      ENNReal.ofReal (proximityError F degree (LinearCode.rate (code φ degree)) δ m)) :
+  ∃ S : Finset ι,
+    S.card ≥ (1 - δ) * (Fintype.card ι) ∧
+    ∀ i : Fin m, ∃ u : ι → F, u ∈ (code φ degree) ∧ ∀ x ∈ S, f i x = u x
+:= by
+  sorry
 
 end STIR
