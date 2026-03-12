@@ -207,8 +207,8 @@ instance finalOracleStatementInterface :
     toOC.spec := fun _ => if j = k + 1 then F[X] else F
     toOC.impl := fun q => do
       if h : j = k + 1 then
-        let st : Unit → F[X] := cast (by simp [FinalOracleStatement, h]) (← read)
-        return cast (by simp [FinalOracleStatement, h]) (st ())
+        let st : F[X] := cast (by simp [FinalOracleStatement, h]) (← read)
+        return cast (by simp [h]) st
       else
         let st : evalDomain D x (∑ j' ∈ finRangeTo j.1, s j') → F :=
           cast (by simp [FinalOracleStatement, h]) (← read)
@@ -335,6 +335,34 @@ instance {i : Fin k} : ∀ j, OracleInterface ((pSpec D x s i).Message j)
 
 instance {i : Fin k} : ∀ j, OracleInterface ((pSpec D x s i).Challenge j) :=
   ProtocolSpec.challengeOracleInterface
+
+instance {i : Fin k} : ∀ j, Inhabited ((pSpec D x s i).Challenge j) := by
+  intro j
+  letI : Inhabited F := ⟨0⟩
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 =>
+        cases j1 using Fin.cases with
+        | zero => simp [pSpec] at hj
+        | succ j2 => exact j2.elim0
+  subst h_j_eq_0
+  simpa [pSpec, Challenge] using (inferInstance : Inhabited F)
+
+noncomputable instance {i : Fin k} : ∀ j, Fintype ((pSpec D x s i).Challenge j) := by
+  intro j
+  letI : Fintype F := Fintype.ofFinite _
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 =>
+        cases j1 using Fin.cases with
+        | zero => simp [pSpec] at hj
+        | succ j2 => exact j2.elim0
+  subst h_j_eq_0
+  simpa [pSpec, Challenge] using (inferInstance : Fintype F)
 
 /-- The prover for the `i`-th round of the FRI protocol. It first receives the challenge,
     then does an `s` degree split of this polynomial. Finally, it returns the evaluation of
@@ -501,6 +529,34 @@ instance : ∀ j, OracleInterface ((pSpec F).Message j)
 /- `OracleInterface` instance for the `pSpec` of the final folding round of the FRI protocol. -/
 instance : ∀ j, OracleInterface ((pSpec F).Challenge j) := ProtocolSpec.challengeOracleInterface
 
+instance : ∀ j, Inhabited ((pSpec F).Challenge j) := by
+  intro j
+  letI : Inhabited F := ⟨0⟩
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 =>
+        cases j1 using Fin.cases with
+        | zero => simp [pSpec] at hj
+        | succ j2 => exact j2.elim0
+  subst h_j_eq_0
+  simpa [pSpec, Challenge] using (inferInstance : Inhabited F)
+
+noncomputable instance : ∀ j, Fintype ((pSpec F).Challenge j) := by
+  intro j
+  letI : Fintype F := Fintype.ofFinite _
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 =>
+        cases j1 using Fin.cases with
+        | zero => simp [pSpec] at hj
+        | succ j2 => exact j2.elim0
+  subst h_j_eq_0
+  simpa [pSpec, Challenge] using (inferInstance : Fintype F)
+
 /- Prover for the final folding round of the FRI protocol. -/
 noncomputable def finalFoldProver :
   OracleProver []ₒ
@@ -649,6 +705,31 @@ instance : ∀ j, OracleInterface ((pSpec D x l).Challenge j) := fun j =>
     unfold Challenge
     rw [Fin.fin_one_eq_zero j.1]
     exact OracleInterface.instFunction
+
+noncomputable instance : ∀ j, Inhabited ((pSpec D x l).Challenge j) := by
+  intro j
+  let defaultPt : evalDomain D x 0 :=
+    Classical.choice (inferInstance : Nonempty (evalDomain D x 0))
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 => exact j1.elim0
+  subst h_j_eq_0
+  simpa [Challenge, evalDomain] using
+    (show Inhabited (Fin l → evalDomain D x 0) from ⟨fun _ => defaultPt⟩)
+
+noncomputable instance : ∀ j, Fintype ((pSpec D x l).Challenge j) := by
+  intro j
+  letI : Fintype (evalDomain D x 0) := Fintype.ofFinite _
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 => exact j1.elim0
+  subst h_j_eq_0
+  simpa [Challenge, evalDomain] using
+    (show Fintype (Fin l → evalDomain D x 0) from Fintype.ofFinite _)
 
 /- Query round prover, does nothing. After BCS transform is applied to
    construct the non-interactive FRI protocol, it will have to respond with

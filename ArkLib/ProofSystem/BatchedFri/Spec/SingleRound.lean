@@ -77,6 +77,28 @@ instance : ∀ j, OracleInterface ((batchSpec F m).Message j)
 instance : ∀ j, OracleInterface ((batchSpec F m).Challenge j) :=
   ProtocolSpec.challengeOracleInterface
 
+instance : ∀ j, Inhabited ((batchSpec F m).Challenge j) := by
+  intro j
+  letI : Inhabited F := ⟨0⟩
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 => exact j1.elim0
+  subst h_j_eq_0
+  simpa [batchSpec, Challenge] using (inferInstance : Inhabited (Fin m → F))
+
+noncomputable instance : ∀ j, Fintype ((batchSpec F m).Challenge j) := by
+  intro j
+  letI : Fintype F := Fintype.ofFinite _
+  rcases j with ⟨j, hj⟩
+  have h_j_eq_0 : j = 0 := by
+    cases j using Fin.cases with
+    | zero => rfl
+    | succ j1 => exact j1.elim0
+  subst h_j_eq_0
+  simpa [batchSpec, Challenge] using (inferInstance : Fintype (Fin m → F))
+
 /-- The batching round oracle prover. -/
 noncomputable def batchProver :
   OracleProver []ₒ

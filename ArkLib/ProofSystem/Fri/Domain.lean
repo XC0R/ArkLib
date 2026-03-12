@@ -480,18 +480,12 @@ lemma pow_2_pow_i_mem_Di_of_mem_D {F : Type} [NonBinaryField F] [Finite F] {D : 
     a ∈ evalDomain D x 0 → a ^ (2 ^ i) ∈ evalDomain D x i := by
   unfold evalDomain
   intros a i h
-  have h : x⁻¹ * a ∈ Domain.evalDomain D 0 := by
-    simp only [pow_zero, pow_one] at h
-    apply (mem_leftCoset_iff _).mp
-    convert h
-    exact op_der_eq
-  rw [←Domain.D_def] at h
-  have h := Domain.pow_2_pow_i_mem_Di_of_mem_D D i h
-  have : (x⁻¹ * a) ^ 2 ^ i = (x ^ (2 ^ i))⁻¹ * (a ^ (2 ^ i)) := by
-      simp [mul_pow, inv_pow]
-  rw [this] at h
-  convert (mem_leftCoset_iff _).mpr h
-  exact op_der_eq.symm
+  have h : x⁻¹ * a ∈ Domain.evalDomain D 0 := by aesop_reconcile
+  simp only [Domain.D_def] at h
+  have : (x ^ (2 ^ i))⁻¹ * (a ^ (2 ^ i)) ∈ Domain.evalDomain D i := by
+    simpa [mul_pow, inv_pow, mul_assoc, mul_left_comm, mul_comm] using
+      (Domain.pow_2_pow_i_mem_Di_of_mem_D D (i := i) h)
+  aesop_reconcile
 
 omit [Finite F] in
 lemma sqr_mem_D_succ_i_of_mem_D_i : ∀ {a : Fˣ} {i : ℕ},

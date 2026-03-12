@@ -12,8 +12,9 @@
 import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
 
 import ArkLib.Data.CodingTheory.Basic
+import ArkLib.Data.CodingTheory.InterleavedCode
 import ArkLib.Data.CodingTheory.Prelims
-import ArkLib.Data.CodingTheory.ProximityGap
+import ArkLib.Data.CodingTheory.ProximityGap.Basic
 import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.Probability.Notation
 import ArkLib.ProofSystem.BatchedFri.Spec.General
@@ -38,6 +39,8 @@ variable (s : Fin (k + 1) → ℕ+) (d : ℕ+)
 variable {i : Fin (k + 1)}
 
 noncomputable local instance : Fintype 𝔽 := Fintype.ofFinite _
+noncomputable local instance : Inhabited (CosetDomain.evalDomain D g 0) :=
+  ⟨Classical.choice (inferInstance : Nonempty (CosetDomain.evalDomain D g 0))⟩
 
 instance {F : Type} [Field F] {a : F} [inst : NeZero a] : Invertible a where
   invOf := a⁻¹
@@ -233,60 +236,51 @@ open Polynomial
 noncomputable def oracleImpl
     (l : ℕ) (z : Fin (k + 1) → 𝔽) (f : (CosetDomain.evalDomain D g 0) → 𝔽) :
   QueryImpl
-    ([]ₒ ++ₒ ([Spec.FinalOracleStatement D g s]ₒ ++ₒ [(Spec.QueryRound.pSpec D g l).Message]ₒ))
-    (OracleComp [(Spec.QueryRound.pSpec D g l).Message]ₒ) where
-      impl :=
-        fun q ↦
-          match q with
-          | query (.inl i) _ => PEmpty.elim i
-          | query (.inr (.inl i)) dom =>
-            let f0 := Lagrange.interpolate Finset.univ (fun v => v.1.1) f
-            let chals : List (Fin (k + 1) × 𝔽) :=
-              ((List.finRange (k + 1)).map (fun i => (i, z i))).take i.1
-            let fi : 𝔽[X] := List.foldl (fun f (i, α) => Polynomial.foldNth (s i) f α) f0 chals
-            if h : i.1 = k + 1
-            then pure <| by
-              simp only
-                [
-                  OracleSpec.range, OracleSpec.append,
-                  OracleInterface.toOracleSpec, Spec.FinalOracleStatement
-                ]
-              unfold OracleInterface.Response Spec.finalOracleStatementInterface
-              simp [h]
-              unfold OracleInterface.instDefault Spec.FinalOracleStatement
-              rw [h]
-              simp
-              exact fi
-            else pure <| by
-              simp only
-                [
-                  OracleSpec.range, OracleSpec.append,
-                  OracleInterface.toOracleSpec, Spec.FinalOracleStatement
-                ]
-              unfold OracleInterface.Response Spec.finalOracleStatementInterface
-              simp [h]
-              simp only
-                [
-                  OracleSpec.domain, OracleSpec.append,
-                  OracleInterface.toOracleSpec, Spec.FinalOracleStatement
-                ] at dom
-              unfold OracleInterface.Query Spec.finalOracleStatementInterface at dom
-              simp only [h, ↓reduceDIte] at dom
-              exact fi.eval dom.1.1
-          | query (.inr (.inr i)) t => OracleComp.lift (query i t)
+    ([]ₒ + ([Spec.FinalOracleStatement D g s]ₒ + [(Spec.QueryRound.pSpec D g l).Message]ₒ))
+    (OracleComp [(Spec.QueryRound.pSpec D g l).Message]ₒ) := by
+  intro q
+  rcases q with i | q
+  · exact PEmpty.elim i
+  · rcases q with q | q
+    · rcases q with ⟨i, dom⟩
+      let f0 := Lagrange.interpolate Finset.univ (fun v => v.1.1) f
+      let chals : List (Fin (k + 1) × 𝔽) :=
+        ((List.finRange (k + 1)).map fun i => (i, z i)).take i.1
+      let fi : 𝔽[X] := List.foldl (fun f (i, α) => Polynomial.foldNth (s i) f α) f0 chals
+      let st : Spec.FinalOracleStatement D g s i :=
+        if h : i.1 = k + 1 then
+          cast (by simp [Spec.FinalOracleStatement, h]) fi
+        else
+          cast
+            (by simp [Spec.FinalOracleStatement, h])
+            (fun x : evalDomain D g (∑ j' ∈ finRangeTo i.1, s j') => fi.eval x.1.1)
+      exact pure <| (Spec.finalOracleStatementInterface D g s i).answer st dom
+    · rcases q with ⟨i, t⟩
+      exact liftM <|
+        cast
+          (β := OracleQuery
+            [(Spec.QueryRound.pSpec D g l).Message]ₒ
+            (([]ₒ +
+                ([Spec.FinalOracleStatement D g s]ₒ +
+                  [(Spec.QueryRound.pSpec D g l).Message]ₒ)).Range
+              (Sum.inr (Sum.inr ⟨i, t⟩))))
+          (by simp [OracleSpec.Range])
+          (query (spec := [(Spec.QueryRound.pSpec D g l).Message]ₒ) ⟨i, t⟩)
 
-instance {g : 𝔽ˣ} {l : ℕ} : [(Spec.QueryRound.pSpec D g l).Message]ₒ.FiniteRange where
-  range_inhabited' := by
-    intros i
+instance {g : 𝔽ˣ} {l : ℕ} : ([(Spec.QueryRound.pSpec D g l).Message]ₒ).Inhabited where
+  inhabited_B := by
+    intro i
     unfold Spec.QueryRound.pSpec MessageIdx at i
-    have : i.1 = 0 := by omega
-    have h := this ▸ i.2
+    have : i.1.1 = 0 := by omega
+    have h := this ▸ i.1.2
     simp at h
-  range_fintype' := by
-    intros i
+
+instance {g : 𝔽ˣ} {l : ℕ} : ([(Spec.QueryRound.pSpec D g l).Message]ₒ).Fintype where
+  fintype_B := by
+    intro i
     unfold Spec.QueryRound.pSpec MessageIdx at i
-    have : i.1 = 0 := by omega
-    have h := this ▸ i.2
+    have : i.1.1 = 0 := by omega
+    have h := this ▸ i.1.2
     simp at h
 
 open ENNReal in
@@ -296,6 +290,275 @@ noncomputable def εC
       (m + (1 : ℚ)/2)^7 * (2^n)^2
         / ((2 * ρ_sqrt ^ 3) * (Fintype.card 𝔽))
       + (∑ i, 2 ^ (s i).1) * (2 * m + 1) * (2 ^ n + 1) / (Fintype.card 𝔽 * ρ_sqrt)
+
+private abbrev fullChallengeProtocol (t l : ℕ) :=
+  (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+    (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ Spec.QueryRound.pSpec D g l)
+
+noncomputable instance {t l : ℕ} :
+    ∀ j,
+      Inhabited
+        ((fullChallengeProtocol
+            (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge j) := by
+  letI : ∀ j, Inhabited ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.pSpecFold D g k s).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Inhabited ((Spec.QueryRound.pSpec D g l).Challenge j) := by
+    infer_instance
+  letI :
+      ∀ j,
+        Inhabited
+          ((Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+      (α₁ := (Spec.pSpecFold D g k s).dir)
+      (β₁ := (Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (α₂ := (Spec.pSpecFold D g k s).Type)
+      (β₂ := (Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.pSpecFold D g k s).Challenge ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge ⟨i, h⟩)))
+      i h
+  letI :
+      ∀ j,
+        Inhabited
+          ((Spec.pSpecFold D g k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec D g l).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+      (α₁ := (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (β₁ := (Spec.QueryRound.pSpec D g l).dir)
+      (α₂ := (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (β₂ := (Spec.QueryRound.pSpec D g l).Type)
+      (fun i h =>
+        inferInstanceAs
+          (Inhabited
+            ((Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge
+              ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Inhabited ((Spec.QueryRound.pSpec D g l).Challenge ⟨i, h⟩)))
+      i h
+  intro ⟨i, h⟩
+  exact Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Inhabited type)
+    (α₁ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).dir)
+    (β₁ := (Spec.pSpecFold D g k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec D g l).dir)
+    (α₂ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Type)
+    (β₂ := (Spec.pSpecFold D g k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec D g l).Type)
+    (fun i h =>
+      inferInstanceAs (Inhabited ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge ⟨i, h⟩)))
+    (fun i h =>
+      inferInstanceAs
+        (Inhabited
+          ((Spec.pSpecFold D g k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec D g l).Challenge
+            ⟨i, h⟩)))
+    i h
+
+noncomputable instance {t l : ℕ} :
+    ∀ j,
+      Fintype
+        ((fullChallengeProtocol
+            (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge j) := by
+  letI : ∀ j, Fintype ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.pSpecFold D g k s).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    infer_instance
+  letI : ∀ j, Fintype ((Spec.QueryRound.pSpec D g l).Challenge j) := by
+    infer_instance
+  letI :
+      ∀ j,
+        Fintype
+          ((Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+      (α₁ := (Spec.pSpecFold D g k s).dir)
+      (β₁ := (Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (α₂ := (Spec.pSpecFold D g k s).Type)
+      (β₂ := (Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.pSpecFold D g k s).Challenge ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.FinalFoldPhase.pSpec 𝔽).Challenge ⟨i, h⟩)))
+      i h
+  letI :
+      ∀ j,
+        Fintype
+          ((Spec.pSpecFold D g k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec D g l).Challenge j) := by
+    intro ⟨i, h⟩
+    exact Fin.fappend₂ (A := Direction) (B := Type)
+      (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+      (α₁ := (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).dir)
+      (β₁ := (Spec.QueryRound.pSpec D g l).dir)
+      (α₂ := (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Type)
+      (β₂ := (Spec.QueryRound.pSpec D g l).Type)
+      (fun i h =>
+        inferInstanceAs
+          (Fintype
+            ((Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽).Challenge
+              ⟨i, h⟩)))
+      (fun i h =>
+        inferInstanceAs (Fintype ((Spec.QueryRound.pSpec D g l).Challenge ⟨i, h⟩)))
+      i h
+  intro ⟨i, h⟩
+  exact Fin.fappend₂ (A := Direction) (B := Type)
+    (F := fun dir type => (h : dir = .V_to_P) → Fintype type)
+    (α₁ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).dir)
+    (β₁ := (Spec.pSpecFold D g k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec D g l).dir)
+    (α₂ := (BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Type)
+    (β₂ := (Spec.pSpecFold D g k s ++ₚ
+      Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+        Spec.QueryRound.pSpec D g l).Type)
+    (fun i h =>
+      inferInstanceAs (Fintype ((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t).Challenge ⟨i, h⟩)))
+    (fun i h =>
+      inferInstanceAs
+        (Fintype
+          ((Spec.pSpecFold D g k s ++ₚ
+              Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                Spec.QueryRound.pSpec D g l).Challenge
+            ⟨i, h⟩)))
+    i h
+
+noncomputable instance {t l : ℕ} :
+    ([(fullChallengeProtocol
+        (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge]ₒ).Inhabited where
+  inhabited_B := by
+    intro q
+    rcases q with ⟨i, u⟩
+    cases u
+    change Inhabited
+      ((fullChallengeProtocol (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge i)
+    infer_instance
+
+noncomputable instance {t l : ℕ} :
+    ([(fullChallengeProtocol
+        (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge]ₒ).Fintype where
+  fintype_B := by
+    intro q
+    rcases q with ⟨i, u⟩
+    cases u
+    change Fintype
+      ((fullChallengeProtocol (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge i)
+    infer_instance
+
+noncomputable instance {t l : ℕ} :
+    ∀ j, Inhabited
+      (((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold D g k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec D g l)).Challenge j) := by
+  simpa [fullChallengeProtocol] using
+    (inferInstance :
+      ∀ j,
+        Inhabited
+          ((fullChallengeProtocol
+              (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge j))
+
+noncomputable instance {t l : ℕ} :
+    ∀ j, Fintype
+      (((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold D g k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec D g l)).Challenge j) := by
+  simpa [fullChallengeProtocol] using
+    (inferInstance :
+      ∀ j,
+        Fintype
+          ((fullChallengeProtocol
+              (𝔽 := 𝔽) (D := D) (g := g) (k := k) (s := s) t l).Challenge j))
+
+noncomputable instance {t l : ℕ} :
+    ([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+        (Spec.pSpecFold D g k s ++ₚ
+          Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+            Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Inhabited := by
+  infer_instance
+
+noncomputable instance {t l : ℕ} :
+    ([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+        (Spec.pSpecFold D g k s ++ₚ
+          Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+            Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Fintype := by
+  infer_instance
+
+noncomputable instance {t l : ℕ} :
+    ([]ₒ +
+      [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold D g k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Inhabited where
+  inhabited_B := by
+    intro q
+    cases q with
+    | inl q => exact PEmpty.elim q
+    | inr q =>
+        simpa using
+          (inferInstance :
+            Inhabited
+              (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+                  (Spec.pSpecFold D g k s ++ₚ
+                    Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                      Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Range q))
+
+noncomputable instance {t l : ℕ} :
+    ([]ₒ +
+      [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+          (Spec.pSpecFold D g k s ++ₚ
+            Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+              Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Fintype where
+  fintype_B := by
+    intro q
+    cases q with
+    | inl q => exact PEmpty.elim q
+    | inr q =>
+        simpa using
+          (inferInstance :
+            Fintype
+              (([((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+                  (Spec.pSpecFold D g k s ++ₚ
+                    Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                      Spec.QueryRound.pSpec D g l)).Challenge]ₒ).Range q))
+
+noncomputable instance {t l : ℕ} :
+    HasEvalPMF
+      (OracleComp
+        ([]ₒ +
+          [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+              (Spec.pSpecFold D g k s ++ₚ
+                Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                  Spec.QueryRound.pSpec D g l)).Challenge]ₒ)) := by
+  infer_instance
+
+noncomputable instance {t l : ℕ} :
+    HasEvalSPMF
+      (OptionT
+        (OracleComp
+          ([]ₒ +
+            [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
+                (Spec.pSpecFold D g k s ++ₚ
+                  Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
+                    Spec.QueryRound.pSpec D g l)).Challenge]ₒ))) := by
+  infer_instance
 
 open ENNReal in
 /-- Corresponds to Claim 8.2 of [BCIKS20] -/
@@ -319,7 +582,7 @@ lemma fri_query_soundness
     let εQ  (x : Fin t → 𝔽)
             (z : Fin (k + 1) → 𝔽) :=
       Pr_{let samp ←$ᵖ (CosetDomain.evalDomain D g 0)}[
-        [
+        Pr[
           fun _ => True |
           (
             (do
@@ -350,22 +613,14 @@ lemma fri_query_soundness
                   )
                 )
             )
-          )
-        ] = 1
+          )]
+        = 1
       ]
     Pr_{let x ←$ᵖ (Fin t → 𝔽); let z ←$ᵖ (Fin (k + 1) → 𝔽)}[ εQ x z > α0 ] ≤ εC 𝔽 n s m ρ_sqrt
-  := by sorry
-
-instance instFinRangeOfAppend {m n : ℕ} {pSpec₁ : ProtocolSpec m} {pSpec₂ : ProtocolSpec n}
-    [FiniteRange [pSpec₁.Challenge]ₒ] [FiniteRange [pSpec₂.Challenge]ₒ] :
-  FiniteRange [(pSpec₁ ++ₚ pSpec₂).Challenge]ₒ := sorry
+  := by
+  sorry
 
 -- set_option diagnostics true
-instance {t l : ℕ} :
- ([]ₒ ++ₒ
-      [((BatchedFri.Spec.BatchingRound.batchSpec 𝔽 t) ++ₚ
-            (Spec.pSpecFold D g k s ++ₚ Spec.FinalFoldPhase.pSpec 𝔽 ++ₚ
-              Spec.QueryRound.pSpec D g l)).Challenge]ₒ).FiniteRange := sorry
   -- refine @OracleSpec.instFiniteRangeSumAppend (h₁ := inferInstance) (h₂ := ?_) ..
   -- refine @instFinRangeOfAppend _ _ _ _ ?_ ?_
   -- · unfold BatchedFri.Spec.BatchingRound.batchSpec Challenge OracleInterface.toOracleSpec
@@ -441,16 +696,20 @@ lemma fri_soundness
         (CosetDomain.domainEmb (i := 0) D g)
     let α : ℝ≥0 := (ρ_sqrt * (1 + 1 / (2 * (m : ℝ≥0))))
     (∃ prov : OracleProver (WitOut := Unit) ..,
-        [fun _ => True |
+        Pr[fun _ => True |
           OracleReduction.run () f ()
             ⟨
               prov,
               (BatchedFri.Spec.batchedFRIreduction (n := n) D g k s d domain_size_cond l t).verifier
             ⟩
-         ] > εC 𝔽 n s m ρ_sqrt + α ^ l) →
-      ProximityGap.correlatedAgreement
-        (ReedSolomon.code (CosetDomain.domainEmb (i := 0) D g) (2 ^ n)).carrier
-        (1 - α) f := by
+        ] > εC 𝔽 n s m ρ_sqrt + α ^ l) →
+      Code.jointAgreement
+        (F := 𝔽)
+        (κ := Fin t.succ)
+        (ι := CosetDomain.evalDomain D g 0)
+        (C := (ReedSolomon.code (CosetDomain.domainEmb (i := 0) D g) (2 ^ n)).carrier)
+        (δ := 1 - α)
+        (W := f) := by
   sorry
 
 end Soundness
