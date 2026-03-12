@@ -5,18 +5,12 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-jobs:
-  cancel:
-    name: "Cancel Previous Runs"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: styfle/cancel-workflow-action@0.13.0
-        with:
-          all_but_latest: true
-          access_token: ${{ github.token }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
   build:
-    needs: cancel
     runs-on: ubuntu-latest
 
     steps:

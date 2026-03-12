@@ -7,7 +7,8 @@ import CompPoly.Data.Nat.Bitwise
 import ArkLib.Data.CodingTheory.Basic
 import ArkLib.Data.CodingTheory.InterleavedCode
 import ArkLib.Data.CodingTheory.ReedSolomon
-import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20
+import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.ErrorBound
+import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.AffineLines.UniqueDecoding
 import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
 import ArkLib.Data.Probability.Instances
 import ArkLib.Data.CodingTheory.Prelims
@@ -53,6 +54,8 @@ Communications in Cryptology 1.4 (Jan. 13, 2025). issn: 3006-5496. doi: 10.62056
 - [AER24] Guillermo Angeris, Alex Evans, and Gyumin Roh. A Note on Ligero and Logarithmic
   Randomness. Cryptology ePrint Archive, Paper 2024/1399. 2024. url: https://eprint.iacr.org/2024/1399.
 -/
+
+set_option linter.style.longFile 2200
 
 noncomputable section
 
@@ -347,7 +350,6 @@ lemma multilinearCombine_recursive_form
   have h_fin_cast_castAdd_2: Fin.cast (eq := by omega)
     (i := i.addNat (2 ^ ϑ)) = (⟨i + 2 ^ ϑ, by omega⟩ : Fin (2 ^ (ϑ + 1))) := by rfl
   rw [h_fin_cast_castAdd, h_fin_cast_castAdd_2]
-
   have h_getLastBit : Nat.getBit (Fin.last ϑ) i = 0 := by
     have h := Nat.getBit_of_lt_two_pow (a := i) (k := Fin.last ϑ)
     simp only [Fin.val_last, lt_self_iff_false, ↓reduceIte] at h
@@ -357,28 +359,25 @@ lemma multilinearCombine_recursive_form
     exact h_getLastBit
   have h_i_add_2_pow_ϑ := Nat.sum_of_and_eq_zero_is_xor (n := i.val)
     (m := 2 ^ ϑ) (h_n_AND_m:=h_i_and_2_pow_ϑ)
-
   have h_getLastBit_add_pow_2 : Nat.getBit (Fin.last ϑ) (i + 2 ^ ϑ) = 1 := by
     rw [h_i_add_2_pow_ϑ]; rw [Nat.getBit_of_xor]
     rw [h_getLastBit]; rw [Nat.getBit_two_pow]
     simp only [Fin.val_last, BEq.rfl, ↓reduceIte, Nat.zero_xor]
-
   have h_tensor_split_0 :
     multilinearWeight r ⟨i, by omega⟩ = multilinearWeight r_init i * (1 - r (Fin.last ϑ)) := by
     dsimp only [multilinearWeight]
     rw [Fin.prod_univ_castSucc]
     simp_rw [Nat.testBit_true_eq_getBit_eq_1]
     simp_rw [h_getLastBit]
-    simp only [Fin.coe_castSucc]
+    simp only [Fin.val_castSucc]
     congr 1
-
   have h_tensor_split_1 :
     multilinearWeight r ⟨i + 2 ^ ϑ, by omega⟩ = multilinearWeight r_init i * (r (Fin.last ϑ)) := by
     dsimp only [multilinearWeight]
     rw [Fin.prod_univ_castSucc]
     simp_rw [Nat.testBit_true_eq_getBit_eq_1]
     simp_rw [h_getLastBit_add_pow_2]
-    simp only [Fin.coe_castSucc, ↓reduceIte]
+    simp only [Fin.val_castSucc, ↓reduceIte]
     congr 1
     apply Finset.prod_congr rfl
     intro x hx_univ-- index of the product
@@ -485,12 +484,10 @@ lemma dist_row_le_dist_ToInterleavedCode (U : InterleavedWord A (Fin m) ι) :
     simp only [Subtype.coe_prop, le_refl, and_self]
   apply le_trans dist_le_dist
   -- ⊢ ↑Δ₀(Uᵢ, ↑Mᵢ) ≤ Δ₀(U, ↑C_m)
-
   have h_dist_row_le_dist_interleaved : Δ₀(Uᵢ, Mᵢ) ≤ Δ₀(U, M) := by
     simp only [Uᵢ, Mᵢ]
     simp only [getRow]
     convert dist_row_le_dist_ToInterleavedWord U M i
-
   calc
     (Δ₀(Uᵢ, Mᵢ): ℕ∞) ≤ (Δ₀(U, M): ℕ∞) :=
       ENat.coe_le_coe.mpr h_dist_row_le_dist_interleaved
@@ -564,13 +561,10 @@ def constructInterleavedCodewordsAndRowWiseCA
       · simp only [ne_eq, Nat.cast_eq_zero, Fintype.card_ne_zero, not_false_eq_true]
       · exact ENNReal.natCast_ne_top (Fintype.card F)
       · exact Nat.cast_lt.mpr h_card_line_gt_eps
-
     -- Apply proximity gap of C to get correlated agreement at this row
     have h_corr_agree_row: Δ₀(u₀ ⋈₂ u₁, C ^⋈ (Fin 2)) ≤ e := by
       exact hC_gap (u₀) (u₁) (h_P_affineCombineRow)
-
     letI : Nonempty (C ^⋈ (Fin 2)) := instNonemptyInterleavedCode A (κ := Fin 2) (ι := ι) C
-
     let V_rowIdx := Code.pickClosestCodeword_of_Nonempty_Code (C := C ^⋈ (Fin 2)) (u := u₀ ⋈₂ u₁)
     let v₀ := getRow (show (InterleavedCodeword A (Fin 2) ι C) from V_rowIdx) 0
     let v₁ := getRow (show (InterleavedCodeword A (Fin 2) ι C) from V_rowIdx) 1
@@ -590,7 +584,6 @@ def constructInterleavedCodewordsAndRowWiseCA
     simp only [Nat.cast_le] at h_corr_agree_row
     simp only
     exact h_corr_agree_row -- TODO: try using `exact`
-
   let V₀_wordStack : WordStack A (Fin m) ι := fun rowIdx => (V₀₁ rowIdx).1.val
   let V₁_wordStack : WordStack A (Fin m) ι := fun rowIdx => (V₀₁ rowIdx).2.1.val
   let V₀ : C ^⋈ (Fin m) := ⟨⋈| V₀_wordStack, by
@@ -650,7 +643,6 @@ lemma affineWord_close_to_affineInterleavedCodeword
   let r := r_sub.val
   set Uᵣ := affineLineEvaluation (F := F) U₀ U₁ r
   set Vᵣ := affineLineEvaluation (F := F) V₀.val V₁.val r
-
   -- 2. By definition of R*, there exists *some* codeword Vᵣ* close to Uᵣ
   have h_r_in_R_star := r_sub.property
   simp only [R_star, Finset.mem_filter, Finset.mem_univ, true_and] at h_r_in_R_star
@@ -663,10 +655,8 @@ lemma affineWord_close_to_affineInterleavedCodeword
   have hVᵣ_star_dist : Δ₀(Uᵣ, Vᵣ_star) = Δ₀(Uᵣ, MC ^⋈ (Fin m)) := by
     dsimp only [Vᵣ_star]
     rw [Code.distFromPickClosestCodeword_of_Nonempty_Code]
-
   have h_dist_Uᵣ_Vᵣ_star_le_e : Δ₀(Uᵣ, Vᵣ_star) ≤ e := by
     rw [←ENat.coe_le_coe, hVᵣ_star_dist]; exact h_r_in_R_star
-
   -- We must show Vᵣ* = Vᵣ. We do this row-by-row.
   -- Goal is Δ₀(Uᵣ, Vᵣ) ≤ e. We will prove Vᵣ = Vᵣ_star, then rw.
   have h_Vᵣ_eq_Vᵣ_star : Vᵣ = Vᵣ_star.val := by
@@ -705,7 +695,6 @@ lemma affineWord_close_to_affineInterleavedCodeword
       apply le_trans (dist_affineCombination_le_dist_interleaved₂ _ _ _ _ _)
       -- ⊢ Δ₀(getRow U₀ rowIdx ⋈₂ getRow U₁ rowIdx, getRow (↑V₀) rowIdx ⋈₂ getRow (↑V₁) rowIdx) ≤ e
       exact h_agree_i
-
     -- 5. Use Unique Decoding to show (Vᵣ*)ᵢ = (Vᵣ)ᵢ
     -- We need the minimum distance d of the base code C
     let d: ℕ := ‖(MC : Set (ι → A))‖₀
@@ -716,7 +705,6 @@ lemma affineWord_close_to_affineInterleavedCodeword
       let res :=  Code.dist_pos_of_Nontrivial (ι := ι) (F := A) (C := MC) (hC := by
         (expose_names; exact Set.nontrivial_coe_sort.mp inst_8))
       exact res
-
     -- We need 2e < d
     have h_2e_lt_d : 2 * e < d := by
       rw [Code.uniqueDecodingRadius] at he
@@ -742,13 +730,11 @@ lemma affineWord_close_to_affineInterleavedCodeword
       · apply MC.smul_mem;
         exact getRowOfInterleavedCodeword_mem_code (A := A) (κ := Fin m) (ι := ι) (C := MC)
           (u := V₁) rowIdx
-
     -- Apply the triangle inequality: d(Vᵣ_i, Vᵣ_star_i) ≤ d(Vᵣ_i, Uᵣ_i) + d(Uᵣ_i, Vᵣ_star_i)
     have h_dist_v_vstar : Δ₀(Vᵣ_i, Vᵣ_star_i) ≤
       Δ₀(Vᵣ_i, getRow (show (InterleavedWord A (Fin m) ι) from Uᵣ) rowIdx)
       + Δ₀(getRow (show (InterleavedWord A (Fin m) ι) from Uᵣ) rowIdx, Vᵣ_star_i) := by
         apply hammingDist_triangle
-
     -- We need to convert from ℕ∞ (Δ₀) to ℕ (hammingDist) for Code.eq_of_lt_dist
     have h_dist_v_vstar_nat : hammingDist Vᵣ_i Vᵣ_star_i < d := by
       -- Convert ℕ∞ inequalities to ℕ inequalities
@@ -767,10 +753,8 @@ lemma affineWord_close_to_affineInterleavedCodeword
         _ ≤ e + e := Nat.add_le_add h1_nat h2_nat
         _ = 2 * e := by rw [two_mul]
         _ < d := h_2e_lt_d
-
     -- Now apply unique decoding
     exact Code.eq_of_lt_dist hVᵣ_i_mem hVᵣ_star_i_mem h_dist_v_vstar_nat
-
   -- 8. Conclude Vᵣ = Vᵣ_star and return the distance
   rw [h_Vᵣ_eq_Vᵣ_star]
   exact h_dist_Uᵣ_Vᵣ_star_le_e
@@ -780,12 +764,10 @@ def R_star_star_filter_columns_in_D (U₀ U₁ : InterleavedWord A (Fin m) ι)
   (V₀ V₁ : MC^⋈(Fin m)) (e : ℕ) (D : Finset ι) : Finset (F × ι) :=
   (R_star_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁ V₀.val V₁.val).filter
     (fun p => p.2 ∈ D) in
-
 def R_star_star_filter_columns_not_in_D (U₀ U₁ : InterleavedWord A (Fin m) ι)
   (V₀ V₁ : MC ^⋈ (Fin m)) (e : ℕ) (D : Finset ι) : Finset (F × ι) :=
   (R_star_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁ V₀.val V₁.val).filter
     (fun p => p.2 ∉ D) in
-
 omit [Nonempty ι] [NoZeroDivisors F] [Fintype A] [Module.Free F A] [Nontrivial ↥MC] in
 lemma R_star_star_eq_union (U₀ U₁ : InterleavedWord A (Fin m) ι)
   (V₀ V₁ : MC ^⋈ (Fin m)) (e : ℕ) (D : Finset ι):
@@ -795,7 +777,7 @@ lemma R_star_star_eq_union (U₀ U₁ : InterleavedWord A (Fin m) ι)
   dsimp only [R_star_star, Lean.Elab.WF.paramLet, R_star_star_filter_columns_not_in_D,
     R_star_star_filter_columns_in_D]
   rw [Finset.union_comm]
-  rw [Finset.filter_union_filter_neg_eq]
+  rw [Finset.filter_union_filter_not_eq]
 
 omit [Nonempty ι] [NoZeroDivisors F] [DecidableEq F] [Fintype A]
   [Module.Free F A] [Nontrivial ↥MC] in
@@ -807,7 +789,7 @@ lemma disjoint_R_star_star_filter_columns_in_D_not_in_D (U₀ U₁ : Interleaved
 -- 1. Unfold the definitions to reveal the underlying `filter` structure
   unfold R_star_star_filter_columns_in_D R_star_star_filter_columns_not_in_D
   -- The goal is now `Disjoint (R_ss.filter P) (R_ss.filter (¬P))`
-  apply disjoint_filter_filter_neg
+  apply disjoint_filter_filter_not
 
 omit [NoZeroDivisors F] [DecidableEq F] [Fintype A] [Module.Free F A] in
 lemma D_card_le_e_implies_interleaved_correlatedAgreement₂
@@ -925,8 +907,7 @@ lemma card_agreeing_cells_notin_D {U₀ U₁ : InterleavedWord A (Fin m) ι} {V�
     rcases p with ⟨r, j⟩
     -- Unfold all definitions
     simp only [R_star_star_filter_columns_not_in_D, R_star_star, mem_filter, mem_product, mem_univ,
-      and_true, mem_sdiff, true_and, and_congr_left_iff, and_iff_left_iff_imp, R_ss_not_D, R_s,
-      D_compl]
+      and_true, R_ss_not_D, R_s, D_compl]
     constructor
     · rintro ⟨⟨hr, _⟩, hj⟩
       exact ⟨hr, mem_sdiff.mpr ⟨mem_univ _, hj⟩⟩
@@ -1071,7 +1052,7 @@ lemma card_agreeing_cells_in_D_le
   simp only [sum_const, smul_eq_mul, mul_one] at h_fibers_le_one_sum
   exact le_trans (Nat.le_of_eq h_card_eq_sum_fibers) h_fibers_le_one_sum
 
-omit [Fintype A] in
+omit [Fintype A] [DecidableEq F] in
 /-- **Lemma 3.3 (DG25): Upper Bound on R** Cardinality**
 Context:
 - `U₀, U₁` are columnWise words; `V₀, V₁` are columnWise codewords
@@ -1108,14 +1089,12 @@ lemma R_star_star_upper_bound
   set R_ss := R_star_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁ V₀.val V₁.val
   set R_ss_in_D    := (R_star_star_filter_columns_in_D MC U₀ U₁ V₀ V₁ e D)
   set R_ss_notin_D := (R_star_star_filter_columns_not_in_D MC U₀ U₁ V₀ V₁ e D)
-
   -- 3. The card of R_ss is the sum of the cards of the disjoint partition.
   have h_card_split : R_ss.card = R_ss_notin_D.card + R_ss_in_D.card := by
     rw [← Finset.card_union_of_disjoint]
-    congr
-    · exact R_star_star_eq_union MC U₀ U₁ V₀ V₁ e D
+    · congr
+      exact R_star_star_eq_union MC U₀ U₁ V₀ V₁ e D
     · exact Disjoint.symm (disjoint_R_star_star_filter_columns_in_D_not_in_D MC U₀ U₁ V₀ V₁ e D)
-
   simp only [ge_iff_le]
   -- 4. Apply the split
   rw [h_card_split]
@@ -1171,12 +1150,10 @@ lemma R_star_star_lower_bound
   let n := Fintype.card ι
   let R_s := R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁
   let R_ss := R_star_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁ V₀.val V₁.val
-
   simp only [ge_iff_le]
   simp only [R_star_star]
   rw [Finset.card_filter]
   rw [Finset.sum_product]
-
   have h_card_ge_per_r: ∀ r : R_star (A := A) (F := F) (ι := ι) (C := MC)
     (e := e) U₀ U₁, (Fintype.card ι - e) ≤ (∑ j, if
       affineLineEvaluation (F := F) U₀ U₁ (r, j).1 (r, j).2
@@ -1185,13 +1162,11 @@ lemma R_star_star_lower_bound
       -- Let Uᵣ and Vᵣ be the affine points for this r
     let Uᵣ := affineLineEvaluation (F := F) U₀ U₁ r
     let Vᵣ := affineLineEvaluation (F := F) V₀.val V₁.val r
-
     -- The sum is the number of agreeing columns, which is `n - hammingDist(Uᵣ, Vᵣ)`
     have h_sum_eq_agreeing_cols :
         (∑ j, if Uᵣ j = Vᵣ j then 1 else 0) = n - Δ₀(Uᵣ, Vᵣ) := by
       -- 1. `∑ j, if P j then 1 else 0` is the definition of `(Finset.filter P Finset.univ).card`
       rw [Finset.sum_boole]
-
       -- 2. Unfold the notation
       -- `n` is `(Finset.univ : Finset ι).card`
       dsimp only [Nat.cast_id, n]
@@ -1200,8 +1175,6 @@ lemma R_star_star_lower_bound
       unfold hammingDist
       apply Nat.eq_sub_of_add_eq
       rw [Finset.card_filter, Finset.card_filter]
-
-      change ((∑ i, if Uᵣ i = Vᵣ i then 1 else 0) + ∑ i, if Uᵣ i ≠ Vᵣ i then 1 else 0) = #univ
       rw [← Finset.sum_add_distrib]
       simp_rw [ne_eq]
       -- simp will solve the `ite` logic and apply `sum_const_one`
@@ -1225,7 +1198,6 @@ lemma R_star_star_lower_bound
         Lean.Elab.WF.paramLet] at res
       exact res
     exact Nat.sub_le_sub_left h_dist_le_n (Fintype.card ι)
-
   have h_left : (Fintype.card ι - e) * #(R_star (A := A) (F := F) (ι := ι) (C := MC) (e := e) U₀ U₁)
     = ∑ r ∈ R_star (A := A) (F := F) (ι := ι) (C := MC) (e := e) U₀ U₁, (Fintype.card ι - e) := by
     rw [Finset.sum_const]
@@ -1287,7 +1259,7 @@ lemma e_mul_R_div_R_sub_1_lt_e_add_1_real {e R : ℕ} (hR_gt_e_add_1 : e + 1 < R
   linarith [h_R_gt_e_add_1_real]
 
 open Classical in
-omit [Fintype A] in
+omit [Fintype A] [DecidableEq F] in
 /- **Theorem 3.1**. If `C` features proximity gaps for affine lines with respect to the
 proximity parameter `e ∈ {0, ..., ⌊(d-1)/2⌋}` and the false witness bound
 `ε ≥ e+1`, then, for each `m > 1`, `C`'s interleaving `C^m` also does.
@@ -1308,14 +1280,12 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
   let hR_star_card_gt_ε := probShadedAffineCombInterleavedCodeword_gt_threshold_iff
     (F := F) (A := A) (ι := ι) (MC := MC) (m := m)
     (U₀ := U₀) (U₁ := U₁) (ε := ε) (e := e).mp hR_prob_shaded_affine_comb_gt_threshold
-
   have hR_star_card_gt1 : (R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m)
     (e := e) U₀ U₁).card > 1 := by omega  -- |R*| > ε ≥ e + 1 ≥ 1
   have hR_star_card_gt1_Real : ((R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m)
     (e := e) U₀ U₁).card : ℝ) > 1 := by
     exact Nat.cast_gt_Real_one (R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m)
       (e := e) U₀ U₁).card hR_star_card_gt1
-
   -- 3. Use the hypothesis on the base code C (hProximityGapAffineLines)
   -- and the fact that |R*| > ε to construct the candidate
   -- interleaved codewords V₀ and V₁ in C^m.
@@ -1334,7 +1304,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     (C := MC) (m := m) (e := e) U₀ U₁).card := by
     conv_lhs => rw [←Nat.mul_one D.card]
     apply Nat.mul_le_mul_left; exact Nat.one_le_of_lt hR_star_card_gt_ε
-
   -- `e · |R*| ≥ |D| · (|R*| - 1)
   have h_e_mul_Rstar_card_ge:
     e * (R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁).card
@@ -1347,7 +1316,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     have h_lemma_3_4 := R_star_star_lower_bound (MC := MC) (ε := ε) (m := m) (e := e)
       (U₀ := U₀) (U₁ := U₁) (he := he) hProximityGapAffineLines hR_star_card_gt_ε
     simp only [ge_iff_le] at h_lemma_3_3 h_lemma_3_4
-
     set n := Fintype.card ι
     -- So (n - e)|R*| ≤ |R**| ≤ |R*|(n - |D|) + |D|
     have h_le_trans := le_trans h_lemma_3_4 h_lemma_3_3
@@ -1377,7 +1345,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     rw [Nat.sub_le_sub_iff_left (k := n * #(R_star (A := A) (F := F) (ι := ι) (C := MC) U₀ U₁))
       (h := h_le)] at h_le_trans
     exact h_le_trans
-
   have h_e_mul_Rstar_card_ge_Real: (e : ℝ) * (R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m)
     (e := e) U₀ U₁).card ≥ D.card * (R_star (A := A) (F := F) (ι := ι) (C := MC)
       (m := m) (e := e) U₀ U₁).card - D.card := by
@@ -1385,7 +1352,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     rw [ge_iff_le]
     rw [Nat.cast_le]
     exact h_e_mul_Rstar_card_ge
-
   -- `|D| ≤ e * (|R*| / (|R*| - 1))
   have h_D_card_le_e_mul_R_div_R_succ: D.card ≤ e *
     ((R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁).card : ℝ) /
@@ -1393,7 +1359,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     rw [le_div_iff₀ (hc := by rw [sub_pos]; exact hR_star_card_gt1_Real)]
     rw [mul_sub, mul_one]
     exact h_e_mul_Rstar_card_ge_Real
-
   -- e * (|R*| / (|R*| - 1)) < e + 1 ↔ e * |R*| < e * |R*| - (e + 1) + |R*|
     -- ↔ 0 < |R*| - (e + 1) ↔ e + 1 < |R*|
   have h_e_mul_R_div_R_succ_lt: e * ((R_star (A := A) (F := F) (ι := ι) (C := MC)
@@ -1401,7 +1366,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
     / ((R_star (A := A) (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁).card - 1) < e + 1 := by
     exact e_mul_R_div_R_sub_1_lt_e_add_1_real (e := e) (R := (R_star (A := A)
       (F := F) (ι := ι) (C := MC) (m := m) (e := e) U₀ U₁).card) (hR_gt_e_add_1 := by omega)
-
   have h_D_card_le_e: D.card ≤ e := by
     apply Nat.le_of_lt_succ;
     have res := lt_of_le_of_lt (a := (#D : ℝ))
@@ -1410,7 +1374,6 @@ theorem affine_gaps_lifted_to_interleaved_codes {m : ℕ} {ε : ℕ}
         (c := (e + 1 : ℝ)) (hab := h_D_card_le_e_mul_R_div_R_succ) (hbc := h_e_mul_R_div_R_succ_lt)
     rw [←Nat.cast_add_one, Nat.cast_lt] at res
     exact res
-
   dsimp only [D] at h_D_card_le_e
   exact (D_card_le_e_implies_interleaved_correlatedAgreement₂ (MC := MC)
     (m := m) (e := e) (ε := ε) U₀ U₁ hProximityGapAffineLines hR_star_card_gt_ε) (h_D_card_le_e)
@@ -1456,7 +1419,6 @@ lemma correlatedAgreement_of_mem_R_star_tensor
     -- must be close to individual-row code MC
   set U₀ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ_pred) u).1
   set U₁ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ_pred) u).2
-
   unfold R_star_tensor at r
   -- Now, just state that the proof is `r.property`
   have hr:  R_star_tensor_filter MC U₀ U₁ ↑r :=
@@ -1473,14 +1435,15 @@ def multilinearCombine_affineComb_split_last_close {ϑ : ℕ}
       (affineLineEvaluation U₀ U₁ r_last) r_init, ↑MC) ≤ (e : ℕ∞)
 
 omit [Nonempty ι] [NoZeroDivisors F] [Fintype A] [Module.Free F A] [Nontrivial ↥MC]
-  [DecidableEq ι] in
+  [DecidableEq ι] [DecidableEq F] in
 open Classical in
 lemma prob_R_star_gt_threshold
   {ϑ : ℕ}
   (u : WordStack A (Fin (2 ^ (ϑ + 1))) ι) (e : ℕ)
   (hP_multilinearCombine_affine_close_gt :
-    Pr_{ let r_last ← $ᵖ F; let r_init ← $ᵖ (Fin (ϑ) → F)}[
-      multilinearCombine_affineComb_split_last_close (MC := MC) (u := u) (e := e) r_last r_init]
+    Pr_{ let r_last ← $ᵖ F;
+         let r_init ← $ᵖ (Fin (ϑ) → F)}[multilinearCombine_affineComb_split_last_close
+      (MC := MC) (u := u) (e := e) r_last r_init]
     > (((Nat.cast (R := ℝ≥0) (ϑ + 1)) * ε : ℝ≥0) / ((Fintype.card F : ℝ≥0) : ℝ≥0))) :
     let U₀ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).1
     let U₁ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).2
@@ -1490,7 +1453,6 @@ lemma prob_R_star_gt_threshold
   set U₀ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).1
   set U₁ := (splitHalfRowWiseInterleavedWords (ϑ := ϑ) u).2
   set R_star_set := R_star_tensor MC (m := ϑ) (e := e) (ε := ε) U₀ U₁
-
   let q := (Fintype.card F : ENNReal)
   let ε_enn := (ε : ENNReal)
   let ϑ_enn := (ϑ : ENNReal)
@@ -1500,12 +1462,10 @@ lemma prob_R_star_gt_threshold
   have h_finite : (↑(Nat.cast (R := ℝ≥0) ϑ) * ↑ε / q) ≠ ⊤ :=
     ENNReal.div_ne_top (ENNReal.mul_ne_top (ENNReal.coe_ne_top) ENNReal.coe_ne_top)
       (Ne.symm (NeZero.ne' q))
-
   -- Define the thresholds from the paper
   let cur_false_witness_threshold := (((Nat.cast (R := ℝ≥0) (ϑ+1)) * ε: ℝ≥0) : ENNReal) / q
   let prev_false_witness_threshold := (((Nat.cast (R := ℝ≥0) ϑ) * ε: ℝ≥0) : ENNReal) / q
   let goal_threshold := (ε_enn / q)
-
   -- 2. Define the combined distribution and the two predicates
   let D : PMF (F × (Fin (ϑ) → F)) := do
     let r_last ← $ᵖ F
@@ -1514,27 +1474,22 @@ lemma prob_R_star_gt_threshold
   set f := fun (r : F × (Fin ϑ → F)) =>
     multilinearCombine_affineComb_split_last_close (MC := MC) (u := u) (e := e) r.1 r.2
   set g := fun (r : F × (Fin ϑ → F)) => r.1 ∈ R_star_set
-
   -- 3. Rewrite the hypothesis `hP...` using the combined distribution `D`
   have h_D_eq_prod : D = $ᵖ (F × (Fin ϑ → F)) := by
     rw [←do_two_uniform_sampling_eq_uniform_prod]
   rw [Pr_multi_let_equiv_single_let] at hP_multilinearCombine_affine_close_gt
-
   -- `hP_f_gt` is the hypothesis `Pr[f] > cur_false_witness_threshold`
   have h_P_f_gt : Pr_{let r ← D}[f r] > cur_false_witness_threshold := by
     exact hP_multilinearCombine_affine_close_gt
-
   -- 4. Apply the Law of Total Probability: Pr[f] = Pr[f ∧ g] + Pr[f ∧ ¬g]
   have h_split : Pr_{let r ← D}[f r] =
     Pr_{let r ← D}[g r ∧ f r] + Pr_{let r ← D}[¬(g r) ∧ f r] := by
     apply Pr_add_split_by_complement
-
   -- 5. Bound the two terms on the RHS
   -- 5a. Pr[f ∧ g] ≤ Pr[g]
   have h_Pr_f_and_g_le_Pr_g : Pr_{let r ← D}[g r ∧ f r] ≤ Pr_{let r ← D}[g r] := by
     apply Pr_le_Pr_of_implies
     intro r h_imp; exact h_imp.1
-
   -- 5b. Pr[f ∧ ¬g] ≤ prev_false_witness_threshold (i.e., ϑε/q) (This is the "false positive" bound)
   -- Proof sketch: Pr_{let r ← D}[¬(g r) ∧ f r]
     -- = (1/q) * ∑' r_last, Pr_{r_init}[ r_last ∉ R_star_set ∧ f (r_init||r_last)]
@@ -1570,7 +1525,6 @@ lemma prob_R_star_gt_threshold
         unfold R_star_tensor_filter at h_i_ne_mem_and_close
         simp only [gt_iff_lt, not_lt] at h_i_ne_mem_and_close
         exact h_i_ne_mem_and_close
-
     calc
       _ ≤ (((Fintype.card F): ENNReal)⁻¹ * ∑' (i : F), prev_false_witness_threshold) := by
         apply ENNReal.mul_le_mul_iff_right (h0 := ENNReal.inv_ne_zero.mpr hq_ne_top)
@@ -1593,14 +1547,12 @@ lemma prob_R_star_gt_threshold
       _ ≤ Pr_{let r ← D}[g r] + prev_false_witness_threshold := by
         gcongr
       _ ≤ _ := by simp only [bind_pure_comp, le_refl]
-
   -- 7. Prove Pr[g] is equal to the goal probability (marginalization)
   have h_Pr_g_eq : Pr_{let r ← D}[g r] = Pr_{let r ← $ᵖ F}[ r ∈ R_star_set ] := by
     have h_D_rw : D = (do { let x ← $ᵖ F; let y ← $ᵖ (Fin ϑ → F); pure (x, y)}) := rfl
     rw [h_D_rw]
     rw [do_two_uniform_sampling_eq_uniform_prod]
     rw [prob_marginalization_first_of_prod]
-
   -- 8. Rearrange to get the final result
   -- We have: cur_false_witness_threshold < Pr[g] + prev_false_witness_threshold
   -- We want: goal_threshold < Pr[g]
@@ -1623,7 +1575,6 @@ lemma prob_R_star_gt_threshold
           rw [h_ε_eq_zero]; simp only [CharP.cast_eq_zero, mul_zero, Nat.cast_add, Nat.cast_one,
             le_refl]
       · exact Preorder.le_refl q
-
   have h_sub_eq_goal : cur_false_witness_threshold - prev_false_witness_threshold
     = goal_threshold := by
     unfold cur_false_witness_threshold prev_false_witness_threshold goal_threshold
@@ -1634,11 +1585,10 @@ lemma prob_R_star_gt_threshold
     rw [ENNReal.add_div]
     rw [add_comm, ENNReal.add_sub_cancel_right]
     omega
-
   rw [h_sub_eq_goal] at h_lt_sub
   exact h_lt_sub
 
-omit [NoZeroDivisors F] [Fintype A] [Module.Free F A] [Nontrivial ↥MC] in
+omit [DecidableEq F] [NoZeroDivisors F] [Fintype A] [Module.Free F A] [Nontrivial ↥MC] in
 /- **Theorem 3.6 (Angeris-Evans-Roh AER24): Interleaved Affine Gaps -> Tensor Gaps**
 If, for **every** interleaving factor `m ≥ 1`, the `m`-fold interleaved code `C^m`
 features proximity gaps for affine lines with respect to parameters `e` and `ε`,
@@ -1653,6 +1603,7 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
         (A := InterleavedSymbol A (Fin m)) (ι := ι) (C := MC ^⋈ (Fin m)) e ε) :
     ∀ (ϑ : ℕ), (hϑ_gt_0 : ϑ > 0) → δ_ε_multilinearCorrelatedAgreement_Nat (F := F) (A := A)
       (ι := ι) (C := MC) (ϑ := ϑ) (e := e) (ε := ε) := by
+    classical
     intro ϑ
     induction ϑ with
     | zero =>
@@ -1670,7 +1621,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
         let prob_eq := prob_uniform_singleton_finFun_eq (F := F)
           (P := fun r => Δ₀(affineLineEvaluation (u 0) (u 1) r, MC) ≤ e)
         -- Convert sampling (r ← (Fin 1 → F)) into sampling (r ← F)
-
         simp_rw [prob_eq, Nat.cast_one, ENNReal.coe_one, one_mul] at hprob_gt
         have h_correlated_agreement := hC_proximityGapAffineLines (u 0) (u 1) hprob_gt
         simp only [jointProximityNat₂, Fin.isValue] at h_correlated_agreement
@@ -1695,7 +1645,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
         unfold jointProximityNat
         simp only
         -- intro hP_multilinearCombine_close_gt
-
         have h_finsnoc_eq_r: ∀ r: Fin (ϑ_sub_2 + 1 + 1) → F,
           Fin.snoc (fun (i : Fin (ϑ_sub_2 + 1)) ↦ r i.castSucc)
             (r (Fin.last (ϑ_sub_2 + 1))) = r := fun r => by
@@ -1711,14 +1660,11 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
             simp only [isEmpty_Prop, not_le, h_i_lt, IsEmpty.forall_iff]
         let P : F → (Fin (ϑ_sub_2 + 1) → F) → Prop := fun r_last r_init =>
           Δ₀(multilinearCombine (u:=u) (r:=Fin.snoc r_init r_last), MC) ≤ e
-
         let hP_split_r_last := prob_split_last_uniform_sampling_of_finFun
           (ϑ := ϑ_sub_2 + 1) (F := F) (P := P)
         unfold P at hP_split_r_last
         simp_rw [h_finsnoc_eq_r] at hP_split_r_last
-
         rw [hP_split_r_last] at hP_multilinearCombine_close_gt
-
         -- Now we have two randomness sampling in hP_multilinearCombine_close_gt :
         -- `((ϑ_sub_2 + 1 + 1) * ε) / |𝔽|
           -- < Pr_{ r_last; r_init }[  Δ₀((Fin.snoc r_init r_last)|⨂|u, ↑MC) ≤ ↑e)) ]` (0)
@@ -1741,7 +1687,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
           -- `Δ₀((r_last)|⨂|affineCombine(U₀, U₁, r_last), ↑MC) ≤ ↑e)) ] > ε/|𝔽|` (6)
         -- This is premise for affineProxmityGaps of interleaved code (`h_interleaved_gaps`)
           -- for `m = 2^{ϑ_sub_2 + 1}`, which directly leads to Q.E.D.
-
         let  ϑ_pred := ϑ_sub_2 + 1
         have h_ϑ_pred : ϑ_pred = ϑ_sub_2 + 1 := by rfl
         have h_ϑ : ϑ = ϑ_pred + 1 := by rfl
@@ -1754,7 +1699,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
           rw [multilinearCombine_recursive_form]
           simp only [Fin.snoc_last, Fin.init_snoc]
           rfl
-
         -- Rewrite the probability using this identity
         simp_rw [multilinearCombine_snoc_eq_multilinearCombine_affine]
           at hP_multilinearCombine_close_gt
@@ -1763,7 +1707,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
             -- (affineLineEvaluation U₀ U₁ r_last) r_init, ↑MC) ≤ ↑e ] > ↑(↑ϑ * ↑ε) / q
         -- Step 2 & 3: Define R* and apply Law of Total Probability
         let R_star_set := R_star_tensor MC (m:=ϑ_pred) (e:=e) (ε:=ε) U₀ U₁
-
         -- Step 5: Show Pr[R*] > ε / q
         have h_prob_Rstar_gt_eps_div_q : Pr_{ let r ← $ᵖ F }[ r ∈ R_star_set ]
           > (↑ε : ENNReal) / (Fintype.card F : ENNReal) := by
@@ -1781,11 +1724,9 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
             (c := (Fintype.card F : ENNReal)) (hc₀ := by simp only [ne_eq,
             Nat.cast_eq_zero, Fintype.card_ne_zero, not_false_eq_true]) (hc := by simp only [ne_eq,
               ENNReal.natCast_ne_top, not_false_eq_true])
-
           rw [h_cancel_q_denom] at h_prob_Rstar_gt_eps_div_q
           simp only [filter_univ_mem, Nat.cast_lt] at h_prob_Rstar_gt_eps_div_q
           exact h_prob_Rstar_gt_eps_div_q
-
         -- Step 6: Apply Inductive Hypothesis for r_last ∈ R*
         have h_line_close_to_C_m : ∀ (r : R_star_set),
           jointProximityNat (u := affineLineEvaluation U₀ U₁ r.val) (e := e) (C := MC) := by
@@ -1795,7 +1736,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
             (ih := fun u_prev => ih (by omega) u_prev ) (u := u)
         -- Step 7: Apply Affine Gap of Interleaved Code C^(m = 2^(ϑ_sub_2 + 1))
         have h_C_m_gap := h_interleaved_gaps (2^(ϑ_sub_2 + 1)) (Nat.one_le_two_pow)
-
         -- Need the hypothesis Pr[...] > ε/q for h_C_m_gap
         have h_prob_line_gt_eps_div_q :
           Pr_{ let r ← $ᵖ F }[
@@ -1822,7 +1762,6 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
               (f := fun r => r ∈ R_star_set) (h_imp := h_r_implies)
             simp only at Pr_le
             exact Pr_le
-
         -- Apply the gap property of C^m
         have h_final_gap : jointProximityNat₂
           (u₀ := ⋈|(show WordStack A (Fin (2 ^ (ϑ_sub_2 + 1))) ι from U₀))
@@ -1831,15 +1770,15 @@ theorem interleaved_affine_gaps_imply_tensor_gaps
           apply h_C_m_gap (u₀ := ⋈|(show WordStack A (Fin (2 ^ (ϑ_sub_2 + 1))) ι from U₀))
             (u₁ := ⋈|(show WordStack A (Fin (2 ^ (ϑ_sub_2 + 1))) ι from U₁))
             (h_prob_line_gt_eps_div_q)
-
         apply CA_split_rowwise_implies_CA (u := u) (e := e)
         exact h_final_gap
 
-omit [Fintype F] [NoZeroDivisors F] [DecidableEq F] [Fintype A] [Module.Free F A]
+omit [DecidableEq ι] [Fintype F] [NoZeroDivisors F] [DecidableEq F] [Fintype A] [Module.Free F A]
   [Nontrivial ↥MC] in
 lemma jointProximity₂_affineShift_implies_jointProximity₂ (u₀ u₁ : Word A ι) (δ : ℝ≥0) :
   jointProximity₂ (C := MC) (u₀ := u₀) (u₁ := u₁ - u₀) (δ := δ) →
     jointProximity₂ (C := MC) (u₀ := u₀) (u₁ := u₁) (δ := δ) := by
+  classical
   intro h_shifted_jointProximity₂
   unfold jointProximity₂ at h_shifted_jointProximity₂ ⊢
   rw [←jointAgreement_iff_jointProximity] at h_shifted_jointProximity₂ ⊢
@@ -1913,9 +1852,7 @@ theorem ReedSolomon_ProximityGapAffineLines_UniqueDecoding [Nontrivial (ReedSolo
         (C := (ReedSolomon.code α k : Set (ι → A)))
         (e := e) (ε := Fintype.card (ι)) := by
   set n := Fintype.card ι
-  intro e he_unique_decoding_radius
-  intro u₀ u₁
-  intro h_prob_affine_line_close_gt
+  intro e he_unique_decoding_radius u₀ u₁ h_prob_affine_line_close_gt
   -- Apply theorem 4.1 (BCIKS20)
   let δ : ℝ≥0 := (e : ℝ≥0) / (Fintype.card (ι) : ℝ≥0)
   have h_δ_mul_n_eq_e: Nat.floor (δ * Fintype.card (ι)) = e := by
@@ -1970,23 +1907,18 @@ theorem ReedSolomon_ProximityGapAffineLines_UniqueDecoding [Nontrivial (ReedSolo
   -- convert h_correlated_agreement into absolute distance bound
   unfold  δ_ε_correlatedAgreementAffineLines at h_correlated_agreement
   simp_rw [relDistFromCode_le_iff_distFromCode_le] at h_correlated_agreement
-
   let h_u₀_and_u₁_sub_u₀_CA := h_correlated_agreement uShifted (by
     rw [h_δ_mul_n_eq_e]
     simp only [Fin.isValue, bind_pure_comp, ne_eq, Nat.cast_eq_zero, Fintype.card_ne_zero,
       not_false_eq_true, ENNReal.coe_div, ENNReal.coe_natCast, gt_iff_lt]
     simp only [ENNReal.coe_natCast] at h_prob_affine_line_close_gt
-
     exact h_prob_affine_line_close_gt
   )
-
   rw [jointAgreement_iff_jointProximity] at h_u₀_and_u₁_sub_u₀_CA
   -- we have jointProximity₂ (u₀ := u₀) (u₁ := u₁ - u₀) (δ := δ) at h_u₀_and_u₁_sub_u₀_CA
   have h_jointProximity₂ : jointProximity₂ (C := CRS) (u₀ := u₀) (u₁ := u₁ - u₀) (δ := δ) := by
     exact h_u₀_and_u₁_sub_u₀_CA
-
   letI : Nontrivial (CRS) := by infer_instance
-
   let jointProximity₂_u₀_u₁ := jointProximity₂_affineShift_implies_jointProximity₂ (ι := ι)
     (MC := CRS) (u₀ := u₀) (u₁ := u₁) (δ := δ) (h_jointProximity₂)
   unfold jointProximity₂ jointProximity at jointProximity₂_u₀_u₁
@@ -2003,8 +1935,7 @@ theorem reedSolomon_multilinearCorrelatedAgreement_Nat [Nontrivial (ReedSolomon.
       (ι := ι) (C := (ReedSolomon.code α k : Set (ι → A)))
       (ϑ := ϑ) (e := e) (ε := Fintype.card ι) := by
     set n := Fintype.card ι
-    intro ϑ hϑ_gt_0
-    intro u h_prob_tensor_gt
+    intro ϑ hϑ_gt_0 u h_prob_tensor_gt
     set C_RS: ModuleCode ι A A := ReedSolomon.code α k
     have h_dist_RS := ReedSolomon.dist_eq'  (F := A) (α := α)
       (n := k) (ι := ι) (h := hk)
@@ -2059,8 +1990,7 @@ theorem reedSolomon_multilinearCorrelatedAgreement [Nontrivial (ReedSolomon.code
       (C := (ReedSolomon.code α k : Set (ι → A))) (ε := ((Fintype.card ι) : ℝ≥0) / (Fintype.card A))
     := by
   set n := Fintype.card ι
-  intro ϑ hϑ_gt_0
-  intro u h_prob_u_close_gt
+  intro ϑ hϑ_gt_0 u h_prob_u_close_gt
   let e : ℕ := Nat.floor (δ * n)
   have h_δᵣ_close_iff_Δ₀_close : ∀ (r : Fin ϑ → A),
     (δᵣ(multilinearCombine u r, ↑(ReedSolomon.code α k)) ≤ ↑δ)

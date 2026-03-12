@@ -156,6 +156,42 @@ noncomputable def δ_ε_correlatedAgreementAffineSpaces
 
 end CoreSecurityDefinitions
 
-end ProximityGap
+namespace WeightedAgreement
 
-#min_imports
+open NNReal Finset Function
+open scoped BigOperators
+
+section
+
+variable {ι : Type} [Fintype ι] [Nonempty ι]
+variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
+variable (μ : ι → Set.Icc (0 : ℚ) 1)
+
+/-- Relative `μ`-agreement between words `u` and `v`. -/
+noncomputable def agree (u v : ι → F) : ℝ :=
+  1 / (Fintype.card ι) * ∑ i ∈ { i | u i = v i }, (μ i).1
+
+/-- `μ`-agreement between a word and a finite set `V`. -/
+noncomputable def agree_set (u : ι → F) (V : Finset (ι → F)) [Nonempty V] : ℝ :=
+  (Finset.image (agree μ u) V).max' <| by
+    rcases ‹Nonempty V› with ⟨v, hv⟩
+    exact ⟨agree μ u v, Finset.mem_image.mpr ⟨v, hv, rfl⟩⟩
+
+/-- Weighted size of a subdomain. -/
+noncomputable def mu_set (ι' : Finset ι) : ℝ :=
+  1 / (Fintype.card ι) * ∑ i ∈ ι', (μ i).1
+
+/-- `μ`-weighted correlated agreement. -/
+noncomputable def weightedCorrelatedAgreement
+    (C : Set (ι → F)) [Nonempty C] {k : ℕ} (U : Fin k → ι → F) : ℝ :=
+  sSup {x |
+    ∃ D' ⊆ (Finset.univ (α := ι)),
+      x = mu_set μ D' ∧
+      ∃ v : Fin k → ι → F, ∀ i, v i ∈ C ∧ ∀ j ∈ D', v i j = U i j
+  }
+
+end
+
+end WeightedAgreement
+
+end ProximityGap
