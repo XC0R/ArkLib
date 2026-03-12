@@ -3,7 +3,7 @@ Copyright (c) 2024-2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Alexander Hicks, Aleph
 -/
-import ArkLib.Data.Polynomial.Bivariate
+import ArkLib.Data.Polynomial.BivariateDegree
 import Mathlib.Algebra.Order.Star.Basic
 import Mathlib.Analysis.Normed.Field.Lemmas
 import Mathlib.RingTheory.Polynomial.UniqueFactorization

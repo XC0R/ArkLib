@@ -6,7 +6,8 @@ Authors: Poulami Das (Least Authority), Alexander Hicks
 
 import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.CodingTheory.ListDecodability
-import ArkLib.Data.MvPolynomial.Multilinear
+import CompPoly.Data.MvPolynomial.Notation
+import CompPoly.Multilinear.Equiv
 import ArkLib.Data.Probability.Notation
 
 namespace OutOfDomSmpl
@@ -15,6 +16,11 @@ open ListDecodable MvPolynomial NNReal ProbabilityTheory ReedSolomon
 
 variable {F : Type} [Field F] [DecidableEq F]
          {ι : Type} [Fintype ι] [DecidableEq ι]
+
+private noncomputable def eqPolynomialFin {m : ℕ} (r : Fin m → F) : MvPolynomial (Fin m) F :=
+  CompPoly.CMlPolynomial.toMvPolynomial <|
+    CompPoly.CMlPolynomial.lagrangeToMono m <|
+      CompPoly.CMlPolynomialEval.lagrangeBasis (Vector.ofFn r)
 
 /-- Lemma 4.24
   Let `f : ι → F`, `m` be the number of variables, `s` be a repetition parameter
@@ -37,7 +43,7 @@ lemma crs_equiv_rs_random_point_agreement
     ↔
     (∃ σ : Fin s → F,
       let w : Fin s → MvPolynomial (Fin (m + 1)) F :=
-        fun i => MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial (r i))
+        fun i => MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomialFin (r i))
       let multiCRSCode := multiConstrainedCode φ m s w σ
       ∃ u u' : ι → F, u ≠ u' ∧
         u ∈ closeCodewordsRel multiCRSCode f δ ∧
@@ -62,7 +68,7 @@ lemma oodSampling_crs_eq_rs
                           fun i =>
                             let ri := rs i
                             let rVec := fun j : Fin m => ri ^ (2^(j : ℕ))
-                            MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial rVec)
+                            MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomialFin rVec)
                         let multiCRSCode := multiConstrainedCode φ m s w σ
                         ∃ u u' : ι → F, u ≠ u' ∧
                           u ∈ closeCodewordsRel multiCRSCode f δ ∧
@@ -85,7 +91,7 @@ lemma oodSampling_crs_eq_rs
         fun i =>
           let ri := rs i
           let rVec := fun j : Fin m => ri ^ (2^(j : ℕ))
-          MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial rVec)
+          MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomialFin rVec)
       let multiCRSCode := multiConstrainedCode φ m s w σ
       ∃ u u' : ι → F, u ≠ u' ∧
         u ∈ closeCodewordsRel multiCRSCode f ↑δ ∧
@@ -105,7 +111,7 @@ lemma oodSampling_crs_eq_rs
       let w := fun i =>
         let ri := rs i
         let rVec := fun j : Fin m => ri ^ (2^(j : ℕ))
-        MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomial rVec)
+        MvPolynomial.X (Fin.last m) * rename Fin.castSucc (eqPolynomialFin rVec)
       let multiCRSCode := multiConstrainedCode φ m s w σ
       ∃ u u' : ι → F, u ≠ u' ∧
         u ∈ closeCodewordsRel multiCRSCode f ↑δ ∧

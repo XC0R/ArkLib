@@ -76,7 +76,7 @@ end Pspec
 
 def batchingCoreVerifier :=
   OracleVerifier.append (oSpec:=[]ₒ)
-    (V₁:= RingSwitching.BatchingPhase.oracleVerifier κ L K (β:=booleanHypercubeBasis κ L K β)
+    (V₁:= RingSwitching.BatchingPhase.oracleVerifier κ L K (β:=β)
       ℓ ℓ' h_l (aOStmtIn := BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate))
     (pSpec₁ := RingSwitching.pSpecBatching κ L K)
     (pSpec₂:=BinaryBasefold.pSpecCoreInteraction K β (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
@@ -91,7 +91,7 @@ def batchingCoreVerifier :=
 def batchingCoreReduction :=
   OracleReduction.append (oSpec:=[]ₒ)
     (R₁ := RingSwitching.BatchingPhase.batchingOracleReduction κ L K
-      (β:=booleanHypercubeBasis κ L K β) ℓ ℓ' h_l
+      (β:=β) ℓ ℓ' h_l
       (aOStmtIn := BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate))
     (pSpec₁ := RingSwitching.pSpecBatching κ L K)
     (pSpec₂:=BinaryBasefold.pSpecCoreInteraction K β (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
@@ -176,7 +176,7 @@ theorem fullOracleReduction_perfectCompleteness :
   OracleReduction.perfectCompleteness
     (oracleReduction := fullOracleReduction κ L K β ℓ ℓ' 𝓡 ϑ γ_repetitions
       (h_ℓ_add_R_rate := h_ℓ_add_R_rate) h_l (𝓑:=𝓑))
-    (relIn := BatchingPhase.batchingInputRelation κ L K (β:=booleanHypercubeBasis κ L K β)
+    (relIn := BatchingPhase.batchingInputRelation κ L K (β:=β)
       ℓ ℓ' h_l (BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate))
     (relOut := acceptRejectOracleRel)
     (init := init)
@@ -195,20 +195,20 @@ theorem fullOracleReduction_perfectCompleteness :
     (Oₛ₃:=by exact fun i ↦ by exact OracleInterface.instDefault)
     (pSpec₁ := batchingCorePspec κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate)
     (pSpec₂ := BinaryBasefold.pSpecQuery K β γ_repetitions (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
-    (rel₁ := BatchingPhase.batchingInputRelation κ L K (β:=booleanHypercubeBasis κ L K β)
+    (rel₁ := BatchingPhase.batchingInputRelation κ L K (β:=β)
       ℓ ℓ' h_l (BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate))
     (rel₂ := BinaryBasefold.finalSumcheckRelOut K β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
     (rel₃ := acceptRejectOracleRel)
     (h₁ := by
       apply OracleReduction.append_perfectCompleteness
-        (rel₁ := BatchingPhase.batchingInputRelation κ L K (β:=booleanHypercubeBasis κ L K β)
+        (rel₁ := BatchingPhase.batchingInputRelation κ L K (β:=β)
           ℓ ℓ' h_l (BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate))
-        (rel₂ := RingSwitching.sumcheckRoundRelation κ L K (booleanHypercubeBasis κ L K β)
+        (rel₂ := RingSwitching.sumcheckRoundRelation κ L K β
         ℓ ℓ' h_l (𝓑 := 𝓑) (aOStmtIn := BinaryBasefoldAbstractOStmtIn κ L K β ℓ'
           𝓡 ϑ (h_ℓ_add_R_rate := h_ℓ_add_R_rate)) 0)
         (rel₃ := BinaryBasefold.finalSumcheckRelOut K β (ϑ:=ϑ) (h_ℓ_add_R_rate := h_ℓ_add_R_rate))
       · apply BatchingPhase.batchingReduction_perfectCompleteness κ L K
-          (β:=booleanHypercubeBasis κ L K β) ℓ ℓ' h_l (𝓑 := 𝓑)
+          (β:=β) ℓ ℓ' h_l (𝓑 := 𝓑)
           (BinaryBasefoldAbstractOStmtIn κ L K β ℓ' 𝓡 ϑ h_ℓ_add_R_rate)
       · apply CoreInteractionPhase.coreInteractionOracleReduction_perfectCompleteness
           κ L K β ℓ ℓ' 𝓡 ϑ h_ℓ_add_R_rate h_l (𝓑 := 𝓑)

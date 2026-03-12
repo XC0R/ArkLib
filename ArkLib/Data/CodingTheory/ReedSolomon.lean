@@ -6,7 +6,7 @@ Mirco Richter, Chung Thai Nguyen
 -/
 
 import ArkLib.Data.MvPolynomial.LinearMvExtension
-import ArkLib.Data.Polynomial.Interface
+import ArkLib.Data.Fin.Lift
 import CompPoly.Data.Polynomial.MonomialBasis
 import Mathlib.LinearAlgebra.Lagrange
 import Mathlib.RingTheory.Henselian
@@ -204,12 +204,14 @@ lemma natDegree_lt_of_mem_degreeLT [NeZero deg] (h : p ∈ degreeLT F deg) : p.n
   · aesop (add simp [natDegree_lt_iff_degree_lt, mem_degreeLT])
 
 def encode [DecidableEq F] (msg : Fin deg → F) (domain : Fin m ↪ F) : Fin m → F :=
-  (polynomialOfCoeffs msg).eval ∘ ⇑domain
+  let p : Polynomial.degreeLT F deg := (Polynomial.degreeLTEquiv F deg).symm msg
+  p.1.eval ∘ ⇑domain
 
 lemma encode_mem_ReedSolomon_code [DecidableEq F] [NeZero deg]
     {msg : Fin deg → F} {domain : Fin m ↪ F} :
   encode msg domain ∈ ReedSolomon.code domain deg :=
-  ⟨polynomialOfCoeffs msg, ⟨by simp, by ext i; simp [encode, ReedSolomon.evalOnPoints]⟩⟩
+  let p : Polynomial.degreeLT F deg := (Polynomial.degreeLTEquiv F deg).symm msg
+  ⟨p.1, ⟨p.2, by ext i; simp [encode, ReedSolomon.evalOnPoints, p]⟩⟩
 
 end
 
@@ -228,14 +230,21 @@ lemma genMatIsVandermonde [Fintype ι] [Field F] [DecidableEq F] [inst : NeZero 
   unfold fromColGenMat ReedSolomon.code
   ext x; rw [LinearMap.mem_range, Submodule.mem_map]
   refine ⟨
-    fun ⟨coeffs, h⟩ ↦ ⟨polynomialOfCoeffs coeffs, h.symm ▸ ?p₁⟩,
+    fun ⟨coeffs, h⟩ ↦ by
+      let p : Polynomial.degreeLT F m := (Polynomial.degreeLTEquiv F m).symm coeffs
+      refine ⟨p.1, h.symm ▸ ?_⟩
+      have hpcoeff : Fin.liftF' p.1.coeff = coeffs := by
+        ext i
+        simpa [p, Polynomial.degreeLTEquiv, Fin.liftF'] using
+          congrFun ((Polynomial.degreeLTEquiv F m).apply_symm_apply coeffs) i
+      rw [
+        ←hpcoeff,
+        Vandermonde.mulVecLin_coeff_vandermondens_eq_eval_matrixOfPolynomials
+          (natDegree_lt_of_mem_degreeLT p.2)
+      ]
+      simp [ReedSolomon.evalOnPoints],
     fun ⟨p, h⟩ ↦ ⟨Fin.liftF' p.coeff, ?p₂⟩
   ⟩
-  · rw [
-      ←coeff_polynomialOfCoeffs_eq_coeffs (coeffs := coeffs),
-      Vandermonde.mulVecLin_coeff_vandermondens_eq_eval_matrixOfPolynomials (by simp)
-    ]
-    simp [ReedSolomon.evalOnPoints]
   · exact h.2 ▸ Vandermonde.mulVecLin_coeff_vandermondens_eq_eval_matrixOfPolynomials
                   (natDegree_lt_of_mem_degreeLT h.1)
 

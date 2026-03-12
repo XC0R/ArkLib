@@ -9,7 +9,7 @@ import Mathlib.Data.Real.Sqrt
 
 import ArkLib.Data.CodingTheory.Basic
 import ArkLib.Data.CodingTheory.ReedSolomon
-import ArkLib.Data.Polynomial.Bivariate
+import ArkLib.Data.Polynomial.BivariateMultiplicity
 
 open Polynomial Polynomial.Bivariate Finsupp Finset
 

@@ -38,13 +38,7 @@ lemma card_bool_hypercube_eq :
   Fintype.card (Fin κ → Fin 2) = 2 ^ κ := by
   simp only [Fintype.card_pi, Fintype.card_fin, prod_const, card_univ]
 
-def hypercubeEquivFin : (Fin κ → Fin 2) ≃ Fin (2 ^ κ) :=
-  Fintype.equivFinOfCardEq (card_bool_hypercube_eq κ)
-
-instance booleanHypercubeBasis : Basis (Fin κ → Fin 2) K L :=
-  β.reindex (e := (hypercubeEquivFin κ).symm)
-
-instance linearIndependentBooleanHypercubeBasis : Fact (LinearIndependent K ⇑β) := by
+instance linearIndependentBasis : Fact (LinearIndependent K (β : Fin (2 ^ κ) → L)) := by
   constructor
   exact β.linearIndependent
 

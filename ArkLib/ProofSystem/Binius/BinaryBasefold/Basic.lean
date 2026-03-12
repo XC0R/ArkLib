@@ -649,16 +649,11 @@ noncomputable def extractMLP (i : Fin ℓ) (f : (sDomain 𝔽q β h_ℓ_add_R_ra
       match novel_coeffs with
       | none => exact none
       | some t_coeffs =>
-        -- Interpret novel coeffs as Lagrange cosefficients on Boolean hypercube
-        -- and reconstruct the multilinear polynomial using MLE
-        let hypercube_evals : (Fin (ℓ - i.val) → Fin 2) → L := fun w =>
-          -- Map Boolean hypercube point w to its linear index
-          let w_index : Fin (2^(ℓ - i.val)) := Nat.binaryFinMapToNat
-            (n:=ℓ - i.val) (m:=w) (h_binary:=by intro j; simp only [Nat.cast_id]; omega)
-          t_coeffs w_index
-
-        let t_multilinear_mv := MvPolynomial.MLE hypercube_evals
-        exact some ⟨t_multilinear_mv, MLE_mem_restrictDegree hypercube_evals⟩
+        let t_multilinear :=
+          CompPoly.CMlPolynomial.toMvPolynomialDeg1 <|
+            CompPoly.CMlPolynomial.lagrangeToMono (ℓ - i.val) <|
+              Vector.ofFn t_coeffs
+        exact some t_multilinear
 
 def dummyLastWitness :
     Witness (L := L) 𝔽q β (h_ℓ_add_R_rate := h_ℓ_add_R_rate) (Fin.last ℓ) := {
@@ -845,7 +840,9 @@ def oracleFoldingConsistencyProp (i : Fin (ℓ + 1)) (challenges : Fin i → L)
         (h := h_k_next_le_i))
 
 def BBF_eq_multiplier (r : Fin ℓ → L) : MultilinearPoly L ℓ :=
-  ⟨MvPolynomial.eqPolynomial r, by simp only [eqPolynomial_mem_restrictDegree]⟩
+  CompPoly.CMlPolynomial.toMvPolynomialDeg1 <|
+    CompPoly.CMlPolynomial.lagrangeToMono ℓ <|
+      CompPoly.CMlPolynomialEval.lagrangeBasis (Vector.ofFn r)
 
 def BBF_SumcheckMultiplierParam : SumcheckMultiplierParam L ℓ (SumcheckBaseContext L ℓ) :=
   { multpoly := fun ctx => BBF_eq_multiplier ctx.t_eval_point }

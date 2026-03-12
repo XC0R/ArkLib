@@ -34,7 +34,7 @@ variable (L : Type) [Field L] [Fintype L] [DecidableEq L] [CharP L 2]
   [SampleableType L]
 variable (K : Type) [Field K] [Fintype K] [DecidableEq K]
 variable [Algebra K L]
-variable (β : Basis (Fin κ → Fin 2) K L)
+variable (β : Basis (Fin (2 ^ κ)) K L)
 variable (ℓ ℓ' : ℕ) [NeZero ℓ] [NeZero ℓ']
 variable (h_l : ℓ = ℓ' + κ)
 variable {𝓑 : Fin 2 ↪ L}

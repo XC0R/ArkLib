@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Katerina Hristova, František Silváši, Julian Sutherland, Ilia Vlasov
 -/
 
-import ArkLib.Data.Polynomial.Bivariate
+import ArkLib.Data.Polynomial.BivariateDegree
 import ArkLib.Data.Polynomial.Prelims
 import Mathlib.Algebra.Field.IsField
 import Mathlib.Algebra.Polynomial.Basic

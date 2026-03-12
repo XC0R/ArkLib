@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Chung Thai Nguyen, Quang Dao
 -/
 
-import CompPoly.Fields.Binary.AdditiveNTT.AdditiveNTT
-import ArkLib.Data.MvPolynomial.Multilinear
+import ArkLib.Data.MvPolynomial.Degrees
+import CompPoly.Multilinear.Equiv
 import ArkLib.OracleReduction.Basic
 import ArkLib.OracleReduction.Security.RoundByRound
 import CompPoly.Fields.Binary.Tower.TensorAlgebra
@@ -33,7 +33,7 @@ noncomputable section
 namespace Binius.RingSwitching
 open Binius.BinaryBasefold
 
-open OracleSpec OracleComp ProtocolSpec Finset AdditiveNTT Polynomial MvPolynomial TensorProduct
+open OracleSpec OracleComp ProtocolSpec Finset Polynomial MvPolynomial TensorProduct
 open scoped NNReal
 
 /- This section defines generic preliminaries for the ring-switching protocol. -/
@@ -108,7 +108,7 @@ reinterpreting chunks of `2^κ` coefficients as single `L`-elements.
 For each `w ∈ {0,1}^ℓ'`, the evaluation `t'(w)` is defined as:
 `t'(w) := ∑_{v ∈ {0,1}^κ} t(v₀, ..., v_{κ-1}, w₀, ..., w_{ℓ'-1}) ⋅ β_v`
 -/
-def packMLE (β : Basis (Fin κ → Fin 2) K L) (t : MultilinearPoly K ℓ) :
+def packMLE (β : Basis (Fin (2 ^ κ)) K L) (t : MultilinearPoly K ℓ) :
     MultilinearPoly L ℓ' :=
   -- 1. Define the function that gives the evaluations of t' on the boolean hypercube.
   let packing_func (w : Fin ℓ' → Fin 2) : L :=
@@ -124,10 +124,12 @@ def packMLE (β : Basis (Fin κ → Fin 2) K L) (t : MultilinearPoly K ℓ) :
       MvPolynomial.eval (fun i => ↑(concatenated_point i)) t.val
 
     -- b. Use `equivFun.symm` = ∑ v, (coeffs_for_w v) • (β v).
-    β.equivFun.symm coeffs_for_w
+    β.equivFun.symm fun i => coeffs_for_w (finFunctionFinEquiv.symm i)
 
   -- 2. The packed polynomial `t'` is the multilinear extension of this function.
-  ⟨MvPolynomial.MLE packing_func, MLE_mem_restrictDegree packing_func⟩
+  CompPoly.CMlPolynomial.toMvPolynomialDeg1 <|
+    CompPoly.CMlPolynomial.lagrangeToMono ℓ' <|
+      Vector.ofFn fun i : Fin (2 ^ ℓ') => packing_func (finFunctionFinEquiv.symm i)
 
 /--
 **Unpacking a Packed Multilinear Polynomial**.
@@ -138,7 +140,7 @@ The evaluation of `t` at a point `(v, w)` is recovered by taking the evaluation
 of `t'` at `w`, which is an element of `L`, and finding its `v`-th coordinate
 with respect to the basis `β`.
 -/
-def unpackMLE (β : Basis (Fin κ → Fin 2) K L) (t' : MultilinearPoly L ℓ') :
+def unpackMLE (β : Basis (Fin (2 ^ κ)) K L) (t' : MultilinearPoly L ℓ') :
     MultilinearPoly K ℓ :=
   -- 1. Define the function that gives the evaluations of the original small-field polynomial `t`.
   let unpacked_evals (p : Fin ℓ → Fin 2) : K :=
@@ -151,13 +153,15 @@ def unpackMLE (β : Basis (Fin κ → Fin 2) K L) (t' : MultilinearPoly L ℓ') 
 
     -- c. Get the K-coefficients of this L-element with respect to the basis `β`.
     -- `β.repr/β.equivFun` maps an element of L to its coordinate function `(Fin κ → Fin 2) → K`.
-    let coeffs : (Fin κ → Fin 2) → K := β.repr t'_eval_at_w
+    let coeffs : Fin (2 ^ κ) → K := β.repr t'_eval_at_w
     -- d. The desired evaluation t(p) = t(v,w)
       -- is the coefficient corresponding to the basis vector `β_v`.
-    coeffs v
+    coeffs (finFunctionFinEquiv v)
 
   -- 2. The unpacked polynomial `t` is the multilinear extension of this evaluation function.
-  ⟨MvPolynomial.MLE unpacked_evals, MLE_mem_restrictDegree unpacked_evals⟩
+  CompPoly.CMlPolynomial.toMvPolynomialDeg1 <|
+    CompPoly.CMlPolynomial.lagrangeToMono ℓ <|
+      Vector.ofFn fun i : Fin (2 ^ ℓ) => unpacked_evals (finFunctionFinEquiv.symm i)
 
 /--
 **Component-wise `φ₁` embedding**.
@@ -305,7 +309,7 @@ variable (L : Type) [Field L] [Fintype L] [DecidableEq L] [CharP L 2]
   [SampleableType L]
 variable (K : Type) [Field K] [Fintype K] [DecidableEq K]
 variable [Algebra K L]
-variable (β : Basis (Fin κ → Fin 2) K L)
+variable (β : Basis (Fin (2 ^ κ)) K L)
 variable (ℓ ℓ' : ℕ) [NeZero ℓ] [NeZero ℓ']
 variable (h_l : ℓ = ℓ' + κ)
 variable {𝓑 : Fin 2 ↪ L}
@@ -327,7 +331,7 @@ def performCheckOriginalEvaluation (s : L) (r : Fin ℓ → L) (s_hat : TensorAl
   let check_sum := Finset.sum Finset.univ fun (v : Fin κ → Fin 2) =>
     let v_as_L : Fin κ → L := fun i => if (v i == 1) then 1 else 0
     (eqTilde v_as_L r_prefix) * (decompose_tensor_algebra_columns (L:=L)
-      (K:=K) (β:=β) s_hat v)
+      (K:=K) (β:=β) s_hat (finFunctionFinEquiv v))
   decide (s = check_sum)
 
 /-- Step 4a: For each `w ∈ {0,1}^{ℓ'}`, P decompose `eq̃(r_κ, ..., r_{ℓ-1}, w_0, ..., w_{ℓ'-1})`
@@ -343,10 +347,10 @@ def compute_A_func (original_r_eval_suffix : Fin ℓ' → L)
     let w_as_L : Fin ℓ' → L := fun i => if w i == 1 then 1 else 0
     -- `eq̃(r_κ, ..., r_{ℓ-1}, w_0, ..., w_{ℓ'-1})`
     let eq_w: L := eqTilde original_r_eval_suffix w_as_L
-    let coords_A_w_u: (Fin κ → Fin 2) →₀ K := β.repr eq_w
+    let coords_A_w_u : Fin (2 ^ κ) →₀ K := β.repr eq_w
     -- Compute A(w) = Σ_{u ∈ {0,1}^κ} eq̃(u, r'') ⋅ A_{w,u}
     Finset.sum Finset.univ fun (u : Fin κ → Fin 2) =>
-      let A_w_u : K := coords_A_w_u u
+      let A_w_u : K := coords_A_w_u (finFunctionFinEquiv u)
       let u_as_L : Fin κ → L := fun i => if u i == 1 then 1 else 0
       -- `eq̃(u_0, ..., u_{κ-1}, r''_0, ..., r''_{κ-1}) ⋅ A_{w, u}`
       let eq_u_r_batching : L := eqTilde u_as_L r''_batching
@@ -357,8 +361,9 @@ def compute_A_MLE
   (original_r_eval_suffix : Fin ℓ' → L) (r''_batching : Fin κ → L) :
   MultilinearPoly L ℓ' :=
   let A_func := compute_A_func κ L K β ℓ' original_r_eval_suffix r''_batching
-  let A_MLE: MultilinearPoly L ℓ' := ⟨MvPolynomial.MLE A_func, MLE_mem_restrictDegree A_func⟩
-  A_MLE
+  CompPoly.CMlPolynomial.toMvPolynomialDeg1 <|
+    CompPoly.CMlPolynomial.lagrangeToMono ℓ' <|
+      Vector.ofFn fun i : Fin (2 ^ ℓ') => A_func (finFunctionFinEquiv.symm i)
 
 def getEvaluationPointSuffix (r : Fin ℓ → L) : Fin ℓ' → L :=
   fun i => r ⟨i.val + κ, by { rw [h_l]; omega }⟩
@@ -378,7 +383,7 @@ def compute_s0 (s_hat : TensorAlgebra K L) (r''_batching : Fin κ → L) : L :=
   Finset.sum Finset.univ fun (u : Fin κ → Fin 2) =>
     let u_as_L : Fin κ → L := fun i => if (u i == 1) then 1 else 0
     (eqTilde u_as_L r''_batching)
-      * (decompose_tensor_algebra_rows (L:=L) (K:=K) (β:=β) s_hat u)
+      * (decompose_tensor_algebra_rows (L:=L) (K:=K) (β:=β) s_hat (finFunctionFinEquiv u))
 
 /-- Compute the tensor `e := eq̃(φ₀(r_κ), ..., φ₀(r_{ℓ-1}), φ₁(r'_0), ..., φ₁(r'_{ℓ'-1}))` -/
 def compute_final_eq_tensor (r : Fin ℓ → L) (r' : Fin ℓ' → L) : TensorAlgebra K L :=
@@ -394,12 +399,12 @@ Then compute `Σ_{u ∈ {0,1}^κ} eq̃(u_0, ..., u_{κ-1}, r''_0, ..., r''_{κ-1
 def compute_final_eq_value (r_eval : Fin ℓ → L)
     (r'_challenges : Fin ℓ' → L) (r''_batching : Fin κ → L) : L :=
   let e_tensor := compute_final_eq_tensor κ L K ℓ ℓ' h_l r_eval r'_challenges
-  let e_u : (Fin κ → Fin 2) → L := decompose_tensor_algebra_rows (L:=L) (K:=K) (β:=β) e_tensor
+  let e_u : Fin (2 ^ κ) → L := decompose_tensor_algebra_rows (L:=L) (K:=K) (β:=β) e_tensor
   Finset.sum Finset.univ fun (u : Fin κ → Fin 2) =>
     let u_as_L : Fin κ → L := fun i => if u i == 1 then 1 else 0
     let eq_u_r_batching : L := -- `eq̃(u_0, ..., u_{κ-1}, r''_0, ..., r''_{κ-1})`
       eqTilde u_as_L r''_batching
-    eq_u_r_batching * (e_u u)
+    eq_u_r_batching * (e_u (finFunctionFinEquiv u))
 
 /-- This condition ensures that the witness polynomial `H` has the
 correct structure `A(...) * t'(...)` -/

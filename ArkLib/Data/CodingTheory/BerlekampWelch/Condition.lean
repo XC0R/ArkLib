@@ -14,7 +14,6 @@ import Mathlib.Data.Matrix.Mul
 import Mathlib.Data.Matrix.Reflection
 
 import ArkLib.Data.CodingTheory.Basic
-import ArkLib.Data.Polynomial.Interface
 import ArkLib.Data.CodingTheory.BerlekampWelch.ElocPoly
 import ArkLib.Data.CodingTheory.BerlekampWelch.Sorries
 
@@ -188,11 +187,6 @@ def solutionToE (e k : ℕ) (v : Fin (2 * e + k) → F) : Polynomial F :=
     fun i => if i = e then 1 else if i < e then liftF v i else 0,
     by aesop (add safe forward lt_of_liftF_ne_zero)
   ⟩
-
-lemma solutionToE_eq_polynomialOfCoeffs
-  (h : n < e) : (solutionToE e k v).coeff n = (polynomialOfCoeffs v).coeff n := by
-  unfold solutionToE polynomialOfCoeffs
-  aesop
 
 @[simp]
 lemma eval_solutionToE {x : F} :

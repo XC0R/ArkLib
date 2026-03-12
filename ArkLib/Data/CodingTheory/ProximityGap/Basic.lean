@@ -10,7 +10,6 @@ import ArkLib.Data.CodingTheory.GuruswamiSudan
 import ArkLib.Data.CodingTheory.Prelims
 import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.CodingTheory.InterleavedCode
-import ArkLib.Data.Polynomial.Bivariate
 import ArkLib.Data.Polynomial.RationalFunctions
 import ArkLib.Data.Probability.Notation
 import Mathlib.Algebra.Field.Basic

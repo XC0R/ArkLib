@@ -5,8 +5,9 @@ Authors: Quang Dao
 -/
 
 import Mathlib.LinearAlgebra.Matrix.Hadamard
+import CompPoly.Data.MvPolynomial.Notation
+import CompPoly.Multilinear.Equiv
 import ArkLib.Data.Fin.Tuple.Defs
-import ArkLib.Data.MvPolynomial.Multilinear
 
 /-!
   # Auxiliary definitions and lemmas for matrices
@@ -48,6 +49,11 @@ variable {R : Type*} [CommRing R] {m n : ℕ}
 /-- Convert a matrix of dimensions `2^m × 2^n` to a nested multilinear polynomial
   `R[X Fin n][X Fin m]`. Note the order of nesting (i.e. `m` is on the outside). -/
 noncomputable def toMLE (A : Matrix (Fin (2 ^ m)) (Fin (2 ^ n)) R) : R[X Fin n][X Fin m] :=
-  MLE' (MLE' ∘ A)
+  CompPoly.CMlPolynomial.toMvPolynomial <|
+    CompPoly.CMlPolynomial.lagrangeToMono m <|
+      Vector.ofFn fun i : Fin (2 ^ m) =>
+        CompPoly.CMlPolynomial.toMvPolynomial <|
+          CompPoly.CMlPolynomial.lagrangeToMono n <|
+            Vector.ofFn fun j : Fin (2 ^ n) => A i j
 
 end Matrix

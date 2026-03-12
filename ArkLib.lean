@@ -68,11 +68,9 @@ import ArkLib.Data.Matrix.Basic
 import ArkLib.Data.Matrix.Sparse
 import ArkLib.Data.Misc.Basic
 import ArkLib.Data.MvPolynomial.Degrees
-import ArkLib.Data.MvPolynomial.Interpolation
 import ArkLib.Data.MvPolynomial.LinearMvExtension
-import ArkLib.Data.MvPolynomial.Multilinear
-import ArkLib.Data.Polynomial.Bivariate
-import ArkLib.Data.Polynomial.Interface
+import ArkLib.Data.Polynomial.BivariateDegree
+import ArkLib.Data.Polynomial.BivariateMultiplicity
 import ArkLib.Data.Polynomial.Prelims
 import ArkLib.Data.Polynomial.RationalFunctions
 import ArkLib.Data.Polynomial.SplitFold

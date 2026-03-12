@@ -6,8 +6,11 @@ Authors: Chung Thai Nguyen, Quang Dao
 
 import ArkLib.Data.CodingTheory.BerlekampWelch.BerlekampWelch
 import ArkLib.Data.CodingTheory.ReedSolomon
-import CompPoly.Fields.Binary.AdditiveNTT.AdditiveNTT
-import ArkLib.Data.MvPolynomial.Multilinear
+import ArkLib.Data.MvPolynomial.Degrees
+import CompPoly.Fields.Binary.AdditiveNTT.Domain
+import CompPoly.Fields.Binary.AdditiveNTT.Intermediate
+import CompPoly.Fields.Binary.AdditiveNTT.NovelPolynomialBasis
+import CompPoly.Multilinear.Equiv
 import CompPoly.Data.Vector.Basic
 import ArkLib.ProofSystem.Sumcheck.Spec.SingleRound
 
@@ -1137,7 +1140,9 @@ def extractMiddleFinMask (v : (sDomain 𝔽q β h_ℓ_add_R_rate) ⟨0, by exact
 /-- The equality polynomial eq̃(r, r') that evaluates to 1 when r = r' and 0 otherwise.
 This is used in the final sumcheck identity : s_ℓ = c · eq̃(r, r') -/
 def eqTilde {L : Type} [CommRing L] {ℓ : ℕ} (r r' : Fin ℓ → L) : L :=
-  MvPolynomial.eval r' (MvPolynomial.eqPolynomial r)
+  CompPoly.CMlPolynomialEval.eval
+    (CompPoly.CMlPolynomialEval.lagrangeBasis (Vector.ofFn r))
+    (Vector.ofFn r')
 
 end Essentials
 

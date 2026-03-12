@@ -5,7 +5,8 @@ Authors: Quang Dao
 -/
 
 import ArkLib.ProofSystem.ConstraintSystem.R1CS
-import ArkLib.Data.MvPolynomial.Multilinear
+import CompPoly.Data.MvPolynomial.Notation
+import CompPoly.Multilinear.Equiv
 import ArkLib.ProofSystem.Sumcheck.Spec.General
 import ArkLib.ProofSystem.Component.SendWitness
 import ArkLib.ProofSystem.Component.RandomQuery
@@ -172,7 +173,9 @@ instance : OracleInterface (Witness R pp) where
   Query := Fin pp.ℓ_w → R
   toOC.spec := fun _ => R
   toOC.impl := fun evalPoint => do
-    return (MLE ((← read) ∘ finFunctionFinEquiv)) ⸨evalPoint⸩
+    return CompPoly.CMlPolynomialEval.eval
+      (Vector.ofFn (← read))
+      (Vector.ofFn evalPoint)
 
 /-!
   ## First message
@@ -212,7 +215,10 @@ def zeroCheckVirtualPolynomial (𝕩 : Statement.AfterFirstMessage R pp)
       MvPolynomial (Fin pp.ℓ_m) R :=
   letI 𝕫 := R1CS.𝕫 𝕩 (oStmt (.inr 0))
   ∑ x : Fin (2 ^ pp.ℓ_m),
-    (eqPolynomial (finFunctionFinEquiv.symm x : Fin pp.ℓ_m → R)) *
+    (CompPoly.CMlPolynomial.toMvPolynomial <|
+      CompPoly.CMlPolynomial.lagrangeToMono pp.ℓ_m <|
+        CompPoly.CMlPolynomialEval.lagrangeBasis
+          (Vector.ofFn (fun i => (finFunctionFinEquiv.symm x i : R)))) *
       C ((oStmt (.inl .A) *ᵥ 𝕫) x * (oStmt (.inl .B) *ᵥ 𝕫) x - (oStmt (.inl .C) *ᵥ 𝕫) x)
 
 /-- Unfolds to `τ : Fin ℓ_m → R` -/
