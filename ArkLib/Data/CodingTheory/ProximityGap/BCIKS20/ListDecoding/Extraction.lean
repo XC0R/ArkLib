@@ -9,13 +9,8 @@ import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.ListDecoding.Guruswami
 
 namespace ProximityGap
 
-open NNReal Finset Function
-open Polynomial
-open Polynomial.Bivariate
-open scoped BigOperators
-open NNReal Finset Function ProbabilityTheory Finset
+open Polynomial Polynomial.Bivariate  NNReal Finset Function ProbabilityTheory Code Trivariate
 open scoped BigOperators LinearCode
-open Code
 
 universe u v w k l
 
@@ -27,7 +22,7 @@ variable {m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F} {u₀ u₁ : Fin n → F} {Q 
          [Finite F]
 
 omit [DecidableEq (RatFunc F)] in
-/-- The equation 5.12 from [BCIKS20]. -/
+/-- Equation 5.12 from [BCIKS20]. -/
 lemma irreducible_factorization_of_gs_solution
   {k : ℕ}
   (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
@@ -44,14 +39,12 @@ lemma irreducible_factorization_of_gs_solution
 
 omit [DecidableEq (RatFunc F)] in
 /-- Claim 5.6 of [BCIKS20]. -/
-lemma discr_of_irred_components_nonzero
-  (_h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁)
-  : ∃ x₀,
+lemma discr_of_irred_components_nonzero (_h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
+  ∃ x₀,
       ∀ R ∈ (irreducible_factorization_of_gs_solution _h_gs).choose_spec.choose,
       Bivariate.evalX x₀ (Bivariate.discr_y R) ≠ 0 := by sorry
 
-noncomputable def pg_Rset
-    (_h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) : Finset F[Z][X][Y] :=
+noncomputable def pg_Rset (_h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) : Finset F[Z][X][Y] :=
   (UniqueFactorizationMonoid.normalizedFactors Q).toFinset
 
 omit [DecidableEq (RatFunc F)] [Finite F] in

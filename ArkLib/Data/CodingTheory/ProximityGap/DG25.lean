@@ -3,24 +3,9 @@ Copyright (c) 2024 - 2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors : Chung Thai Nguyen, Quang Dao
 -/
-import CompPoly.Data.Nat.Bitwise
-import ArkLib.Data.CodingTheory.Basic
-import ArkLib.Data.CodingTheory.InterleavedCode
-import ArkLib.Data.CodingTheory.ReedSolomon
-import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.ErrorBound
+
 import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.AffineLines.UniqueDecoding
-import Mathlib.LinearAlgebra.AffineSpace.AffineSubspace.Defs
-import ArkLib.Data.Probability.Instances
-import ArkLib.Data.CodingTheory.Prelims
-import Mathlib.Algebra.Lie.OfAssociative
-import Mathlib.Data.Finset.BooleanAlgebra
-import Mathlib.Data.Real.Basic
-import Mathlib.Data.Real.Sqrt
-import Mathlib.Data.Set.Defs
-import Mathlib.Probability.Distributions.Uniform
-import Mathlib.RingTheory.Henselian
-import Mathlib.Probability.ProbabilityMassFunction.Constructions
-import Mathlib.Data.ENNReal.Inv
+
 
 /-!
 # Proximity Gaps in Interleaved Codes
@@ -60,9 +45,8 @@ set_option linter.style.longFile 2200
 noncomputable section
 
 open Code LinearCode InterleavedCode ReedSolomon ProximityGap ProbabilityTheory Filter
-open NNReal Finset Function
+open NNReal Finset Function Real
 open scoped BigOperators LinearCode ProbabilityTheory
-open Real
 
 universe u v w k l
 variable {κ : Type k} {ι : Type l} [Fintype ι] [Nonempty ι] [DecidableEq ι] [DecidableEq κ]

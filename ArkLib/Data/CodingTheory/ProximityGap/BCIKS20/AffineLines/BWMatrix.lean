@@ -6,14 +6,12 @@ Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
 -/
 
 import ArkLib.Data.CodingTheory.ProximityGap.BCIKS20.Prelude
+import ArkLib.Data.CodingTheory.ReedSolomon
 
 namespace ProximityGap
 
-open NNReal Finset Function
-open scoped BigOperators
-open NNReal Finset Function ProbabilityTheory Finset
+open NNReal Finset Function ProbabilityTheory Code
 open scoped BigOperators LinearCode
-open Code
 
 universe u v w k l
 
@@ -585,7 +583,7 @@ theorem RS_BW_bound_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} 
   have hdist_ne : (‖(ReedSolomon.code domain deg : Set (ι → F))‖₀) ≠ 0 := by
     have hdist_eq : ‖(ReedSolomon.code domain deg : Set (ι → F))‖₀ = n - deg + 1 := by
       simpa [n] using
-        (ReedSolomonCode.dist_eq' (ι := ι) (F := F) (α := domain) (n := deg) hdeg)
+        (ReedSolomon.dist_eq' (ι := ι) (F := F) (α := domain) (n := deg) hdeg)
     simp [hdist_eq]
   haveI : NeZero (‖(ReedSolomon.code domain deg : Set (ι → F))‖₀) := ⟨hdist_ne⟩
   have htwo : 2 * e < ‖(ReedSolomon.code domain deg : Set (ι → F))‖₀ := by
@@ -593,7 +591,7 @@ theorem RS_BW_bound_of_le_relUDR {deg : ℕ} {domain : ι ↪ F} {δ : ℝ≥0} 
       (C := (ReedSolomon.code domain deg : Set (ι → F))) (e := e)).1 he_le_UDR
   have hdist_eq : ‖(ReedSolomon.code domain deg : Set (ι → F))‖₀ = n - deg + 1 := by
     simpa [n] using
-      (ReedSolomonCode.dist_eq' (ι := ι) (F := F) (α := domain) (n := deg) hdeg)
+      (ReedSolomon.dist_eq' (ι := ι) (F := F) (α := domain) (n := deg) hdeg)
   simpa [n, e, hdist_eq] using htwo
 
 open Matrix in
