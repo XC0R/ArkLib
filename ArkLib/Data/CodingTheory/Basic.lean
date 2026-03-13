@@ -170,7 +170,8 @@ theorem dist_subsingleton {C : Set (n → R)} [Subsingleton C] : ‖C‖₀ = 0 
   simp only [Code.dist]
   have {d : ℕ} : (∃ u ∈ C, ∃ v ∈ C, u ≠ v ∧ hammingDist u v ≤ d) = False := by
     have h := @Subsingleton.allEq C _
-    simp_all; intro a ha b hb hab
+    simp_all only [Set.subsingleton_coe, Subtype.forall, Subtype.mk.injEq, ne_eq, eq_iff_iff,
+      iff_false, not_exists, not_and, not_le]; intro a ha b hb hab
     have hEq : a = b := h a ha b hb
     simp_all
   have : {d | ∃ u ∈ C, ∃ v ∈ C, u ≠ v ∧ hammingDist u v ≤ d} = (∅ : Set ℕ) := by
@@ -642,9 +643,10 @@ theorem dist'_empty : ‖(∅ : Set (n → R))‖₀' = ⊤ := by
 theorem codeDist'_subsingleton [Subsingleton C] : ‖C‖₀' = ⊤ := by
   simp only [dist', ne_eq]
   apply Finset.min_eq_top.mpr
-  simp [Finset.filter_eq_empty_iff]
+  simp only [Finset.image_eq_empty, Finset.filter_eq_empty_iff, Finset.mem_univ, Decidable.not_not,
+    forall_const, Prod.forall, Subtype.forall, Subtype.mk.injEq]
   have h := @Subsingleton.elim C _
-  simp_all
+  simp_all only [Set.subsingleton_coe, Subtype.forall, Subtype.mk.injEq]
   exact h
 
 theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
@@ -1335,8 +1337,7 @@ lemma relDist_floor_bound_iff_complement_bound (n upperBound : ℕ) (δ : ℝ≥
       change (n : ENNReal) - r ≤ k
       rw [h_n_sub_r_eq_0]
 
-/-- The relative Hamming distance between two vectors is at most `1`.
--/
+/-- The relative Hamming distance between two vectors is at most `1`. -/
 @[simp]
 lemma relHammingDist_le_one : δᵣ(u, v) ≤ 1 := by
   unfold relHammingDist
@@ -1344,8 +1345,7 @@ lemma relHammingDist_le_one : δᵣ(u, v) ≤ 1 := by
   rw [div_le_iff₀ (by simp)]
   simp [hammingDist_le_card_fintype]
 
-/-- The relative Hamming distance between two vectors is non-negative.
--/
+/-- The relative Hamming distance between two vectors is non-negative. -/
 @[simp]
 lemma zero_le_relHammingDist : 0 ≤ δᵣ(u, v) := by
   unfold relHammingDist
@@ -1355,8 +1355,7 @@ lemma zero_le_relHammingDist : 0 ≤ δᵣ(u, v) := by
 
 end
 
-/-- The range of the relative Hamming distance function.
--/
+/-- The range of the relative Hamming distance function. -/
 def relHammingDistRange (ι : Type*) [Fintype ι] : Set ℚ≥0 :=
   {d : ℚ≥0 | ∃ d' : ℕ, d' ≤ Fintype.card ι ∧ d = d' / Fintype.card ι}
 
@@ -1366,8 +1365,7 @@ def relHammingDistRange (ι : Type*) [Fintype ι] : Set ℚ≥0 :=
 lemma relHammingDist_mem_relHammingDistRange [DecidableEq F] : δᵣ(u, v) ∈ relHammingDistRange ι :=
   ⟨hammingDist _ _, Finset.card_filter_le _ _, rfl⟩
 
-/-- The range of the relative Hamming distance function is finite.
--/
+/-- The range of the relative Hamming distance function is finite. -/
 @[simp]
 lemma finite_relHammingDistRange [Nonempty ι] : (relHammingDistRange ι).Finite := by
   simp only [relHammingDistRange, ← Set.finite_coe_iff, Set.coe_setOf]
@@ -1391,14 +1389,12 @@ section
 
 variable [DecidableEq F]
 
-/-- The set of possible distances between distinct codewords in a code.
--/
+/-- The set of possible distances between distinct codewords in a code. -/
 def possibleRelHammingDists (C : Set (ι → F)) : Set ℚ≥0 :=
   possibleDists C relHammingDist
 
 /-- The set of possible distances between distinct codewords in a code is a subset of the range of
- the relative Hamming distance function.
--/
+ the relative Hamming distance function. -/
 @[simp]
 lemma possibleRelHammingDists_subset_relHammingDistRange :
   possibleRelHammingDists C ⊆ relHammingDistRange ι := fun _ ↦ by
@@ -1406,15 +1402,13 @@ lemma possibleRelHammingDists_subset_relHammingDistRange :
 
 variable [Nonempty ι]
 
-/-- The set of possible distances between distinct codewords in a code is a finite set.
--/
+/-- The set of possible distances between distinct codewords in a code is a finite set. -/
 @[simp]
 lemma finite_possibleRelHammingDists : (possibleRelHammingDists C).Finite :=
   Set.Finite.subset finite_relHammingDistRange possibleRelHammingDists_subset_relHammingDistRange
 
 open Classical in
-/-- The minimum relative Hamming distance of a code.
--/
+/-- The minimum relative Hamming distance of a code. -/
 def minRelHammingDistCode (C : Set (ι → F)) : ℚ≥0 :=
   haveI : Fintype (possibleRelHammingDists C) := @Fintype.ofFinite _ finite_possibleRelHammingDists
   if h : (possibleRelHammingDists C).Nonempty
@@ -1534,26 +1528,6 @@ lemma relDistFromCode'_eq_relDistFromCode {ι : Type*} [Fintype ι] [Nonempty ι
 
 @[simp]
 lemma zero_mem_relHammingDistRange : 0 ∈ relHammingDistRange ι := by use 0; simp
-
--- /-- The relative Hamming distances between a vector and a codeword is in the
---   range of the relative Hamming distance function.
--- -/
--- @[simp]
--- lemma relHammingDistToCode_mem_relHammingDistRange [Nonempty ι] [DecidableEq F] :
---   δᵣ'(c, C) ∈ relHammingDistRange ι := by
---   unfold relDistFromCode
---   split_ifs with h
---   · exact Set.mem_of_subset_of_mem
---             (s₁ := (possibleDistsToCode c C relHammingDist).toFinset)
---             (by simp)
---             (by simp_rw [distToCode_of_nonempty (h₁ := by simp) (h₂ := h)]
---                 simp [←WithTop.some_eq_coe]
---                 have := Finset.min'_mem
---                           (s := (possibleDistsToCode c C relHammingDist).toFinset)
---                           (H := by simpa)
---                 simpa)
---   · simp
--- end
 
 section DecodingRadius
 
