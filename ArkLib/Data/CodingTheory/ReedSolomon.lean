@@ -59,13 +59,6 @@ noncomputable def checkMatrix (deg : ℕ) [Fintype ι] [Field F] :
   let P := Finset.univ.prod fun j => (X - C (domain j))
   .of fun i j => domain j ^ (i : ℕ) * (P.derivative.eval (domain j))⁻¹
 
--- theorem code_by_genMatrix (deg : ℕ) :
---     code deg = codeByGenMatrix (genMatrix deg) := by
---   simp [codeByGenMatrix, code]
---   rw [LinearMap.range_eq_map]
---   sorry
-
-
 open Polynomial Matrix Code LinearCode
 
 variable {F ι ι' : Type*}
@@ -420,18 +413,17 @@ variable {F : Type*} [Field F]
          {deg : ℕ}
 
 /-- The linear map that maps a codeword `f : ι → F` to a degree < |ι| polynomial p,
-such that p(x) = f(x) for all x ∈ ι -/
+such that `p(x) = f(x)` for all `x ∈ ι`. -/
 private noncomputable def interpolate : (ι → F) →ₗ[F] F[X] :=
   Lagrange.interpolate univ domain
 
-/-- The linear map that maps a ReedSolomon codeword to its associated polynomial -/
+/-- The linear map that maps a Reed-Solomon codeword to its associated polynomial. -/
 noncomputable def decode : (ReedSolomon.code domain deg) →ₗ[F] F[X] :=
   domRestrict
     (interpolate (domain := domain))
     (ReedSolomon.code domain deg)
 
-/-- ReedSolomon codewords are decoded into degree < deg polynomials
--/
+/-- Reed-Solomon codewords are decoded into degree smaller than `deg` polynomials. -/
 lemma decoded_polynomial_lt_deg (c : ReedSolomon.code domain deg) :
   decode c ∈ (degreeLT F deg : Submodule F F[X]) := by
   -- Unpack the witness polynomial for this codeword
@@ -491,9 +483,8 @@ open LinearMvExtension
 variable {F : Type*} [Semiring F] [DecidableEq F]
          {ι : Type*} [Fintype ι]
 
-/-- A domain `ι ↪ F` is `smooth`, if `ι ⊆ F`, `|ι| = 2^k` for some `k` and
-    there exists a subgroup `H` in the group of units `Rˣ`
-    and an invertible element `a ∈ R` such that `ι = a • H` -/
+/-- A domain `ι ↪ F` is `smooth`, if `ι ⊆ F`, `|ι| = 2^k` for some `k` and there exists a subgroup
+ `H` in the group of units `Rˣ` and an invertible element `a ∈ R` such that `ι = a • H` -/
 class Smooth
   (domain : ι ↪ F) where
     H : Subgroup (Units F)
@@ -548,7 +539,7 @@ def constrainedCode
 
 /-- Definition 4.6, WHIR[ACFY24]
 Multi-constrained Reed-Solomon codes are smooth codes whose decoded `m`-variate polynomial satisfies
-the `t` weight constraints for given `w₀,...,wₜ₋₁` and `σ₀,...,σₜ₋₁`. -/
+the `t` weight constraints for given `w₀,..., wₜ₋₁` and `σ₀,..., σₜ₋₁`. -/
 def multiConstrainedCode
   (domain : ι ↪ F) [Smooth domain] (m t : ℕ)
   (w : Fin t → MvPolynomial (Fin (m + 1)) F)
