@@ -58,4 +58,25 @@ functions of polynomial ring in two variables. -/
 noncomputable def toRatFuncPoly (p : F[Z][X][Y]) : (RatFunc F)[X][Y] :=
   p.map (Polynomial.mapRingHom (algebraMap F[X] (RatFunc F)))
 
+/-- Following [BCIKS20] this the `Y`-degree of a trivariate polynomial `Q`. -/
+def D_Y (Q : F[Z][X][Y]) : ℕ := Bivariate.natDegreeY Q
+
+/-- The `YZ`-degree of a trivariate polynomial. -/
+def D_YZ (Q : F[Z][X][Y]) : ℕ :=
+  Option.getD (dflt := 0) <| Finset.max
+    (Finset.image
+            (
+              fun j =>
+                Option.getD (
+                  Finset.max (
+                    Finset.image
+                      (fun k => j + (Bivariate.coeff Q j k).natDegree)
+                      (Q.coeff j).support
+                  )
+                ) 0
+            )
+            Q.support
+    )
+
+
 end Trivariate
