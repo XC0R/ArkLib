@@ -61,10 +61,8 @@ local instance : OracleInterface α where
   toOC.spec := fun () => α
   toOC.impl := fun () => read
 
-def commitmentScheme : Commitment.Scheme (oSpec α β γ) α β γ Unit Unit !p[] where
-  keygen := pure ((), ())
-  commit := fun _ v _ => commit v
-  opening := fun _ => { prover := sorry, verifier := sorry }
+/- ab hier neu-/
+
 abbrev OpeningStatement (α γ : Type) [OracleInterface α] :=
   γ × (q : OracleInterface.Query α) × OracleInterface.Response q
 
@@ -86,10 +84,10 @@ def openingVerifier [DecidableEq γ] : Verifier (oSpec α β γ)
     return true
 
 def commitmentScheme [DecidableEq γ] :
-    Commitment.Scheme (oSpec α β γ) α β γ (openingPSpec β) where
-  commit := commit
-  opening :=
-    { prover := openingProver
-      verifier := openingVerifier }
+    Commitment.Scheme (oSpec α β γ) α β γ Unit Unit (openingPSpec β) where
+  keygen := pure ((), ())
+  commit := fun _ v r => commit v r
+    -- When randomness is refactored out of commitment scheme, this should become commitRandomized
+  opening := fun _ => { prover := openingProver, verifier := openingVerifier }
 
 end SimpleRO
