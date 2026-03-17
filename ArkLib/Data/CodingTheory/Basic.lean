@@ -1787,13 +1787,12 @@ lemma wt_eq_zero_iff [Zero F] {v : ι → F} :
   by_cases IsEmpty ι <;>
   aesop (add simp [wt, Finset.filter_eq_empty_iff])
 
-def restrictedWord (c : ι → F) (T : Finset ι) : T → F := fun i : T => c i
+def restrictedWord (c : ι → F) (T : Finset ι) : T → F := Set.restrict T c
 
 /-- Let `C` be a code of length `ι`. For every subset `T ⊆ ι`, we define the restricted code `C|T`
 as the set of words `w` of length `T`, obtained by restricting `ι` to `T`. -/
 def restrictedCode (C : Set (ι → F)) (T : Finset ι) : Set (T → F) :=
   {w | ∃ c ∈ C, w = restrictedWord c T}
-
 
 end
 
