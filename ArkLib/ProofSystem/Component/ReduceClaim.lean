@@ -67,8 +67,8 @@ theorem reduction_completeness --(h : init.neverFails)
     (hRel : ∀ stmtIn witIn, (stmtIn, witIn) ∈ relIn ↔
       (mapStmt stmtIn, mapWit stmtIn witIn) ∈ relOut) :
     (reduction oSpec mapStmt mapWit).perfectCompleteness init impl relIn relOut := by
-  simp [reduction, Reduction.run, Prover.run, Prover.runToRound, Verifier.run,
-    prover, verifier, hRel]
+  unfold Reduction.perfectCompleteness Reduction.completeness
+  intro stmtIn witIn hIn
   sorry
 
 /-- The round-by-round extractor for the `ReduceClaim` (oracle) reduction. Requires a mapping
@@ -194,7 +194,8 @@ def oracleKnowledgeStateFunction (hRel : ∀ stmtIn oStmtIn witOut,
   toFun | ⟨0, _⟩ => fun ⟨stmtIn, oStmtIn⟩ _ witIn => ⟨⟨stmtIn, oStmtIn⟩, witIn⟩ ∈ relIn
   toFun_empty := fun stmtIn witIn => by simp
   toFun_next := fun m => Fin.elim0 m
-  toFun_full := fun ⟨stmtIn, oStmtIn⟩ _ witOut h => by
+  toFun_full := fun ⟨stmtIn, oStmtIn⟩ _ witOut => by
+    intro h
     simp_all [Verifier.run, oracleVerifier, OracleVerifier.toVerifier]
     sorry
 
