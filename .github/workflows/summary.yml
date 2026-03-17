@@ -1,15 +1,19 @@
 name: PR Summary
-
 on:
   pull_request_target:
+    types: [opened, synchronize]
 
-permissions:
-  pull-requests: write
-  issues: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   summarize:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      pull-requests: write
+      issues: read
     steps:
       - uses: alexanderlhicks/lean-summary-workflow@main
         with:
