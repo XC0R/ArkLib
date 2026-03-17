@@ -66,6 +66,7 @@ namespace Generator
 open NNReal Finset Function ENNReal
 open scoped ProbabilityTheory
 open scoped BigOperators
+open unitInterval
 
 section
 
@@ -94,29 +95,22 @@ def M_G {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) : Matrix S �
 def IsMDSGen {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) : Prop :=
  LinearCode.IsMDSCode (LinearCode.fromRowGenMat (M_G G))
 
--- def denseSet
-
--- Code.restrictedCode
-
-open unitInterval
 
 /-- A subset of `ι` is dense if `|T| ≥ |ι| * (1 − γ)`, for some γ -/
 def IsDenseSet (T : Finset ι) (γ : ℝ) : Prop := Finset.card T ≥ (Fintype.card ι) * (1 - γ)
 
-def Matrix (U : ℓ → ι → F) : Matrix ℓ ι F := Matrix.of U
 
 def Condition {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) (U : ℓ → ι → F)
-  (T : Finset ι) (γ : ℝ) (x : S) (LC : LinearCode ι F) : Prop :=
+  (T : Finset ι) (γ : ℝ) (LC : LinearCode ι F) (x : S) : Prop :=
   let v := Matrix.vecMul (G x) (Matrix.of U)
   Finset.card T ≥ (Fintype.card ι) * (1 - γ) ∧
-  Code.restrictedWord v T ∈ Code.restrictedCode LC T
+  Code.restrictedWord v T ∈ Code.restrictedCode LC T ∧
+  ∃ j : ℓ, Code.restrictedWord (U j) T ∉ Code.restrictedCode LC T
 
-
-
-def IsMCAGen {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) (ε_mca : ℝ≥0 → ℝ≥0)
-(hε_mca : Set.Icc 0 1 → Set.Icc 0 1) : Prop := sorry
-
-
+def IsMCAGen {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F)
+  (ε_mca : Set.Icc 0 1 → Set.Icc 0 1) (U : ℓ → ι → F) (T : Finset ι) (LC : LinearCode ι F) : Prop :=
+  ∀ γ ∈ Set.Icc 0 1,
+  Pr_{let x ←$ᵖ S}[(Condition G U T γ LC x) ] ≤ Real.toEReal (ε_mca γ)
 
 
 -- def zeroEvading' {S : Set (ℓ → F)} [Nonempty S] (G : Generator S) (ε_ze : ℝ≥0∞) : Prop :=
