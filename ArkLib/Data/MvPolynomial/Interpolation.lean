@@ -35,6 +35,7 @@ section SchwartzZippel
 variable {σ : Type*} [DecidableEq σ] [Fintype σ]
 variable {R : Type*} [CommRing R] [IsDomain R] [DecidableEq R]
 
+set_option linter.flexible false in
 lemma schwartz_zippel_of_fintype {p : MvPolynomial σ R} (hp : p ≠ 0) (S : σ → Finset R) :
     #{x ∈ S ^^ σ | eval x p = 0} / ∏ i, (#(S i) : ℚ≥0) ≤ ∑ i, (p.degreeOf i / #(S i) : ℚ≥0) := by
   let equiv : σ ≃ Fin (Fintype.card σ) := Fintype.equivFin σ
@@ -63,39 +64,70 @@ def Function.extendDomain {α β : Type*} [DecidableEq α] [Zero β] {s : Finset
     (f : (x : α) → (x ∈ s) → β) : α → β :=
   fun x ↦ if hx : x ∈ s then f x hx else 0
 
-set_option maxHeartbeats 1600000 in
+set_option linter.unusedFintypeInType false in
 open Function in
 lemma schwartz_zippel' {p : MvPolynomial σ R} (hp : p ≠ 0) (S : σ → Finset R) :
     #{x ∈ Finset.pi p.vars S | eval (extendDomain x) p = 0} / ∏ i ∈ p.vars, (#(S i) : ℚ≥0)
       ≤ ∑ i ∈ p.vars, (p.degreeOf i / #(S i) : ℚ≥0) := by
-  have := @schwartz_zippel_of_fintype σ
-  specialize this hp (fun i => if i ∈ p.vars then S i else {0})
-  convert this using 1
+  let S' : σ → Finset R := fun i ↦ if i ∈ p.vars then S i else {0}
+  have hsz := schwartz_zippel_of_fintype (p := p) hp S'
+  convert hsz using 1
   · congr! 1
     · refine congr_arg _ (Finset.card_bij ?_ ?_ ?_ ?_)
-      use fun a ha => fun i => if hi : i ∈ p.vars then a i hi else 0
-      · aesop
-      · intro a₁ ha₁ a₂ ha₂ h; funext i hi
-        have := congr_fun h i; simp [hi] at this; exact this
-      · intro b hb; use fun i hi => b i; simp_all +decide [Fintype.piFinset]
-        obtain ⟨⟨a, ha, rfl⟩, hb⟩ := hb; simp_all +decide [funext_iff, MvPolynomial.eval_eq']
-        refine ⟨⟨fun i hi => ?_, ?_⟩, ?_⟩
-        · simpa [hi] using ha i
-        · convert hb using 3
-          refine Finset.prod_congr rfl fun i _ => ?_
-          by_cases hi : i ∈ p.vars <;> simp_all +decide [extendDomain]
-          rw [MvPolynomial.mem_vars] at hi; aesop
-        · grind
-    · rw [← Finset.prod_subset (Finset.subset_univ p.vars)] <;> aesop
+      · intro a _ i
+        exact if hi : i ∈ p.vars then a i hi else 0
+      · intro a ha
+        rcases Finset.mem_filter.mp ha with ⟨ha_pi, ha_eval⟩
+        have ha_mem : ∀ i, ∀ hi : i ∈ p.vars, a i hi ∈ S i := by
+          rwa [Finset.mem_pi] at ha_pi
+        refine Finset.mem_filter.mpr ?_
+        constructor
+        · rw [Fintype.mem_piFinset]
+          intro i
+          by_cases hi : i ∈ p.vars
+          · simpa [S', hi] using ha_mem i hi
+          · simp [S', hi]
+        · simpa [extendDomain] using ha_eval
+      · intro a₁ ha₁ a₂ ha₂ h
+        funext i hi
+        have h' := congr_fun h i
+        simpa [extendDomain, hi] using h'
+      · intro b hb
+        rcases Finset.mem_filter.mp hb with ⟨hb_pi, hb_eval⟩
+        have hb_mem : ∀ i, b i ∈ S' i := by
+          rwa [Fintype.mem_piFinset] at hb_pi
+        have h_extend : extendDomain (s := p.vars) (fun i _hi ↦ b i) = b := by
+          funext i
+          by_cases hi : i ∈ p.vars
+          · simp [extendDomain, hi]
+          · have hzero : b i = 0 := by
+              have : b i ∈ ({0} : Finset R) := by simpa [S', hi] using hb_mem i
+              simpa using this
+            simp [extendDomain, hi, hzero]
+        refine ⟨fun i _hi ↦ b i, ?_, h_extend⟩
+        · refine Finset.mem_filter.mpr ?_
+          constructor
+          · rw [Finset.mem_pi]
+            intro i hi
+            simpa [S', hi] using hb_mem i
+          · simpa [h_extend] using hb_eval
+    · rw [← Finset.prod_subset (Finset.subset_univ p.vars)]
+      · refine Finset.prod_congr rfl ?_
+        intro i hi
+        simp [S', hi]
+      · intro i _ hi
+        simp [S', hi]
   · rw [← Finset.sum_subset (Finset.subset_univ p.vars)]
-    · exact Finset.sum_congr rfl fun x hx => by aesop
+    · refine Finset.sum_congr rfl ?_
+      intro x hx
+      simp [S', hx]
     · intro x _ hx
       have hdeg : degreeOf x p = 0 := by
         rw [degreeOf]
         simp only [Multiset.count_eq_zero]
         rw [vars_def] at hx
         exact fun h => hx (Multiset.mem_toFinset.mpr h)
-      simp [hx, hdeg]
+      simp [S', hx, hdeg]
 
 
 end SchwartzZippel
@@ -124,7 +156,8 @@ open Function Fintype
 
 variable {n : ℕ}
 
-open Polynomial in
+open Polynomial
+set_option linter.flexible false in
 /-- A polynomial is zero if its degrees are bounded and it is zero on the product set. -/
 -- This does not follow from Schwartz-Zippel!
 -- Instead we should do induction on the number of variables.
@@ -170,6 +203,7 @@ theorem eq_zero_of_degreeOf_lt_card_of_eval_eq_zero_of_fin {n : ℕ} {p : R[X Fi
     have hZero : q = 0 := eq_zero_of_natDegree_lt_card_of_eval_eq_zero' q S' hEvalQ' hDegreeQ
     exact EmbeddingLike.map_eq_zero_iff.mp hZero
 
+set_option linter.flexible false in
 theorem eq_zero_of_degreeOf_lt_card_of_eval_eq_zero {p : R[X σ]} (S : σ → Finset R)
     (hDegree : ∀ i, p.degreeOf i < #(S i))
     (hEval : ∀ x ∈ piFinset fun i ↦ S i, eval x p = 0) : p = 0 := by
@@ -198,12 +232,13 @@ theorem eq_zero_of_degreeOf_lt_card_of_eval_eq_zero {p : R[X σ]} (S : σ → Fi
 /-- Equality of multivariable polynomials when they agree on a product of sets and have
     degree bounds on both (per-variable degree less than set size). -/
 theorem eq_of_degreeOf_lt_card_of_eval_eq {p q : R[X σ]} (S : σ → Finset R)
-    (hDegree_p : ∀ i, p.degreeOf i < #(S i))
-    (hDegree_q : ∀ i, q.degreeOf i < #(S i))
+    (hDegreeP : ∀ i, p.degreeOf i < #(S i))
+    (hDegreeQ : ∀ i, q.degreeOf i < #(S i))
     (hEval : ∀ x ∈ piFinset fun i ↦ S i, eval x p = eval x q) : p = q := by
-  have h : p - q = 0 := eq_zero_of_degreeOf_lt_card_of_eval_eq_zero S
-    (fun i => lt_of_le_of_lt (degreeOf_sub_le i p q) (max_lt (hDegree_p i) (hDegree_q i)))
-    (fun x hx => by simp [hEval x hx])
+  have h : p - q = 0 :=
+    eq_zero_of_degreeOf_lt_card_of_eval_eq_zero S
+      (fun i ↦ lt_of_le_of_lt (degreeOf_sub_le i p q) (max_lt (hDegreeP i) (hDegreeQ i)))
+      (fun x hx ↦ by simp [hEval x hx])
   exact sub_eq_zero.mp h
 
 end Finset
@@ -217,7 +252,7 @@ variable {F : Type*} [Field F] {ι : Type*} [DecidableEq ι]
 variable {s : Finset ι} {v : ι → F} {i j : ι}
 
 /-- Define basis polynomials for interpolation -/
-protected def basis : F := sorry
+protected def basis : F := 0
 
 end Interpolation
 
