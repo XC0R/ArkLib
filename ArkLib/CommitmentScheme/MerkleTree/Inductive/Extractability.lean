@@ -33,7 +33,7 @@ lemma OracleComp.pure_withLogging {ι} {A B} {spec : OracleSpec ι}
       let (a, a_log) ← oa.withLogging
       let (b, b_log) ← (ob a).withLogging
       return (b, a_log ++ b_log) := by
-  sorry
+  simp [OracleComp.withLogging, simulateQ_bind, Prod.map_def]
 
 /--
 prove that logging of a bind is bind of loggings.
@@ -45,7 +45,7 @@ lemma OracleComp.bind_withLogging {ι} {A B} {spec : OracleSpec ι}
       let (a, a_log) ← oa.withLogging
       let (b, b_log) ← (ob a).withLogging
       return (b, a_log ++ b_log) := by
-  sorry
+  simp [OracleComp.withLogging, simulateQ_bind, Prod.map_def]
 
 namespace InductiveMerkleTree
 
