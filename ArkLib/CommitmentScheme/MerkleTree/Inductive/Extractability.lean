@@ -87,7 +87,8 @@ If there is a collision, we are already in the bad case.
 What is just needed is that the extractor gives some default value in the ablated case.
 )
 -/
-def extractor {α : Type} [DecidableEq α] [SampleableType α] [Fintype α] [OracleSpec.Fintype (spec α)]
+def extractor {α : Type} [DecidableEq α] [SampleableType α]
+    [OracleSpec.Fintype (spec α)]
     (s : Skeleton)
     (cache : (spec α).QueryLog)
     (root : α) :
@@ -159,6 +160,8 @@ def extractability_game_with_logging
             committingLog, openingLog, verificationLog)
 
 
+
+
 -- withCounting?
 def IsQueryBound {ι : Type} {spec : OracleSpec ι} {α : Type} (oa : OracleComp spec α) (qb : ℕ) : Prop := sorry
 
@@ -170,6 +173,75 @@ def collisionIn {α : Type} [DecidableEq α]
     q1.2 == q2.2
 
 
+
+/--
+The event that the adversary wins the extractability game:
+verification passes but the extracted leaf or proof does not match.
+-/
+def adversary_wins_extractability_game_event {α : Type} [BEq α] {s : Skeleton} {AuxState : Type} :
+    α × AuxState × SkeletonLeafIndex s × α × List α ×
+    FullData (Option α) s × List (Option α) × Bool → Prop
+  | (_, _, idx, leaf, proof, extractedTree, extractedProof, verified) =>
+    verified ∧
+    (not (leaf == extractedTree.get idx.toNodeIndex)
+    ∨ not (proof.map (Option.some) == extractedProof))
+
+/--
+The event that the adversary wins the extractability game with logging:
+verification passes but the extracted leaf or proof does not match.
+The query logs are ignored for the win condition.
+-/
+def adversary_wins_extractability_game_with_logging_event
+    {α : Type} [BEq α] {s : Skeleton} {AuxState : Type} :
+    α × AuxState × SkeletonLeafIndex s × α × List α ×
+    FullData (Option α) s × List (Option α) × Bool ×
+    (spec α).QueryLog × (spec α).QueryLog × (spec α).QueryLog → Prop
+  | (_, _, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
+    verified ∧
+    (not (leaf == extractedTree.get idx.toNodeIndex)
+    ∨ not (proof.map (Option.some) == extractedProof))
+
+/--
+`adversary_wins_extractability_game_with_logging_event` is
+`adversary_wins_extractability_game_event` composed with the projection that forgets the
+three trailing query logs.
+-/
+lemma adversary_wins_extractability_game_with_logging_event_eq
+    {α : Type} [BEq α] {s : Skeleton} {AuxState : Type} :
+    @adversary_wins_extractability_game_with_logging_event α _ s AuxState =
+    adversary_wins_extractability_game_event ∘
+      fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
+        (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified) := by
+  funext ⟨root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _⟩
+  rfl
+
+theorem evalDist_extractability_game_eq {α : Type} [inst : DecidableEq α] [inst_1 : SampleableType α]
+  [inst_2 : Fintype α] [inst_3 : (spec α).Fintype] [inst_4 : (spec α).Inhabited] {s : Skeleton} {AuxState : Type}
+  (committingAdv : OracleComp (spec α) (α × AuxState))
+  (openingAdv : AuxState → OracleComp (spec α) (SkeletonLeafIndex s × α × List α)) (qb : ℕ)
+  (h_IsQueryBound_qb :
+    IsQueryBound
+      (do
+        let __discr ← committingAdv
+        match __discr with
+          | (root, aux) => do
+            let __discr ← openingAdv aux
+            match __discr with
+              | (idx, leaf, proof) => pure ())
+      qb)
+  (h_le_qb : 4 * s.leafCount + 1 ≤ qb) :
+  evalDist (extractability_game committingAdv openingAdv) =
+    evalDist
+      ((fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
+        (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified)) <$>
+        extractability_game_with_logging committingAdv openingAdv) := by
+  unfold extractability_game
+  unfold extractability_game_with_logging
+  simp only [guard_eq, OptionT.run_bind, OptionT.run_monadLift, monadLift_eq_self,
+    Option.elimM_map, Option.elim_some, bind_pure_comp, map_bind, evalDist_bind, evalDist_map,
+    Functor.map_map]
+
+  sorry
 
 /--
 The extractability theorem for Merkle trees.
@@ -187,7 +259,8 @@ then with probability at most κ
 does simultaneously
 
 * the merkle tree verification pass on the proof from `openingAdv`
-* with the extracted leaf value not matching the opened leaf value or the adversary producing a proof different from the extracted proof.
+* with the extracted leaf value not matching the opened leaf value
+  or the adversary producing a proof different from the extracted proof.
 
 Where κ is ≤ 1/2 * (qb - 1) * qb / (Fintype.card α)
         + 2 * (s.depth + 1) * s.leafCount / (Fintype.card α)
@@ -196,7 +269,10 @@ Where κ is ≤ 1/2 * (qb - 1) * qb / (Fintype.card α)
 Here, we loosen this a bit to attempt a proof by considering all collisions
 in the combined query logs of the committing and opening adversaries and the verification.
 -/
-theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [OracleSpec.Fintype (spec α)] [HasEvalSPMF (OracleComp (spec α))]
+theorem extractability [DecidableEq α] [SampleableType α] [Fintype α]
+    [OracleSpec.Fintype (spec α)]
+    -- [HasEvalPMF (OracleComp (spec α))]
+    [(spec α).Inhabited]
     {s : Skeleton}
     {AuxState : Type}
     (committingAdv : OracleComp (spec α)
@@ -212,10 +288,7 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [Oracle
           pure ()) qb)
     (h_le_qb : 4 * s.leafCount + 1 ≤ qb)
           :
-    Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified) =>
-        verified ∧
-        (not (leaf == extractedTree.get idx.toNodeIndex)
-        ∨ not (proof.map (Option.some) == extractedProof)) |
+    Pr[adversary_wins_extractability_game_event |
       do
         let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified) ←
           extractability_game committingAdv openingAdv
@@ -226,11 +299,7 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [Oracle
     := by
       calc
     -- We first rewrite the game to include the query logs
-    _ = Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-              committingLog, openingLog, verificationLog) =>
-            verified ∧
-            (not (leaf == extractedTree.get idx.toNodeIndex)
-            ∨ not (proof.map (Option.some) == extractedProof)) |
+    _ = Pr[adversary_wins_extractability_game_with_logging_event |
           do
             let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
                 committingLog, openingLog, verificationLog) ←
@@ -238,7 +307,16 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α] [Oracle
             return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
                     committingLog, openingLog, verificationLog)] := by
       -- This follows from marginalization
-      sorry
+      rw [adversary_wins_extractability_game_with_logging_event_eq]
+      rw [probEvent_comp]
+      simp only [Prod.mk.eta, bind_pure]
+      apply
+        probEvent_congr'
+      · grind
+      · exact
+        evalDist_extractability_game_eq committingAdv openingAdv qb
+          h_IsQueryBound_qb h_le_qb
+
     -- The bad event happens only when there is a collision event
     -- or the bad event happens with no collision
     _ ≤ Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
