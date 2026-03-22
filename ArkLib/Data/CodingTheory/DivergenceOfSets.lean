@@ -149,12 +149,12 @@ theorem Pr_uniform_equiv {α β : Type} [Fintype α] [Nonempty α] [Fintype β] 
       (PMF.map_comp (p := PMF.uniformOfFintype α) (f := e) (g := P)).symm
   -- Apply both sides to `True`, then use `hmap`.
   -- Finally, recognize the right-hand side as the original `do` block.
-  simpa using congrArg (fun q : PMF Prop => q True) (by
-    calc
-      (PMF.uniformOfFintype α).map (P ∘ e)
-          = ((PMF.uniformOfFintype α).map e).map P := hcomp
-      _ = (PMF.uniformOfFintype β).map P := by simp [hmap]
-    )
+  calc
+    (do let a ← $ᵖ α; pure (P (e a))) True
+      = ((PMF.uniformOfFintype α).map (P ∘ e)) True := rfl
+    _ = (((PMF.uniformOfFintype α).map e).map P) True := by rw [hcomp]
+    _ = ((PMF.uniformOfFintype β).map P) True := by rw [hmap]
+    _ = (do let b ← $ᵖ β; pure (P b)) True := rfl
 
 theorem divergence_attains {ι : Type} [Fintype ι] [Nonempty ι]
   {F : Type} [DecidableEq F]
@@ -862,7 +862,7 @@ theorem concentration_bounds {ι : Type} [Fintype ι] [Nonempty ι] [DecidableEq
       funext u
       apply propext
       simpa using (hiffU u)
-    simp [hfun]
+    exact congr_arg (fun f => (do let u ← $ᵖ U; pure (f u)) True) hfun
   -- Apply proximity gap at parameter δ
   have hδ_bound : (δ : ℝ≥0) ≤ 1 - ReedSolomonCode.sqrtRate deg domain := by
     have hδ_lt_div : (δ : ℝ≥0) < (δ' : ℝ≥0) := by
