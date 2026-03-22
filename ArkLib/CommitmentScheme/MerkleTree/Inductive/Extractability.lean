@@ -321,7 +321,7 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α]
     * If not, then consider whether the index opened exists in the extracted tree.
       * If yes, then if the proof differs at all, we must leave the extracted tree
         * After which, we can't return without a collision, so we don't verify.
-      * If no, then the only way to verify is to have a collision.
+      * If no, then the only way to verify is to have a collision in the verification proof.
 
   -/
 
