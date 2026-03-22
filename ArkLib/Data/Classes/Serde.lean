@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Quang Dao
+Authors: Quang Dao, Chung Thai Nguyen
 -/
 
 import Mathlib.Init
@@ -28,10 +28,22 @@ export Serialize (serialize)
 class Serialize.IsInjective (α : Type u) (β : Type v) [inst : Serialize α β] : Prop where
   serialize_inj : Function.Injective inst.serialize
 
+/-- Every type serializes to itself by the identity map. -/
+instance instSerializeSelf (α : Type u) : Serialize α α where
+  serialize := id
+
+/-- Identity serialization is injective. -/
+instance instSerializeIsInjectiveSelf (α : Type u) : Serialize.IsInjective α α where
+  serialize_inj := fun _ _ h => h
+
 /-- Type class for types that can be deserialized from another type (most often `ByteArray` or
   `String`), which _never_ fails. -/
 class Deserialize (α : Type u) (β : Type v) where
   deserialize : β → α
+
+/-- Every type deserializes from itself by the identity map. -/
+instance instDeserializeSelf (α : Type u) : Deserialize α α where
+  deserialize := id
 
 -- Local instance for now, will need to develop statistical distance a lot more
 instance {α : Type*} [Fintype α] : Dist (PMF α) where

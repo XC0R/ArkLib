@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Quang Dao
+Authors: Quang Dao, Chung Thai Nguyen
 -/
 
 import ArkLib.Data.Hash.DuplexSponge
@@ -31,6 +31,49 @@ class HasChallengeSize {n : ℕ} (pSpec : ProtocolSpec n) where
   challengeSize : pSpec.ChallengeIdx → Nat
 
 export HasChallengeSize (challengeSize)
+
+/-- Paper-facing codec surface for CO25 Definition 4.1.
+
+The existing DSFS implementation is written against `HasMessageSize` / `HasChallengeSize` plus
+`Serialize` / `Deserialize` instances. `Codec` packages that data together in one object while also
+recording the per-round decoder bias and a preimage sampler needed by later sections of the paper.
+-/
+structure Codec {n : ℕ} (pSpec : ProtocolSpec n) (U : Type) where
+  messageSize : pSpec.MessageIdx → Nat
+  challengeSize : pSpec.ChallengeIdx → Nat
+  encode : (i : pSpec.MessageIdx) → pSpec.Message i → Vector U (messageSize i)
+  encode_injective : ∀ i, Function.Injective (encode i)
+  decode : (i : pSpec.ChallengeIdx) → Vector U (challengeSize i) → pSpec.Challenge i
+  challengeBias : pSpec.ChallengeIdx → NNReal
+  sampleChallengePreimage :
+    (i : pSpec.ChallengeIdx) → pSpec.Challenge i → ProbComp (Vector U (challengeSize i))
+
+namespace Codec
+
+variable {n : ℕ} {pSpec : ProtocolSpec n} {U : Type}
+
+instance (cdc : Codec pSpec U) : HasMessageSize pSpec where
+  messageSize := cdc.messageSize
+
+instance (cdc : Codec pSpec U) : HasChallengeSize pSpec where
+  challengeSize := cdc.challengeSize
+
+instance (cdc : Codec pSpec U) :
+    ∀ i, Serialize (pSpec.Message i) (Vector U (cdc.messageSize i)) := by
+  intro i
+  exact ⟨cdc.encode i⟩
+
+instance (cdc : Codec pSpec U) :
+    ∀ i, Serialize.IsInjective (pSpec.Message i) (Vector U (cdc.messageSize i)) := by
+  intro i
+  exact ⟨cdc.encode_injective i⟩
+
+instance (cdc : Codec pSpec U) :
+    ∀ i, Deserialize (pSpec.Challenge i) (Vector U (cdc.challengeSize i)) := by
+  intro i
+  exact ⟨cdc.decode i⟩
+
+end Codec
 
 variable (StmtIn : Type) {n : ℕ} (pSpec : ProtocolSpec n)
     {U : Type} [SpongeUnit U] [SpongeSize]
@@ -65,6 +108,16 @@ def totalNumPermQueriesChallenge : Nat :=
   of the protocol specification. This is `L` in the paper (Equation 8). -/
 def totalNumPermQueries : Nat :=
   pSpec.totalNumPermQueriesMessage + pSpec.totalNumPermQueriesChallenge
+
+/-- Number of permutation queries needed to absorb a salt of length `δ`. This is `L_δ` in CO25
+  Equation 6. -/
+def numPermQueriesSalt (δ : Nat) : Nat :=
+  Nat.ceil ((δ : ℚ) / SpongeSize.R)
+
+/-- Total number of permutation queries needed by the salted DSFS construction, including the salt
+  absorption phase. -/
+def totalNumPermQueriesSalted (δ : Nat) : Nat :=
+  Nat.ceil ((δ : ℚ) / SpongeSize.R) + pSpec.totalNumPermQueries
 
 /-- The oracle specification for duplex sponge Fiat-Shamir (Equation 16, written as `𝒟_Σ`).
 It is indexed over the challenge rounds of the protocol specification, and for each such round `i`:
@@ -115,6 +168,10 @@ variable {n : ℕ} {pSpec : ProtocolSpec n} {ι : Type} {oSpec : OracleSpec ι}
 
 namespace ProtocolSpec.Messages
 
+/-- The proof object for the salted duplex-sponge Fiat-Shamir transform from CO25 Construction 4.3.
+-/
+abbrev SaltedProof (δ : Nat) := Vector U δ × pSpec.Messages
+
 /-- Auxiliary function for deriving the transcript up to round `k` from the (full) messages, via
   querying the permutation oracle for the challenges.
 
@@ -151,6 +208,18 @@ def deriveTranscriptDSFS {ι : Type} {oSpec : OracleSpec ι} {StmtIn : Type}
       (CanonicalDuplexSponge U × pSpec.FullTranscript) := do
   let sponge ← liftM (DuplexSponge.start stmtIn)
   deriveTranscriptDSFSAux sponge messages (Fin.last n)
+
+/-- Derive the full transcript for the salted DSFS wrapper from CO25 Construction 4.3.
+
+This keeps the existing unsalted DSFS core unchanged and models the paper's single salt as an
+initial absorb step performed once before processing the protocol messages. -/
+def deriveTranscriptDSFSSalted {ι : Type} {oSpec : OracleSpec ι} {StmtIn : Type} {δ : Nat}
+    (stmtIn : StmtIn) (salt : Vector U δ) (messages : pSpec.Messages) :
+    OracleComp (oSpec + duplexSpongeChallengeOracle StmtIn U)
+      (CanonicalDuplexSponge U × pSpec.FullTranscript) := do
+  let sponge ← liftM (DuplexSponge.start stmtIn)
+  let saltedSponge ← liftM (DuplexSponge.absorb sponge salt.toList)
+  deriveTranscriptDSFSAux saltedSponge messages (Fin.last n)
 
 end Messages
 
@@ -209,6 +278,23 @@ def Prover.runToRoundDSFS [∀ i, VCVCompatible (pSpec.Challenge i)] (i : Fin (n
     (prover.processRoundDSFS)
     i
 
+/-- Run the prover up to round `i` for the salted DSFS wrapper from CO25 Construction 4.3. -/
+@[inline, specialize]
+def Prover.runToRoundDSFSSalted [∀ i, VCVCompatible (pSpec.Challenge i)] {δ : Nat}
+    (i : Fin (n + 1)) (stmt : StmtIn) (salt : Vector U δ)
+    (prover : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) (state : prover.PrvState 0) :
+        OracleComp (oSpec + duplexSpongeChallengeOracle StmtIn U)
+          (pSpec.MessagesUpTo i ×
+            DuplexSponge U (Vector U SpongeSize.N) × prover.PrvState i) :=
+  Fin.induction
+    (do
+      let sponge ← liftM (DuplexSponge.start stmt)
+      let saltedSponge ← liftM (DuplexSponge.absorb sponge salt.toList)
+      return ⟨default, saltedSponge, state⟩
+    )
+    (prover.processRoundDSFS)
+    i
+
 /-- The duplex sponge Fiat-Shamir transformation for the prover. -/
 def Prover.duplexSpongeFiatShamir (P : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
     NonInteractiveProver (∀ i, pSpec.Message i) (oSpec + duplexSpongeChallengeOracle StmtIn U)
@@ -225,6 +311,26 @@ def Prover.duplexSpongeFiatShamir (P : Prover oSpec StmtIn WitIn StmtOut WitOut 
   receiveChallenge | ⟨0, h⟩ => nomatch h
   output := fun st => (P.output st).liftComp _
 
+/-- The paper-facing salted duplex-sponge Fiat-Shamir transformation for the prover.
+
+ArkLib honest provers do not have first-class local probabilistic effects, so the salt source is
+made explicit as an oracle computation in the ambient oracle interface. -/
+def Prover.duplexSpongeFiatShamirSalted {δ : Nat}
+    (sampleSalt : OracleComp oSpec (Vector U δ))
+    (P : Prover oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+    NonInteractiveProver (ProtocolSpec.Messages.SaltedProof (pSpec := pSpec) (U := U) δ)
+      (oSpec + duplexSpongeChallengeOracle StmtIn U) StmtIn WitIn StmtOut WitOut where
+  PrvState := fun i => match i with
+    | 0 => StmtIn × P.PrvState 0
+    | _ => P.PrvState (Fin.last n)
+  input := fun ctx => ⟨ctx.1, P.input ctx⟩
+  sendMessage | ⟨0, _⟩ => fun ⟨stmtIn, state⟩ => do
+    let salt ← sampleSalt.liftComp (oSpec + duplexSpongeChallengeOracle StmtIn U)
+    let ⟨messages, _, state⟩ ← P.runToRoundDSFSSalted (i := Fin.last n) stmtIn salt state
+    return ⟨(salt, messages), state⟩
+  receiveChallenge | ⟨0, h⟩ => nomatch h
+  output := fun st => (P.output st).liftComp _
+
 /-- The duplex sponge Fiat-Shamir transformation for the verifier. -/
 def Verifier.duplexSpongeFiatShamir (V : Verifier oSpec StmtIn StmtOut pSpec) :
     NonInteractiveVerifier (∀ i, pSpec.Message i) (oSpec + duplexSpongeChallengeOracle StmtIn U)
@@ -238,6 +344,18 @@ def Verifier.duplexSpongeFiatShamir (V : Verifier oSpec StmtIn StmtOut pSpec) :
     v.getM
     -- Option.getM (← (V.verify stmtIn transcript).run)
 
+/-- The paper-facing salted duplex-sponge Fiat-Shamir transformation for the verifier. -/
+def Verifier.duplexSpongeFiatShamirSalted {δ : Nat}
+    (V : Verifier oSpec StmtIn StmtOut pSpec) :
+    NonInteractiveVerifier (ProtocolSpec.Messages.SaltedProof (pSpec := pSpec) (U := U) δ)
+      (oSpec + duplexSpongeChallengeOracle StmtIn U) StmtIn StmtOut where
+  verify := fun stmtIn proof => do
+    let ⟨salt, messages⟩ : ProtocolSpec.Messages.SaltedProof (pSpec := pSpec) (U := U) δ := proof 0
+    let ⟨_, transcript⟩ ←
+      messages.deriveTranscriptDSFSSalted (oSpec := oSpec) (U := U) stmtIn salt
+    let v ← (V.verify stmtIn transcript).run
+    v.getM
+
 /-- The duplex sponge Fiat-Shamir transformation for an (interactive) reduction, which consists of
   applying the duplex sponge Fiat-Shamir transformation to both the prover and the verifier. -/
 def Reduction.duplexSpongeFiatShamir (R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
@@ -245,3 +363,15 @@ def Reduction.duplexSpongeFiatShamir (R : Reduction oSpec StmtIn WitIn StmtOut W
       StmtIn WitIn StmtOut WitOut where
   prover := R.prover.duplexSpongeFiatShamir
   verifier := R.verifier.duplexSpongeFiatShamir
+
+/-- The paper-facing salted duplex-sponge Fiat-Shamir transformation from CO25 Construction 4.3.
+
+The salt source is an explicit parameter because ArkLib does not currently model local prover
+randomness directly. -/
+def Reduction.duplexSpongeFiatShamirSalted {δ : Nat}
+    (sampleSalt : OracleComp oSpec (Vector U δ))
+    (R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+    NonInteractiveReduction (ProtocolSpec.Messages.SaltedProof (pSpec := pSpec) (U := U) δ)
+      (oSpec + duplexSpongeChallengeOracle StmtIn U) StmtIn WitIn StmtOut WitOut where
+  prover := R.prover.duplexSpongeFiatShamirSalted (U := U) sampleSalt
+  verifier := R.verifier.duplexSpongeFiatShamirSalted (U := U)
