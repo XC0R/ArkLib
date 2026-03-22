@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 
-import ArkLib.CommitmentScheme.MerkleTree.Inductive.Defs
+import ArkLib.CommitmentScheme.MerkleTree.Inductive.Collision
 
 /-!
 # Inductive Merkle Tree Extractability
@@ -13,39 +13,34 @@ import ArkLib.CommitmentScheme.MerkleTree.Inductive.Defs
 
 open scoped NNReal
 
-/--
-Convert a computation to one that also returns its query log
-
-TODO
-- This is in VCV
--/
-def OracleComp.withLogging {ι : Type} {T : Type} {spec : OracleSpec ι} (oa : OracleComp spec T) :
-    OracleComp spec (T × spec.QueryLog) :=
-  (simulateQ loggingOracle oa).run
+section ToVCV
 
 /--
-prove that logging of a bind is bind of loggings.
+Convenience corrolary to `probEvent_mono` for when the implication holds everywhere,
+not just on the support of the distribution.
 -/
-lemma OracleComp.pure_withLogging {ι} {A B} {spec : OracleSpec ι}
-    (oa : OracleComp spec A) (ob : A → OracleComp spec B) :
-    (oa >>= ob).withLogging =
-    do
-      let (a, a_log) ← oa.withLogging
-      let (b, b_log) ← (ob a).withLogging
-      return (b, a_log ++ b_log) := by
-  simp [OracleComp.withLogging, simulateQ_bind, Prod.map_def]
+lemma probEvent_mono''.{u, v} {m : Type u → Type v} [Monad m] {α : Type u} [HasEvalSPMF m]
+    {mx : m α} {p q : α → Prop}
+    (h : ∀ x, p x → q x) : Pr[p | mx] ≤ Pr[q | mx] := by
+  apply probEvent_mono
+  tauto
+
 
 /--
-prove that logging of a bind is bind of loggings.
+For any computation `oa` and predicate `p`, the probability of `p` holding on the output
+equals the probability of `p ∘ Prod.fst` holding on the output of `oa.withQueryLog`.
+This follows from the fact that `withQueryLog` only appends a log without changing the
+output value.
 -/
-lemma OracleComp.bind_withLogging {ι} {A B} {spec : OracleSpec ι}
-    (oa : OracleComp spec A) (ob : A → OracleComp spec B) :
-    (oa >>= ob).withLogging =
-    do
-      let (a, a_log) ← oa.withLogging
-      let (b, b_log) ← (ob a).withLogging
-      return (b, a_log ++ b_log) := by
-  simp [OracleComp.withLogging, simulateQ_bind, Prod.map_def]
+lemma probEvent_withQueryLog {ι : Type} {oSpec : OracleSpec ι}
+    [oSpec.Fintype] [oSpec.Inhabited] {α : Type}
+    (oa : OracleComp oSpec α) (p : α → Prop) :
+    Pr[p | oa] = Pr[p ∘ Prod.fst | oa.withQueryLog] :=
+  (loggingOracle.probEvent_fst_run_simulateQ oa p).symm
+
+end ToVCV
+
+
 
 namespace InductiveMerkleTree
 
@@ -121,56 +116,13 @@ def extractability_game
       (α × AuxState × SkeletonLeafIndex s × α × List α ×
        FullData (Option α) s × List (Option α) × Bool) :=
   do
-    let ((root, aux), queryLog) ← committingAdv.withLogging
+    let ((root, aux), queryLog) ← committingAdv.withQueryLog
     let extractedTree := extractor s queryLog root
     let (idx, leaf, proof) ← openingAdv aux
     let extractedProof := generateProof extractedTree idx
     let verifiedOpt ← (verifyProof idx leaf root proof).run
     let verified := verifiedOpt.isSome
     return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified)
-
-
-
-/--
-The game for extractability, augmented to return the query logs
-of the committing adversary, opening adversary, and verification.
--/
-def extractability_game_with_logging
-    [DecidableEq α] [SampleableType α] [Fintype α] [OracleSpec.Fintype (spec α)]
-    {s : Skeleton}
-    {AuxState : Type}
-    (committingAdv : OracleComp (spec α)
-        (α × AuxState))
-    (openingAdv : AuxState →
-        OracleComp (spec α) (SkeletonLeafIndex s × α × List α)) :
-    OracleComp (spec α)
-      (α × AuxState × SkeletonLeafIndex s × α × List α ×
-       FullData (Option α) s × List (Option α) × Bool ×
-       (spec α).QueryLog × (spec α).QueryLog × (spec α).QueryLog)
-         :=
-  do
-    let ((root, aux), committingLog) ← (committingAdv).withLogging
-    let extractedTree := extractor s committingLog root
-    let ((idx, leaf, proof), openingLog) ← ((openingAdv aux)).withLogging
-    let extractedProof := generateProof extractedTree idx
-    let (verifiedOpt, verificationLog) ←
-      ((verifyProof idx leaf root proof).run).withLogging
-    let verified := verifiedOpt.isSome
-    return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-            committingLog, openingLog, verificationLog)
-
-
-
-
--- withCounting?
-def IsQueryBound {ι : Type} {spec : OracleSpec ι} {α : Type} (oa : OracleComp spec α) (qb : ℕ) : Prop := sorry
-
--- Does this exists in vcvio somewhere?
-def collisionIn {α : Type} [DecidableEq α]
-    (log : (spec α).QueryLog) : Prop :=
-  ∃ q1 q2, (q1 ≠ q2) ∧
-    q1 ∈ log ∧ q2 ∈ log ∧
-    q1.2 == q2.2
 
 
 
@@ -189,59 +141,54 @@ def adversary_wins_extractability_game_event {α : Type} [BEq α] {s : Skeleton}
 /--
 The event that the adversary wins the extractability game with logging:
 verification passes but the extracted leaf or proof does not match.
-The query logs are ignored for the win condition.
+The query log is ignored for the win condition.
 -/
 def adversary_wins_extractability_game_with_logging_event
     {α : Type} [BEq α] {s : Skeleton} {AuxState : Type} :
-    α × AuxState × SkeletonLeafIndex s × α × List α ×
-    FullData (Option α) s × List (Option α) × Bool ×
-    (spec α).QueryLog × (spec α).QueryLog × (spec α).QueryLog → Prop
-  | (_, _, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
-    verified ∧
-    (not (leaf == extractedTree.get idx.toNodeIndex)
-    ∨ not (proof.map (Option.some) == extractedProof))
+    (α × AuxState × SkeletonLeafIndex s × α × List α ×
+     FullData (Option α) s × List (Option α) × Bool) × (spec α).QueryLog → Prop :=
+  adversary_wins_extractability_game_event ∘ Prod.fst
 
 /--
 `adversary_wins_extractability_game_with_logging_event` is
-`adversary_wins_extractability_game_event` composed with the projection that forgets the
-three trailing query logs.
+`adversary_wins_extractability_game_event` composed with `Prod.fst`.
 -/
 lemma adversary_wins_extractability_game_with_logging_event_eq
     {α : Type} [BEq α] {s : Skeleton} {AuxState : Type} :
     @adversary_wins_extractability_game_with_logging_event α _ s AuxState =
-    adversary_wins_extractability_game_event ∘
-      fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
-        (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified) := by
-  funext ⟨root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _⟩
-  rfl
+    adversary_wins_extractability_game_event ∘ Prod.fst := rfl
 
-theorem evalDist_extractability_game_eq {α : Type} [inst : DecidableEq α] [inst_1 : SampleableType α]
-  [inst_2 : Fintype α] [inst_3 : (spec α).Fintype] [inst_4 : (spec α).Inhabited] {s : Skeleton} {AuxState : Type}
-  (committingAdv : OracleComp (spec α) (α × AuxState))
-  (openingAdv : AuxState → OracleComp (spec α) (SkeletonLeafIndex s × α × List α)) (qb : ℕ)
-  (h_IsQueryBound_qb :
-    IsQueryBound
-      (do
-        let __discr ← committingAdv
-        match __discr with
-          | (root, aux) => do
-            let __discr ← openingAdv aux
-            match __discr with
-              | (idx, leaf, proof) => pure ())
-      qb)
-  (h_le_qb : 4 * s.leafCount + 1 ≤ qb) :
-  evalDist (extractability_game committingAdv openingAdv) =
-    evalDist
-      ((fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified, _, _, _) =>
-        (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified)) <$>
-        extractability_game_with_logging committingAdv openingAdv) := by
-  unfold extractability_game
-  unfold extractability_game_with_logging
-  simp only [guard_eq, OptionT.run_bind, OptionT.run_monadLift, monadLift_eq_self,
-    Option.elimM_map, Option.elim_some, bind_pure_comp, map_bind, evalDist_bind, evalDist_map,
-    Functor.map_map]
+/--
+If the combined adversary pair `(committingAdv, openingAdv)` has per-index query bound `qb`,
+then the full extractability game (with query logging) has per-index query bound `qb + s.depth`.
 
+The extra `s.depth` accounts for the `verifyProof` step, which traverses the path from the
+queried leaf to the root, making at most `s.depth` oracle queries.
+-/
+theorem extractability_game_IsPerIndexQueryBound
+    [DecidableEq α] [SampleableType α] [Fintype α] [OracleSpec.Fintype (spec α)]
+    {s : Skeleton} {AuxState : Type}
+    (committingAdv : OracleComp (spec α) (α × AuxState))
+    (openingAdv : AuxState → OracleComp (spec α) (SkeletonLeafIndex s × α × List α))
+    (qb : ℕ)
+    (h : IsPerIndexQueryBound
+        (do let (root, aux) ← committingAdv; let (idx, leaf, proof) ← openingAdv aux; pure ())
+        (fun _ => qb)) :
+    IsPerIndexQueryBound
+        ((extractability_game committingAdv openingAdv))
+        (fun _ => qb + s.depth) := by
   sorry
+
+
+theorem evalDist_extractability_game_eq
+    {α : Type} [DecidableEq α] [SampleableType α] [Fintype α]
+    [(spec α).Fintype] [(spec α).Inhabited] {s : Skeleton} {AuxState : Type}
+    (committingAdv : OracleComp (spec α) (α × AuxState))
+    (openingAdv : AuxState → OracleComp (spec α) (SkeletonLeafIndex s × α × List α)) :
+  evalDist (extractability_game committingAdv openingAdv) =
+    evalDist (Prod.fst <$> (extractability_game committingAdv openingAdv).withQueryLog) := by
+  congr 1
+  exact (loggingOracle.fst_map_run_simulateQ _).symm
 
 /--
 The extractability theorem for Merkle trees.
@@ -271,7 +218,6 @@ in the combined query logs of the committing and opening adversaries and the ver
 -/
 theorem extractability [DecidableEq α] [SampleableType α] [Fintype α]
     [OracleSpec.Fintype (spec α)]
-    -- [HasEvalPMF (OracleComp (spec α))]
     [(spec α).Inhabited]
     {s : Skeleton}
     {AuxState : Type}
@@ -281,11 +227,12 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α]
         OracleComp (spec α) (SkeletonLeafIndex s × α × List α))
     (qb : ℕ)
     (h_IsQueryBound_qb :
-      IsQueryBound
+      IsPerIndexQueryBound
         (do
           let (root, aux) ← committingAdv
           let (idx, leaf, proof) ← openingAdv aux
-          pure ()) qb)
+          pure ())
+        (fun _ => qb))
     (h_le_qb : 4 * s.leafCount + 1 ≤ qb)
           :
     Pr[adversary_wins_extractability_game_event |
@@ -298,92 +245,49 @@ theorem extractability [DecidableEq α] [SampleableType α] [Fintype α]
         + 2 * (s.depth + 1) * s.leafCount / (Fintype.card α)
     := by
       calc
-    -- We first rewrite the game to include the query logs
+    -- We first rewrite the game to include the combined query log
     _ = Pr[adversary_wins_extractability_game_with_logging_event |
-          do
-            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                committingLog, openingLog, verificationLog) ←
-              extractability_game_with_logging committingAdv openingAdv
-            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                    committingLog, openingLog, verificationLog)] := by
-      -- This follows from marginalization
-      rw [adversary_wins_extractability_game_with_logging_event_eq]
-      rw [probEvent_comp]
-      simp only [Prod.mk.eta, bind_pure]
-      apply
-        probEvent_congr'
-      · grind
-      · exact
-        evalDist_extractability_game_eq committingAdv openingAdv qb
-          h_IsQueryBound_qb h_le_qb
+          (extractability_game committingAdv openingAdv).withQueryLog] := by
+      simp only [adversary_wins_extractability_game_with_logging_event]
+      rw [← probEvent_withQueryLog]
+      congr 1
+      simp [bind_pure]
 
     -- The bad event happens only when there is a collision event
     -- or the bad event happens with no collision
-    _ ≤ Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-            committingLog, openingLog, verificationLog)
-            =>
-            (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∨
-            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-            (verified ∧
-            (not (leaf == extractedTree.get idx.toNodeIndex)
-            ∨ not (proof.map (Option.some) == extractedProof)))) |
-          do
-            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                committingLog, openingLog, verificationLog) ←
-              extractability_game_with_logging committingAdv openingAdv
-            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                    committingLog, openingLog, verificationLog)] := by
-      sorry
-      -- apply probEvent_mono
-      -- tauto
+    _ ≤ Pr[fun (vals, log) =>
+            collisionIn log ∨
+            (¬ collisionIn log ∧ adversary_wins_extractability_game_event vals) |
+          (extractability_game committingAdv openingAdv).withQueryLog] := by
+      apply probEvent_mono''
+      intro ⟨vals, log⟩
+      simp [adversary_wins_extractability_game_with_logging_event]
+      tauto
     -- We apply the union bound
-    _ ≤ Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-            committingLog, openingLog, verificationLog)
-            =>
-            (collisionIn (committingLog ++ openingLog ++ verificationLog)) |
-          do
-            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                committingLog, openingLog, verificationLog) ←
-              extractability_game_with_logging committingAdv openingAdv
-            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                    committingLog, openingLog, verificationLog)] +
-        Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-            committingLog, openingLog, verificationLog)
-            =>
-            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-            (verified ∧
-            (not (leaf == extractedTree.get idx.toNodeIndex)
-            ∨ not (proof.map (Option.some) == extractedProof)))) |
-          do
-            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                committingLog, openingLog, verificationLog) ←
-              extractability_game_with_logging committingAdv openingAdv
-            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                    committingLog, openingLog, verificationLog)] := by
-        -- exact probEvent_or_le
-        sorry
+    _ ≤ Pr[fun (vals, log) => collisionIn log |
+            (extractability_game committingAdv openingAdv).withQueryLog] +
+        Pr[fun (vals, log) =>
+            ¬ collisionIn log ∧ adversary_wins_extractability_game_event vals |
+          (extractability_game committingAdv openingAdv).withQueryLog] := by
+      apply probEvent_or_le
     -- We bound the collision event probability with a collision bound
     _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
-        Pr[fun (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-            committingLog, openingLog, verificationLog)
-            =>
-            (¬ (collisionIn (committingLog ++ openingLog ++ verificationLog)) ∧
-            (verified ∧
-            (not (leaf == extractedTree.get idx.toNodeIndex)
-            ∨ not (proof.map (Option.some) == extractedProof)))) |
-          do
-            let (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                committingLog, openingLog, verificationLog) ←
-              extractability_game_with_logging committingAdv openingAdv
-            return (root, aux, idx, leaf, proof, extractedTree, extractedProof, verified,
-                    committingLog, openingLog, verificationLog)] := by
-        gcongr
-        -- TODO: Prove a general collision bound lemma
-        sorry
+        Pr[fun (vals, log) =>
+            ¬ collisionIn log ∧ adversary_wins_extractability_game_event vals |
+          (extractability_game committingAdv openingAdv).withQueryLog] := by
+      gcongr
+      have game_query_bound :=
+        extractability_game_IsPerIndexQueryBound committingAdv openingAdv qb h_IsQueryBound_qb
+      convert (collision_probability_bound
+        (extractability_game committingAdv openingAdv) (qb + s.depth) game_query_bound) <;> grind
     -- We bound the no-collision bad event probability
     _ ≤ 1/2 * ((qb + s.depth) - 1) * (qb + s.depth) / (Fintype.card α) +
-        2 * (s.depth + 1) * s.leafCount / (Fintype.card α):= by
-        sorry
+        2 * (s.depth + 1) * s.leafCount / (Fintype.card α) := by
+      simp only [Nat.cast_one, Nat.cast_ofNat]
+      gcongr
+
+
+      sorry
 
   /-
   Now we can break down the bad event into smaller events
