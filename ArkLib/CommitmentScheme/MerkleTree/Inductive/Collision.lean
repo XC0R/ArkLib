@@ -16,6 +16,22 @@ and provides a birthday-bound.
 
 open scoped NNReal
 
+section ToMathlib
+
+lemma foo (k d : ℕ) (hkd : d ∣ k) : (((k / d) : ℕ) : ENNReal) = (k : ENNReal) / (d : ENNReal) := by
+  obtain ⟨m, hm⟩ := hkd; subst hm
+  cases d with
+  | zero => simp
+  | succ d =>
+    rw [Nat.mul_div_cancel_left m (Nat.succ_pos d)]
+    simp only [Nat.cast_mul, Nat.cast_succ]
+    have hd : (d : ENNReal) + 1 ≠ 0 := by positivity
+    have hdtop : (d : ENNReal) + 1 ≠ ⊤ :=
+      ENNReal.add_ne_top.mpr ⟨ENNReal.natCast_ne_top d, ENNReal.one_ne_top⟩
+    rw [mul_comm, ENNReal.mul_div_cancel_right hd hdtop]
+
+end ToMathlib
+
 namespace InductiveMerkleTree
 
 open OracleSpec OracleComp List
@@ -58,11 +74,13 @@ theorem queryLog_length_le_of_isPerIndexQueryBound {α β : Type} [DecidableEq �
   sorry
 
 theorem prob_single_collision {α β : Type} [inst : DecidableEq α]
-  [inst_1 : Fintype α] [inst_2 : (spec α).Fintype] [inst_3 : (spec α).Inhabited] (oa : OracleComp (spec α) β) (n : ℕ)
-  (hlen : ∀ z ∈ support oa.withQueryLog, length z.2 ≤ n) (i j : Fin n) (hij : i < j) :
-          Pr[fun z ↦ ∃ q1 q2, z.2[↑i]? = some q1 ∧ z.2[↑j]? = some q2 ∧ q1.fst ≠ q2.fst ∧ (q1.snd == q2.snd) = true |
-              oa.withQueryLog] ≤
-            1 / ↑(Fintype.card α) := by
+    [inst_1 : Fintype α] [inst_2 : (spec α).Fintype] [inst_3 : (spec α).Inhabited]
+    (oa : OracleComp (spec α) β) (n : ℕ)
+    (hlen : ∀ z ∈ support oa.withQueryLog, length z.2 ≤ n) (i j : Fin n) (hij : i < j) :
+    Pr[fun z ↦ ∃ q1 q2, z.2[↑i]? = some q1 ∧ z.2[↑j]? = some q2 ∧
+        q1.fst ≠ q2.fst ∧ (q1.snd == q2.snd) = true |
+        oa.withQueryLog] ≤
+      1 / ↑(Fintype.card α) := by
   sorry
 
 /--
@@ -133,7 +151,25 @@ theorem collision_probability_bound
         have hlen := hlog_len z hmem
         -- q1 and q2 are in z.2 (length ≤ n), so they sit at positions i, j < n;
         -- since q1.1 ≠ q2.1, their positions are distinct; take WLOG i < j.
-        sorry
+        rw [List.mem_iff_getElem] at hm1 hm2
+        obtain ⟨i1, hi1, hget1⟩ := hm1
+        obtain ⟨i2, hi2, hget2⟩ := hm2
+        have hi1n : i1 < n := lt_of_lt_of_le hi1 hlen
+        have hi2n : i2 < n := lt_of_lt_of_le hi2 hlen
+        have hget1? : z.2[i1]? = some q1 := by
+          rw [List.getElem?_eq_getElem hi1]; exact congr_arg some hget1
+        have hget2? : z.2[i2]? = some q2 := by
+          rw [List.getElem?_eq_getElem hi2]; exact congr_arg some hget2
+        have hne_idx : i1 ≠ i2 := by
+          intro heq
+          apply hne
+          have h : z.2[i1]? = z.2[i2]? := congr_arg (z.2[·]?) heq
+          simp only [hget1?, hget2?, Option.some.injEq] at h
+          exact congr_arg Sigma.fst h
+        rcases Nat.lt_or_gt_of_ne hne_idx with h | h
+        · exact ⟨(⟨i1, hi1n⟩, ⟨i2, hi2n⟩), by simp [h], q1, q2, hget1?, hget2?, hne, hresp⟩
+        · exact ⟨(⟨i2, hi2n⟩, ⟨i1, hi1n⟩), by simp [h], q2, q1, hget2?, hget1?, hne.symm,
+            by rw [beq_iff_eq]; exact (eq_of_beq hresp).symm⟩
       /- Union bound: Pr[∃ p ∈ S, E p] ≤ ∑ p ∈ S, Pr[E p]. -/
       _ ≤ ∑ p ∈ (Finset.univ : Finset (Fin n × Fin n)).filter
                   (fun p => p.1.val < p.2.val),
@@ -152,9 +188,44 @@ theorem collision_probability_bound
       _ = 1 / 2 * ((n : ENNReal) - 1) * n / Fintype.card α := by
           simp only [Fin.val_fin_lt, Finset.sum_const, nsmul_eq_mul]
           have : Finset.card {p : Fin n × Fin n | p.1 < p.2} = (n * (n - 1)) / 2 := by
-            sorry
+            have heq : ({p : Fin n × Fin n | p.1 < p.2} : Finset _).card =
+                (Finset.univ.sigma (fun i : Fin n => Finset.Ioi i)).card := by
+              apply Finset.card_bij (fun p _ => (⟨p.1, p.2⟩ : Σ i : Fin n, Fin n))
+              · intro p hp; simp [Finset.mem_sigma, Finset.mem_Ioi]; simpa using hp
+              · intro ⟨a, b⟩ h₁ ⟨c, d⟩ h₂ heq
+                simp only [Sigma.mk.inj_iff, heq_iff_eq] at heq
+                exact Prod.ext heq.1 heq.2
+              · intro ⟨i, j⟩ hj
+                simp only [Finset.mem_sigma, Finset.mem_Ioi, Finset.mem_univ, true_and] at hj
+                exact ⟨⟨i, j⟩, by simpa using hj, rfl⟩
+            rw [heq, Finset.card_sigma]
+            simp only [Fin.card_Ioi, Fin.sum_univ_eq_sum_range]
+            calc ∑ i ∈ Finset.range n, (n - 1 - i)
+                = ∑ i ∈ Finset.range n, id (n - 1 - i) := by simp [id]
+              _ = ∑ i ∈ Finset.range n, id i := Finset.sum_range_reflect id n
+              _ = n * (n - 1) / 2 := by simp [id, Finset.sum_range_id]
           rw [this] ; clear this
-
-          sorry
+          have key : (↑(n * (n - 1) / 2) : ENNReal) = 1 / 2 * (↑n - 1) * ↑n := by
+            cases n with
+            | zero => simp
+            | succ k =>
+              simp only [Nat.succ_sub_one, Nat.cast_succ]
+              simp only [ENNReal.addLECancellable_iff_ne, ne_eq, ENNReal.one_ne_top,
+                not_false_eq_true, AddLECancellable.add_tsub_cancel_right]
+              have hdvd : 2 ∣ k * (k + 1) := even_iff_two_dvd.mp (Nat.even_mul_succ_self k)
+              rw [show (k + 1) * k = k * (k + 1) from by ring]
+              -- grind -- should work here
+              apply (ENNReal.mul_right_inj (by norm_num : (2:ENNReal) ≠ 0) (by norm_num)).mp
+              -- rw [ENNReal.mul_div_cancel (by norm_num) (by norm_num)]
+              rw [foo (k * (k + 1)) 2 hdvd]
+              push_cast [hdvd]
+              -- grind -- should work here
+              congr
+              rw [div_eq_mul_inv]
+              simp
+              grind
+          rw [key]
+          congr
+          simp
 
 end InductiveMerkleTree
