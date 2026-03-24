@@ -381,6 +381,74 @@ theorem OracleReduction.id_runWithLog (stmt : StmtIn) (oStmt : ∀ i, OStmtIn i)
 
 end Trivial
 
+section OptionTLifts
+
+variable {α : Type} {pSpec : ProtocolSpec 1}
+
+/-- Coercing an `OracleComp` into `OptionT` agrees with the explicit `OptionT.lift`. -/
+lemma oracleComp_toOptionT_eq_lift (mx : OracleComp oSpec α) :
+    ((mx : OptionT (OracleComp oSpec) α)) = OptionT.lift mx := by
+  rw [OptionT.ext_iff]
+  rw [show OptionT.lift mx = OptionT.mk (some <$> mx) by rfl]
+  rw [show ((mx : OptionT (OracleComp oSpec) α)).run =
+      some <$> (monadLift mx : OracleComp oSpec α) by
+        change (monadLift mx : OptionT (OracleComp oSpec) α).run = _
+        exact OptionT.run_monadLift (m := OracleComp oSpec) (n := OracleComp oSpec) mx]
+  rw [monadLift_eq_self]
+  rfl
+
+/-- Lifting `OptionT.lift mx` across an oracle-spec extension is the same as first lifting `mx`
+to the larger oracle spec and then lifting into `OptionT`. -/
+lemma liftM_optionT_lift_eq_monadLift_liftM (mx : OracleComp oSpec α) :
+    (liftM (OptionT.lift mx : OptionT (OracleComp oSpec) α) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α) =
+      (monadLift (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α) :
+        OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α) := by
+  rw [liftM_OptionT_eq]
+  rw [OptionT.ext_iff]
+  rw [show OptionT.lift mx = OptionT.mk (some <$> mx) by rfl]
+  rw [show (monadLift (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α).run =
+      some <$> (monadLift (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α) :
+        OracleComp (oSpec + [pSpec.Challenge]ₒ) α) by
+        exact OptionT.run_monadLift (m := OracleComp (oSpec + [pSpec.Challenge]ₒ))
+          (n := OracleComp (oSpec + [pSpec.Challenge]ₒ))
+          (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α)]
+  rw [monadLift_eq_self]
+  change simulateQ (fun t => (liftM (query t) : OracleComp (oSpec + [pSpec.Challenge]ₒ) _))
+    (some <$> mx) = some <$> (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α)
+  rw [simulateQ_map]
+  rw [show simulateQ (fun t => (liftM (query t) : OracleComp (oSpec + [pSpec.Challenge]ₒ) _))
+      mx = liftComp mx (oSpec + [pSpec.Challenge]ₒ) by rfl]
+  rw [liftComp_eq_liftM]
+
+/-- Directly lifting an `OracleComp` into `OptionT` over an extended oracle spec agrees with
+first lifting the computation into the larger oracle spec and then into `OptionT`. -/
+lemma liftM_oracleComp_eq_monadLift_liftM (mx : OracleComp oSpec α) :
+    (liftM mx : OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α) =
+      (monadLift (liftM mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α) :
+        OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α) := by
+  change (liftM ((mx : OptionT (OracleComp oSpec) α)) :
+      OptionT (OracleComp (oSpec + [pSpec.Challenge]ₒ)) α) = _
+  rw [oracleComp_toOptionT_eq_lift]
+  exact liftM_optionT_lift_eq_monadLift_liftM (pSpec := pSpec) mx
+
+/-- Interpreting a lifted `OptionT` computation against an appended oracle implementation ignores
+the right-hand implementation when the lifted computation never queries it. -/
+lemma simulateQ_add_run_liftM_left
+    {ι₂ : Type} {spec₂ : OracleSpec ι₂} {σ : Type}
+    (impl₁ : QueryImpl oSpec (StateT σ ProbComp))
+    (impl₂ : QueryImpl spec₂ (StateT σ ProbComp))
+    (oa : OptionT (OracleComp oSpec) α) :
+    simulateQ (impl₁ + impl₂) (OptionT.run (liftM oa)) = simulateQ impl₁ oa.run := by
+  rw [liftM_OptionT_eq]
+  change simulateQ (impl₁ + impl₂) (liftM oa.run : OracleComp (oSpec + spec₂) (Option α)) = _
+  rw [show (liftM oa.run : OracleComp (oSpec + spec₂) (Option α)) =
+      liftComp oa.run (oSpec + spec₂) by rw [liftComp_eq_liftM]]
+  rw [QueryImpl.simulateQ_add_liftComp_left]
+
+end OptionTLifts
+
 section SingleMessage
 
 /-! Simplification lemmas for protocols with a single message -/
@@ -425,8 +493,13 @@ theorem Reduction.run_of_prover_first [ProverOnly pSpec] (stmt : StmtIn) (wit : 
         return (⟨transcript, ctxOut⟩, ← stmtOut.getM)) := by
   simp only [Reduction.run, Verifier.run]
   rw [Prover.run_of_prover_first]
+  rw [OptionT.ext_iff]
   simp only [liftComp_eq_liftM, bind_assoc, pure_bind, monadLift_bind, monadLift_pure]
-  sorry
+  rw [liftM_oracleComp_eq_monadLift_liftM (pSpec := pSpec)
+    (mx := reduction.prover.sendMessage ⟨0, by simp⟩ (reduction.prover.input (stmt, wit)))]
+  refine bind_congr ?_
+  intro x
+  rw [liftM_oracleComp_eq_monadLift_liftM (pSpec := pSpec) (mx := reduction.prover.output x.2)]
   -- conv =>
   --   enter [1, 2, a, 1]
   --   rw [map_eq_pure_bind]

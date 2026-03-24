@@ -144,6 +144,25 @@ section Execution
 
 -- Show that the Fiat-Shamir prover's run gives the same output as the original prover's run
 
+namespace Verifier
+
+omit [VCVCompatible StmtIn] [∀ i, VCVCompatible (pSpec.Challenge i)] in
+/-- Expanding the basic Fiat-Shamir verifier shows that it re-derives the transcript from the proof
+messages via the Fiat-Shamir oracle and then runs the original verifier. -/
+@[simp]
+theorem fiatShamir_verify_eq
+    (V : Verifier oSpec StmtIn StmtOut pSpec) (stmtIn : StmtIn)
+    (proof : FullTranscript ⟨!v[Direction.P_to_V], !v[pSpec.Messages]⟩) :
+    (V.fiatShamir).verify stmtIn proof =
+      (do
+        let messages : pSpec.Messages := proof 0
+        let transcript ← messages.deriveTranscriptFS (oSpec := oSpec) stmtIn
+        let v ← (V.verify stmtIn transcript).run
+        v.getM) := by
+  rfl
+
+end Verifier
+
 
 
 end Execution
@@ -155,16 +174,68 @@ noncomputable section
 open scoped NNReal
 
 variable [∀ i, SampleableType (pSpec.Challenge i)]
-  {σ : Type} (init : ProbComp σ) (impl : QueryImpl oSpec (StateT σ ProbComp))
+  {σ : Type}
 
-theorem fiatShamir_completeness (relIn : Set (StmtIn × WitIn)) (relOut : Set (StmtOut × WitOut))
-    (completenessError : ℝ≥0) (R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
-  R.completeness init impl relIn relOut completenessError →
-    R.fiatShamir.completeness (do return (← init, by unfold FunctionType; exact fun ⟨i, _⟩ => (default : pSpec.Challenge i)))
-      (impl.addLift fsChallengeQueryImpl' :
-        QueryImpl (oSpec + srChallengeOracle StmtIn pSpec)
-          (StateT (σ × (srChallengeOracle StmtIn pSpec).FunctionType) ProbComp))
-        relIn relOut completenessError := sorry
+namespace Reduction
+
+section Completeness
+
+local instance fiatShamirProverOnly : ProtocolSpec.ProverOnly
+    ⟨!v[Direction.P_to_V], !v[pSpec.Messages]⟩ where
+  prover_first' := by simp
+
+abbrev FiatShamirProtocolSpec : ProtocolSpec 1 :=
+  ⟨!v[Direction.P_to_V], !v[pSpec.Messages]⟩
+
+local instance fiatShamirChallengeOracleInterface :
+    ∀ i : (FiatShamirProtocolSpec (pSpec := pSpec)).ChallengeIdx,
+      OracleInterface ((FiatShamirProtocolSpec (pSpec := pSpec)).Challenge i) :=
+  challengeOracleInterface (pSpec := FiatShamirProtocolSpec (pSpec := pSpec))
+
+/-- The one-message proof transcript produced by the basic Fiat-Shamir transform. -/
+abbrev FiatShamirProofTranscript :=
+  FullTranscript (FiatShamirProtocolSpec (pSpec := pSpec))
+
+/-- The explicit honest execution underlying the basic Fiat-Shamir transform. -/
+def fiatShamirHonestExecution
+    (R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec)
+    (stmtIn : StmtIn) (witIn : WitIn) :
+    OptionT (OracleComp (oSpec + fsChallengeOracle StmtIn pSpec))
+      ((FiatShamirProofTranscript (pSpec := pSpec) × StmtOut × WitOut) × StmtOut) := do
+  let state := R.prover.input (stmtIn, witIn)
+  let ⟨messages, _, state⟩ ← liftM <|
+    R.prover.runToRoundFS (Fin.last n) stmtIn state
+  let ctxOut ← liftM <|
+    (R.prover.output state).liftComp (oSpec + fsChallengeOracle StmtIn pSpec)
+  let proof : FiatShamirProofTranscript (pSpec := pSpec) := fun
+    | ⟨0, _⟩ => messages
+  let stmtOut ← (R.verifier.fiatShamir).run stmtIn proof
+  return ⟨⟨proof, ctxOut⟩, stmtOut⟩
+
+/-- Completeness of the transformed one-message reduction is equivalent to the explicit honest
+Fiat-Shamir execution packaged via `Reduction.fiatShamirHonestExecution`. -/
+theorem fiatShamir_completeness_unroll
+    (init : ProbComp σ)
+    (impl : QueryImpl (oSpec + fsChallengeOracle StmtIn pSpec) (StateT σ ProbComp))
+    (relIn : Set (StmtIn × WitIn))
+    (relOut : Set (StmtOut × WitOut))
+    (completenessError : ℝ≥0)
+    (R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec) :
+    R.fiatShamir.completeness init impl relIn relOut completenessError ↔
+      Reduction.completenessFromRun init impl relIn relOut
+        (R.fiatShamirHonestExecution) completenessError := by
+  sorry
+
+-- TODO: discharge `fiatShamir_completeness_unroll`.
+-- `Reduction.run_of_prover_first` is now available, and `simulateQ_add_run_liftM_left` in
+-- `Execution.lean` collapses the unused outer challenge oracle on lifted `OptionT` runs. The
+-- remaining gap is the final file-local normalization between the elaborated run of
+-- `R.fiatShamir` and `liftM (R.fiatShamirHonestExecution ...)`, where Lean still chooses multiple
+-- coercion paths for the same lifted computation.
+
+end Completeness
+
+end Reduction
 
 -- TODO: state-restoration (knowledge) soundness implies (knowledge) soundness after Fiat-Shamir
 

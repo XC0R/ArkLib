@@ -350,7 +350,7 @@ variable
 theorem liftContext_completeness
     (h : R.completeness init impl innerRelIn innerRelOut completenessError) :
       (R.liftContext lens).completeness init impl outerRelIn outerRelOut completenessError := by
-  unfold completeness at h ⊢
+  simp [Reduction.completeness, Reduction.completenessFromRun] at h ⊢
   intro outerStmtIn outerWitIn hRelIn
   have hR := h (lens.stmt.proj outerStmtIn) (lens.wit.proj (outerStmtIn, outerWitIn))
     (lensComplete.proj_complete _ _ hRelIn)

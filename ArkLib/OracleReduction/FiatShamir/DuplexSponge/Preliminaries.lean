@@ -39,7 +39,8 @@ noncomputable def sampleUniformPreimage (ψ : B → A) (hψ : Function.Surjectiv
     letI := preimageNonempty ψ hψ a
     exact (PMF.uniformOfFintype (Preimage ψ a)).map Subtype.val
 
-/-- Pointwise description of `sampleUniformPreimage`. -/
+/-- Pointwise description of `sampleUniformPreimage`
+Probability of sampling `b` from the fiber of `a` = `1/|fiber_{a}|` or `0` -/
 theorem sampleUniformPreimage_apply (ψ : B → A) (hψ : Function.Surjective ψ) (a : A) (b : B) :
     sampleUniformPreimage ψ hψ a b =
       if ψ b = a then (Fintype.card (Preimage ψ a) : ENNReal)⁻¹ else 0 := by
@@ -65,6 +66,10 @@ theorem sampleUniformPreimage_apply (ψ : B → A) (hψ : Function.Surjective ψ
     simp [hy']
 
 variable [Nonempty B]
+
+-- monadic computation
+
+-- ψ⁻¹ ∘ ψ ∘ U(B)
 
 /-- CO25 Lemma 3.2 as an equality of PMFs. -/
 theorem bind_sampleUniformPreimage_eq_uniform (ψ : B → A) (hψ : Function.Surjective ψ) :
@@ -144,7 +149,7 @@ theorem bind_sampleUniformPreimage_eq_uniform (ψ : B → A) (hψ : Function.Sur
 /-- CO25 Lemma 3.2: resampling a uniformly random element via a uniformly random preimage preserves
 the uniform distribution. -/
 theorem lemma_3_2 (ψ : B → A) (hψ : Function.Surjective ψ) :
-    dist ($ᵖ B)
+    Dist.dist ($ᵖ B)
       (do
         let b ← $ᵖ B
         sampleUniformPreimage ψ hψ (ψ b)) = 0 := by
