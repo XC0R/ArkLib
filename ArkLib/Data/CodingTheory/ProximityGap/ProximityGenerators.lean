@@ -58,7 +58,9 @@ module codes over (scalar) rings.
   Proximity gaps for Reed–Solomon codes. In 2020 IEEE 61st Annual Symposium on Foundations of
   Computer Science (FOCS), 2020. Full paper: https://eprint.iacr.org/2020/654, version 20210703:203025.
 
-
+* [Guruswami, V., Rudra, A., Sudan M., *Essential Coding Theory*, online copy][GRS25]
+* [Bordage, S., Chiesa, A., Guan, Z., Manzur, I., *All Polynomial Generators Preserve Distance
+with Mutual Correlated Agreement*][BSGM25]
 -/
 
 namespace Generator
@@ -93,7 +95,7 @@ def M_G {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) : Matrix S �
   Matrix.of G
 
 def IsMDSGen {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) : Prop :=
- LinearCode.IsMDSCode (LinearCode.fromRowGenMat (M_G G))
+ IsMDS (LinearCode.fromRowGenMat (M_G G))
 
 
 /-- A subset of `ι` is dense if `|T| ≥ |ι| * (1 − γ)`, for some γ -/
@@ -104,8 +106,8 @@ def Condition {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) (U : �
   (T : Finset ι) (γ : ℝ) (LC : LinearCode ι F) (x : S) : Prop :=
   let v := Matrix.vecMul (G x) (Matrix.of U)
   Finset.card T ≥ (Fintype.card ι) * (1 - γ) ∧
-  Code.restrictedWord v T ∈ Code.restrictedCode LC T ∧
-  ∃ j : ℓ, Code.restrictedWord (U j) T ∉ Code.restrictedCode LC T
+  Code.projectedWord v T ∈ Code.projectedCode LC T ∧
+  ∃ j : ℓ, Code.projectedWord (U j) T ∉ Code.projectedCode LC T
 
 def IsMCAGen {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F)
   (ε_mca : Set.Icc 0 1 → Set.Icc 0 1) (U : ℓ → ι → F) (T : Finset ι) (LC : LinearCode ι F) : Prop :=
