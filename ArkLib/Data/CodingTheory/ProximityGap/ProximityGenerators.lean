@@ -14,7 +14,6 @@ import Mathlib.Probability.Distributions.Uniform
 import Mathlib.Topology.UnitInterval
 
 
-
 /-!
 # Proximity Generators fundamental definitions
 
@@ -38,12 +37,12 @@ function is a generator matrix for an MDS code
 with Mutual Correlated Agreement*][BSGM25]. Full paper : https://eprint.iacr.org/2025/2051}
 -/
 
+section
+
 namespace CoreDefinitions
 
 open NNReal ENNReal
 open scoped ProbabilityTheory
-
-section
 
 variable {ι : Type} [Fintype ι] [DecidableEq ι]
          {F : Type} [Field F] [Fintype F] [DecidableEq F]
@@ -68,7 +67,7 @@ of the seed at each of these polynomials.
 Definition 3.19 [BSGM25]. -/
 def IsPolynomialGenerator {s : ℕ} {S : Fin s → Set F} (G : Generator (∀ i, S i) ℓ F) : Prop :=
   ∃ P : ℓ → MvPolynomial (Fin s) F, LinearIndependent F P ∧
-  ∀ x : (∀ i, S i), G x = MvPolynomial.eval (fun i ↦ x i) ∘ P
+  ∀ x : (∀ i, S i), G x = MvPolynomial.eval (fun i ↦ (x i : F)) ∘ P
 
 /-- A matrix whose rows are the outputs of the generator function.
 Defined inside Definition 3.5 [BSGM25]. -/
@@ -85,16 +84,16 @@ def IsMDSGenerator {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) :
 def Condition {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F) (U : ℓ → ι → F)
   (T : Finset ι) (γ : ℝ) (LC : LinearCode ι F) (x : S) : Prop :=
   let v := Matrix.vecMul (G x) (Matrix.of U)
-  Finset.card T ≥ (Fintype.card ι) * (1 - γ) ∧
+  (T.card : ℝ) ≥ (Fintype.card ι) * (1 - γ) ∧
   Code.projectedWord v T ∈ Code.projectedCode LC T ∧
   ∃ j : ℓ, Code.projectedWord (U j) T ∉ Code.projectedCode LC T
 
 /-- Definition 3.14 [BSGM25]. -/
 def IsMCAGenerator {S : Type} [Nonempty S] [Fintype S] (G : Generator S ℓ F)
-  (ε_mca : Set.Icc 0 1 → Set.Icc 0 1) (U : ℓ → ι → F) (T : Finset ι) (LC : LinearCode ι F) : Prop :=
-  ∀ γ ∈ Set.Icc 0 1,
-  Pr_{let x ←$ᵖ S}[(Condition G U T γ LC x) ] ≤ Real.toEReal (ε_mca γ)
-
-end
+  (ε_mca : ℝ → ℝ) (U : ℓ → ι → F) (T : Finset ι) (LC : LinearCode ι F) : Prop :=
+  ε_mca  ∈ Set.Icc 0 1 ∧
+  ∀ γ ∈ Set.Icc 0 1, Pr_{let x ←$ᵖ S}[(Condition G U T γ LC x) ] ≤ ENNReal.ofReal (ε_mca γ)
 
 end CoreDefinitions
+
+end
