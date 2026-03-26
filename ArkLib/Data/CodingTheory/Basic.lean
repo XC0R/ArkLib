@@ -2089,12 +2089,6 @@ noncomputable def genMatrixFromCode [Field F] (LC : LinearCode ι F) : Matrix (F
 def IsMDS [CommRing F] [DecidableEq F] (LC : LinearCode ι F) : Prop :=
   Code.dist LC.carrier = length LC - dim LC + 1
 
-/-- A linear code `LC` of length `ι` and dimension `dim` over a field `F` is MDS if any `dim` columns
-of the generator matrix whose rows are an `F`-basis of `LC` are linearly independent. [GRS25] -/
-lemma colRank_genMatrix_eq_dim_of_MDS [Field F] [DecidableEq F] (LC : LinearCode ι F) :
-    Matrix.colRank (genMatrixFromCode LC) = dim LC := by
-  sorry
-
 end
 
 section
