@@ -89,6 +89,12 @@ import CompPoly.Data.Nat.Bitwise
   We define the block length, rate, and distance of `C`. We prove simple properties of linear codes
   such as the singleton bound.
 
+## References
+
+* [Guruswami, V., Rudra, A., Sudan M., *Essential Coding Theory*, online copy][GRS25]
+* [Bordage, S., Chiesa, A., Guan, Z., Manzur, I., *All Polynomial Generators Preserve Distance
+with Mutual Correlated Agreement*][BSGM25]
+
 ## TODOs
 - Implement `ENNRat (ℚ≥0∞)`, for usage in `relDistFromCode` and `relDistFromCode'`,
   as counterpart of `ENat (ℕ∞)` in `distFromCode` and `distFromCode'`.
@@ -1787,12 +1793,21 @@ lemma wt_eq_zero_iff [Zero F] {v : ι → F} :
   by_cases IsEmpty ι <;>
   aesop (add simp [wt, Finset.filter_eq_empty_iff])
 
-def restrictedWord (c : ι → F) (T : Finset ι) : T → F := Set.restrict T c
+/-- Let `c` be a word of length `ι`. For every finite `ι`-subset `T` , we define the projection of a
+word `c` to `T` as the word obtained by restricting the indexing set of `c` to `T`.
+We denote this by `c|[T]`.
+Definition 3.6 [BSGM25]. -/
+def projectedWord [Fintype ι] (c : ι → F) (T : Finset ι) : T → F := Set.restrict T c
 
-/-- Let `C` be a code of length `ι`. For every subset `T ⊆ ι`, we define the restricted code `C|T`
-as the set of words `w` of length `T`, obtained by restricting `ι` to `T`. -/
-def restrictedCode (C : Set (ι → F)) (T : Finset ι) : Set (T → F) :=
-  {w | ∃ c ∈ C, w = restrictedWord c T}
+notation:60 c "|[" T "]" => projectedWord c T
+
+/-- Let `C` be a code of length `ι`. For every finite `ι`-subset `T`, we define the projected code
+`C|[T]` as the set of projected codewords `c|[T]`, for `c ∈ C`.
+Definition 3.6 [BSGM25]. -/
+def projectedCode [Fintype ι] (C : Set (ι → F)) (T : Finset ι) : Set (T → F) :=
+  {w | ∃ c ∈ C, w = c|[T]}
+
+notation:60 C "|[" T "]" => projectedCode C T
 
 end
 
@@ -1940,8 +1955,6 @@ abbrev LinearCode.{u, v} (ι : Type u) [Fintype ι] (F : Type v) [Semiring F] : 
 lemma LinearCode_is_ModuleCode.{u, v} {ι : Type u} [Fintype ι] {F : Type v} [Semiring F]
     : LinearCode ι F = ModuleCode ι F F := by rfl
 
--- TODO: MDS code
-
 namespace LinearCode
 
 section
@@ -1951,16 +1964,15 @@ variable {F : Type*} {A : Type*} [AddCommMonoid A]
          {κ : Type*} [Fintype κ]
 
 /-- Module code defined by left multiplication by its generator matrix.
-  For a matrix G : Matrix κ ι F (over field F) and module A over F, this generates
-  the F-submodule of (ι → A) spanned by the rows of G acting on (κ → A).
-  The matrix acts on vectors v : κ → A by: (G • v)(i) = ∑ k, G k i • v k
-  where G k i : F is the scalar and v k : A is the module element.
+For a matrix G : Matrix κ ι F (over field F) and module A over F, this generates
+the F-submodule of (ι → A) spanned by the rows of G acting on (κ → A).
+The matrix acts on vectors v : κ → A by: (G • v)(i) = ∑ k, G k i • v k
+where G k i : F is the scalar and v k : A is the module element.
 -/
 noncomputable def fromRowGenMat [Semiring F] (G : Matrix κ ι F) : LinearCode ι F :=
   LinearMap.range G.vecMulLinear
 
-/-- Linear code defined by right multiplication by a generator matrix.
--/
+/-- Linear code defined by right multiplication by a generator matrix. -/
 noncomputable def fromColGenMat [CommRing F] (G : Matrix ι κ F) : LinearCode ι F :=
   LinearMap.range G.mulVecLin
 
@@ -2039,85 +2051,49 @@ scoped syntax &"ρ" term : term
 scoped macro_rules
   | `(ρ $t:term) => `(LinearCode.rate $t)
 
+/-- Every linear code over a field `F` is a finitely generated `F`-module. -/
+lemma linear_code_is_FG [Field F] (LC : LinearCode ι F) : LC.FG := Submodule.FG.of_finite
 
--- open Classical in
--- lemma gen_matrix_exists [Semiring F] [Nonempty ι] (LC : LinearCode ι F) : ∃ (G : Matrix κ ι F),
---   LC = fromRowGenMat G := by
---   unfold fromRowGenMat
---   simp only [range_vecMulLinear]
---   have : LC.FG := by
---     unfold LinearCode at LC
---     have h₁ : LC ≤ ⊤ := by
---       simp only [le_top]
---     have {a b : LinearCode ι F} : a ≤ b → b.FG → a.FG := by
---       unfold LinearCode at a b
---       intros h h'
---       rw [Submodule.fg_def] at h'
---       rcases h' with ⟨s, hs, hspanB⟩
---       refine Submodule.spanRank_finite_iff_fg.mp ?_
---       sorry
---     apply this h₁
---     rw [@Submodule.fg_def]
---     use (Finset.image (fun (i j : ι) ↦ if i = j then 1 else 0) Fintype.elems).toSet
---     have {s : Finset (ι → F)} : s.toSet.Finite := by
---       simp
---     apply And.intro this
---     simp only [Finset.coe_image]
---     apply Submodule.eq_top_iff'.mpr
---     intros x
---     apply (mem_span_image_iff_exists_fun F).mpr
---     use (fun y ↦ x y)
---     ext y
---     rw [sum_apply]
---     rw [Finset.sum_eq_single]
---     swap
---     exact ⟨y, by simp only [SetLike.mem_coe]; exact complete y⟩
---     · simp
---     · intros b _ h
---       simp
---       intros h'
---       aesop
---     · simp
-
-
---   have : ∃ S : Set (ι → F), LC = Submodule.span F S  := by
---     use LC
---     simp
-
---   have blah := @Submodule.instNonemptySubtypeSetEqSpan LC
-
---   sorry
-
-
-lemma linCode_FG [Field F] (LC : LinearCode ι F) : LC.FG := by
-  exact Submodule.FG.of_finite
-
-
-open Classical in
-lemma gen_matrix_exists' [Field F] [Fintype F] [Nonempty ι] (LC : LinearCode ι F) : ∃ (G : Matrix κ ι F),
-  LC = fromRowGenMat G := by
+/-- Given a linear code of length `ι` and dimension `dim` over a field `F`, there exists a
+`dim x ι` matrix over `F` which generates the code. -/
+lemma gen_matrix_exists [Field F] (LC : LinearCode ι F) :
+    ∃ (G : Matrix (Fin (dim LC)) ι F), LC = fromRowGenMat G := by
   unfold fromRowGenMat
-  simp only [range_vecMulLinear]
-  have LC_FG : LC.FG := linCode_FG LC
-  have LC_genSet : ∃ S : Set (ι → F), LC = Submodule.span F S  := by
-    use LC
-    simp
-  rcases LC_genSet with ⟨S, S_spans_LC⟩
-  have S_Finite : S.Finite := Set.toFinite S
-  rw [S_spans_LC]
+  have LC_basis := Module.finBasis F LC
+  let G : Matrix (Fin (Module.finrank F ↥LC)) ι F :=
+    fun i => LC_basis i
+  use G
+  simp only [range_vecMulLinear, G, Matrix.row]
+  ext x
+  rw [Submodule.mem_span_range_iff_exists_fun]
+  constructor
+  · intros h
+    use LC_basis.equivFun ⟨x, h⟩
+    have x_to_lin_comb : (⟨x, h⟩ : LC).1 = ∑ i, LC_basis.equivFun ⟨x, h⟩ i • (LC_basis i).1 := by
+      rw (occs := .pos [1]) [←Module.Basis.sum_equivFun LC_basis ⟨x, h⟩, @Submodule.coe_sum]
+      congr
+    simp only [Module.Basis.equivFun_apply] at x_to_lin_comb ⊢
+    exact x_to_lin_comb.symm
+  · rintro ⟨x, h⟩
+    rw [←h]
+    apply Submodule.sum_smul_mem LC x
+    intros c _
+    exact Submodule.coe_mem (LC_basis c)
 
-  sorry
+/-- Given a linear code of length `ι` and dimension `dim` over a field `F`, we define its `dim x ι`
+generator matrix as a matrix whose rows are an `F`-basis of the code. -/
+noncomputable def genMatrixFromCode [Field F] (LC : LinearCode ι F) : Matrix (Fin (dim LC)) ι F :=
+  fun i => Module.finBasis F LC i
 
-
-/-- A linear code is maximum distance separable (MDS) if  its parameters meet the Singleton bound.
--/
-def IsMDSCode [CommRing F] [DecidableEq F] (LC : LinearCode ι F) : Prop :=
+/-- A linear code is maximum distance separable (MDS) if its parameters meet the singleton bound. -/
+def IsMDS [CommRing F] [DecidableEq F] (LC : LinearCode ι F) : Prop :=
   Code.dist LC.carrier = length LC - dim LC + 1
 
-/-- A linear code of length `ι` and dimension `dim` is MDS if and only if any `dim` rows of its
-generator matrix are linearly independent. -/
-lemma MDS_iff_dim_lin_ind_rows_in_GenMatrix [CommRing F] [DecidableEq F] (LC : LinearCode ι F) :
-  IsMDSCode LC ↔ sorry := by sorry
+/-- A linear code `LC` of length `ι` and dimension `dim` over a field `F` is MDS if any `dim` columns
+of the generator matrix whose rows are an `F`-basis of `LC` are linearly independent. [GRS25] -/
+lemma colRank_genMatrix_eq_dim_of_MDS [Field F] [DecidableEq F] (LC : LinearCode ι F) :
+    Matrix.colRank (genMatrixFromCode LC) = dim LC := by
+  sorry
 
 end
 
