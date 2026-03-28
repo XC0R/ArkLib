@@ -33,6 +33,8 @@ the type of each round can depend on the values exchanged in earlier rounds. Whe
 - `ProtocolCtx.Verifier.comp` — sequential composition of verifiers
 - `ProtocolCtx.Challenger.comp` — sequential composition of challengers
 - `ProtocolCtx.SF.comp` — sequential composition of state functions
+- `ProtocolCtx.chain` — indexed stage-family concatenation
+- `ProtocolCtx.Verifier.compFrom` — iterate a stage-indexed verifier family
 - `ProtocolCtx.replicate` — n-fold replication of a protocol context
 - `ProtocolCtx.Verifier.compNth` — n-fold verifier self-composition
 - `ProtocolCtxM` — variant where the monad can change between rounds
@@ -214,6 +216,17 @@ def Transcript.join :
   | .V_to_P _ rest, ctx₂, ⟨t, tr₁⟩, tr₂ =>
       ⟨t, join (rest t) (fun trRest => ctx₂ ⟨t, trRest⟩) tr₁ tr₂⟩
 
+/-- Build an `n`-stage telescope by iterating a public stage-state transition. The
+current stage index and public state choose the next local protocol context, while the
+transition computes the next public state from the realized stage transcript. -/
+def chain {Stage : Nat → Type}
+    (Ctx : (i : Nat) → Stage i → ProtocolCtx)
+    (advance : (i : Nat) → (stage : Stage i) → Transcript (Ctx i stage) → Stage (i + 1)) :
+    (n : Nat) → (i : Nat) → Stage i → ProtocolCtx
+  | 0, _, _ => .nil
+  | n + 1, i, stage =>
+      (Ctx i stage).append (fun tr => chain Ctx advance n (i + 1) (advance i stage tr))
+
 /-! ## Prover.comp -/
 
 namespace Prover
@@ -242,6 +255,24 @@ def comp {m : Type → Type} [Monad m] :
         let next ← recv ch
         comp (rest ch) (fun trRest => ctx₂ ⟨ch, trRest⟩) next
           (fun trRest mid => f ⟨ch, trRest⟩ mid)
+
+/-- Iterate a prover family over an indexed stage chain while returning a constant
+output type `S`. Intermediate stage outputs are discarded; only the terminal `done`
+value is returned after all stages finish. This is useful for honest-prover code
+whose recursive structure is controlled entirely by the public transcript. -/
+def compFromConst {m : Type → Type} [Monad m] {Stage : Nat → Type} {S : Type}
+    (Ctx : (i : Nat) → Stage i → ProtocolCtx)
+    (advance : (i : Nat) → (stage : Stage i) → Transcript (Ctx i stage) → Stage (i + 1))
+    (step : (i : Nat) → (stage : Stage i) → Prover m (Ctx i stage) (fun _ => S))
+    (done : (i : Nat) → (stage : Stage i) → S) :
+    (n : Nat) → (i : Nat) → (stage : Stage i) →
+    m (Prover m (ProtocolCtx.chain Ctx advance n i stage) (fun _ => S))
+  | 0, i, stage => pure (done i stage)
+  | n + 1, i, stage =>
+      comp (Ctx i stage)
+        (fun tr₁ => ProtocolCtx.chain Ctx advance n (i + 1) (advance i stage tr₁))
+        (step i stage)
+        (fun tr₁ _ => compFromConst Ctx advance step done n (i + 1) (advance i stage tr₁))
 
 /-- Extract the first-stage prover from a composed prover. The output of the first
 stage is itself a prover for the second stage — the dependent output absorbs the
@@ -699,20 +730,85 @@ def Challenger.comp {m : Type → Type} [Monad m] :
 
 /-! ## Replicate and compNth -/
 
+/-- Recursive family obtained by iterating a type family along an indexed stage chain
+for `n` stages. The next stage index/state is recovered by repeatedly splitting the
+full transcript into its local stage pieces. -/
+def chainFamily {Stage : Nat → Type}
+    (Ctx : (i : Nat) → Stage i → ProtocolCtx)
+    (advance : (i : Nat) → (stage : Stage i) → Transcript (Ctx i stage) → Stage (i + 1))
+    (Family : (i : Nat) → Stage i → Type) :
+    (n : Nat) → (i : Nat) → (stage : Stage i) →
+    Transcript (ProtocolCtx.chain Ctx advance n i stage) → Type
+  | 0, i, stage, _ => Family i stage
+  | n + 1, i, stage, tr =>
+      let parts :=
+        Transcript.split (Ctx i stage)
+          (fun tr₁ => ProtocolCtx.chain Ctx advance n (i + 1) (advance i stage tr₁)) tr
+      chainFamily Ctx advance Family n (i + 1) (advance i stage parts.1) parts.2
+
+namespace Verifier
+
+/-- Iterate a verifier family whose local protocol, live statement type, and public
+stage state may all vary by round. The next stage is selected using only the realized
+stage transcript, preserving the same public/private split as `Reduction.comp`. -/
+def compFrom {m : Type → Type} [Monad m] {Stage : Nat → Type}
+    (Ctx : (i : Nat) → Stage i → ProtocolCtx)
+    (advance : (i : Nat) → (stage : Stage i) → Transcript (Ctx i stage) → Stage (i + 1))
+    (Stmt : (i : Nat) → Stage i → Type)
+    (step : (i : Nat) → (stage : Stage i) →
+      Verifier m (Stmt i stage) (Ctx i stage)
+        (fun tr => Stmt (i + 1) (advance i stage tr))) :
+    (n : Nat) → (i : Nat) → (stage : Stage i) →
+    Verifier m (Stmt i stage) (ProtocolCtx.chain Ctx advance n i stage)
+      (ProtocolCtx.chainFamily Ctx advance Stmt n i stage)
+  | 0, _, _ => fun stmt _ => pure stmt
+  | n + 1, i, stage => fun stmt tr => do
+      let parts :=
+        Transcript.split (Ctx i stage)
+          (fun tr₁ => ProtocolCtx.chain Ctx advance n (i + 1) (advance i stage tr₁)) tr
+      let stmt' ← step i stage stmt parts.1
+      compFrom Ctx advance Stmt step n (i + 1) (advance i stage parts.1) stmt' parts.2
+
+/-- Constant-statement specialization of `compFrom`. This is the stage-family analogue
+of the old self-composition helper: contexts may still vary with the public stage
+state, but each stage consumes and returns the same live statement type `S`. -/
+def compFromConst {m : Type → Type} [Monad m] {Stage : Nat → Type} {S : Type}
+    (Ctx : (i : Nat) → Stage i → ProtocolCtx)
+    (advance : (i : Nat) → (stage : Stage i) → Transcript (Ctx i stage) → Stage (i + 1))
+    (step : (i : Nat) → (stage : Stage i) → Verifier m S (Ctx i stage) (fun _ => S)) :
+    (n : Nat) → (i : Nat) → (stage : Stage i) →
+    Verifier m S (ProtocolCtx.chain Ctx advance n i stage) (fun _ => S)
+  | 0, _, _ => fun stmt _ => pure stmt
+  | n + 1, i, stage => fun stmt tr => do
+      let parts :=
+        Transcript.split (Ctx i stage)
+          (fun tr₁ => ProtocolCtx.chain Ctx advance n (i + 1) (advance i stage tr₁)) tr
+      let stmt' ← step i stage stmt parts.1
+      compFromConst Ctx advance step n (i + 1) (advance i stage parts.1) stmt' parts.2
+
+end Verifier
+
 /-- Replicate a protocol context `n` times. Each copy is independent (non-dependent
 concatenation). -/
 def replicate (ctx : ProtocolCtx) : Nat → ProtocolCtx
-  | 0 => .nil
-  | n + 1 => ctx.append (fun _ => replicate ctx n)
+  | n => chain
+      (Stage := fun _ => PUnit)
+      (fun _ _ => ctx)
+      (fun _ _ _ => PUnit.unit)
+      n 0 PUnit.unit
 
 /-- Compose a verifier with itself `n` times over the replicated context.
 Self-composition requires non-dependent output (`fun _ => S`). -/
 def Verifier.compNth {m : Type → Type} [Monad m] {S : Type}
     {ctx : ProtocolCtx} : (n : Nat) →
     Verifier m S ctx (fun _ => S) → Verifier m S (ctx.replicate n) (fun _ => S)
-  | 0, _ => fun stmt _ => pure stmt
-  | n + 1, v => Verifier.comp ctx (fun _ => replicate ctx n)
-      (fun _ => S) v (fun _ => compNth n v)
+  | n, v =>
+      Verifier.compFromConst
+        (Stage := fun _ => PUnit)
+        (Ctx := fun _ _ => ctx)
+        (advance := fun _ _ _ => PUnit.unit)
+        (step := fun _ _ => v)
+        n 0 PUnit.unit
 
 /-! ## Telescopic monads (sketch)
 

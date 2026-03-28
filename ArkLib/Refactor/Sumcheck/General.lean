@@ -67,21 +67,20 @@ variable {ι : Type} {oSpec : OracleSpec ι}
 
 /-- Single-round oracle verifier that outputs `R` for `compNth` composition.
 Queries the round polynomial at domain points, checks the sum, and returns the new target. -/
-noncomputable def roundOracleVerifier (D : Fin m → R) :
+def roundOracleVerifier (D : Fin m → R) :
     OracleVerifier oSpec
       R (fun (_ : Unit) => OStmt R deg n)
       R (fun (_ : Unit) => OStmt R deg n)
-      (pSpec R deg) where
-  verify := fun target challenges => do
-    let result ← (oracleVerifier (n := n) (m := m) (deg := deg) (ι := ι) (oSpec := oSpec)
-      D).verify target challenges
-    pure result.target
-  simulate := fun q =>
-    liftM (query (spec := [fun (_ : Unit) => OStmt R deg n]ₒ +
-      oracleSpecOfMessages (pSpec R deg)) (Sum.inl q))
-  reify := fun oStmtData _ => some oStmtData
+      (pSpec R deg) :=
+  OracleVerifier.keepInputOracle (oSpec := oSpec)
+    (StmtIn := R) (StmtOut := R)
+    (OStmt := fun (_ : Unit) => OStmt R deg n) (pSpec := pSpec R deg)
+    (fun target challenges => do
+      let result ← (oracleVerifier (n := n) (m := m) (deg := deg) (ι := ι) (oSpec := oSpec)
+        D).verify target challenges
+      pure result.target)
 
-noncomputable def generalOracleVerifier (D : Fin m → R) :
+def generalOracleVerifier (D : Fin m → R) :
     OracleVerifier oSpec
       R (fun (_ : Unit) => OStmt R deg n)
       R (fun (_ : Unit) => OStmt R deg n)
@@ -89,6 +88,95 @@ noncomputable def generalOracleVerifier (D : Fin m → R) :
   OracleVerifier.compNth n (roundOracleVerifier D)
 
 end OracleVerifier
+
+section OracleReduction
+
+variable {ι : Type} {oSpec : OracleSpec ι}
+
+/-- State-threaded oracle verifier for one sumcheck round.
+
+This is the oracle analogue of `roundVerifierState`: it checks the current target,
+consumes one challenge, and appends that challenge to the accumulated round state
+while leaving the input polynomial oracle unchanged. -/
+def roundOracleVerifierState (D : Fin m → R) :
+    OracleVerifier oSpec
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n)
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n)
+      (pSpec R deg) :=
+  OracleVerifier.keepInputOracle (oSpec := oSpec)
+    (StmtIn := RoundState (R := R)) (StmtOut := RoundState (R := R))
+    (OStmt := fun (_ : Unit) => OStmt R deg n) (pSpec := pSpec R deg)
+    (fun st challenges => do
+      let result ← (oracleVerifier (R := R) (deg := deg) (n := n) (m := m) (oSpec := oSpec)
+        D).verify st.target challenges
+      pure { i := st.i + 1
+             challenges := st.challenges.push result.challenge
+             target := result.target })
+
+/-- Compose `n` state-threaded oracle verifier rounds. -/
+def generalOracleVerifierState (D : Fin m → R) :
+    OracleVerifier oSpec
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n)
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n)
+      (generalPSpec R deg n) :=
+  OracleVerifier.compNth n (roundOracleVerifierState (R := R) (deg := deg) (n := n)
+    (m := m) (oSpec := oSpec) D)
+
+/-- Stateful one-round oracle reduction for sumcheck. The prover computes the round
+polynomial from the current accumulated challenges and preserves the multivariate
+polynomial oracle as output oracle data. -/
+def roundOracleReductionState
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    OracleReduction oSpec
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n) Unit
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n) Unit
+      (pSpec R deg) where
+  prover := fun ⟨⟨st, oStmtData⟩, ()⟩ => do
+    let roundPoly := computeRoundPoly (R := R) (deg := deg) (n := n) (m := m) (i := st.i)
+      (oStmtData ()) st.challenges D evalPoints
+    pure (roundPoly, pure (fun chal =>
+      pure (({
+          i := st.i + 1
+          challenges := st.challenges.push chal
+          target := CPolynomial.eval chal roundPoly.val
+        }, oStmtData), ())))
+  verifier := roundOracleVerifierState (R := R) (deg := deg) (n := n) (m := m)
+    (oSpec := oSpec) D
+
+/-- Compose `n` stateful oracle rounds into the full sumcheck oracle reduction over
+`RoundState`. -/
+def generalOracleReductionState
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    OracleReduction oSpec
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n) Unit
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n) Unit
+      (generalPSpec R deg n) :=
+  OracleReduction.compNth n (roundOracleReductionState (R := R) (deg := deg) (n := n)
+    (m := m) (oSpec := oSpec) D evalPoints)
+
+/-- Full oracle reduction for multi-round sumcheck.
+
+It initializes the `RoundState` from the claimed target sum and then runs the
+stateful `n`-round oracle reduction. -/
+def generalOracleReduction
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    OracleReduction oSpec
+      R (fun (_ : Unit) => OStmt R deg n) Unit
+      (RoundState (R := R)) (fun (_ : Unit) => OStmt R deg n) Unit
+      (generalPSpec R deg n) where
+  prover := fun ⟨⟨target, oStmtData⟩, ()⟩ =>
+    (generalOracleReductionState (R := R) (deg := deg) (n := n) (m := m)
+      (oSpec := oSpec) D evalPoints).prover
+      ((initState (R := R) target, oStmtData), ())
+  verifier := OracleVerifier.keepInputOracle (oSpec := oSpec)
+    (StmtIn := R) (StmtOut := RoundState (R := R))
+    (OStmt := fun (_ : Unit) => OStmt R deg n) (pSpec := generalPSpec R deg n)
+    (fun target challenges =>
+      (generalOracleVerifierState (R := R) (deg := deg) (n := n) (m := m)
+        (oSpec := oSpec) D).verify
+        (initState (R := R) target) challenges)
+
+end OracleReduction
 
 /-! ## Multi-round prover
 

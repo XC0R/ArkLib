@@ -44,12 +44,14 @@ def OracleVerifier.liftContext
       OuterOStmtIn OuterOStmtOut InnerOStmtIn InnerOStmtOut)
     (V : OracleVerifier oSpec InnerStmtIn InnerOStmtIn InnerStmtOut InnerOStmtOut pSpec) :
     OracleVerifier oSpec OuterStmtIn OuterOStmtIn OuterStmtOut OuterOStmtOut pSpec where
-  verify := by
-    intro _outerStmt _challenges
-    sorry
-  simulate := by
-    intro _q
-    sorry
+  verify := fun outerStmt challenges => do
+    let innerStmtOut ← OptionT.mk <|
+      simulateQ
+        (OracleVerifier.liftVerifyQueries (pSpec := pSpec) lens.simIn)
+        (V.verify (lens.projStmt outerStmt) challenges)
+    pure (lens.liftStmt outerStmt innerStmtOut)
+  simulate :=
+    OracleVerifier.liftOutputQueries (pSpec := pSpec) lens.simOut lens.simIn V.simulate
   reify := fun outerOStmtIn msgs => do
     let innerOStmtIn := lens.reifyIn outerOStmtIn
     let innerOStmtOut ← V.reify innerOStmtIn msgs

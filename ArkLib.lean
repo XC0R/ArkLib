@@ -190,6 +190,15 @@ import ArkLib.Refactor.Sumcheck.PolyUtils
 import ArkLib.Refactor.Sumcheck.Security
 import ArkLib.Refactor.Sumcheck.SingleRound
 import ArkLib.Refactor.Sumcheck.Test
+import ArkLib.Refactor.Telescope
+import ArkLib.Refactor.Telescope.Basic
+import ArkLib.Refactor.Telescope.OracleVerifier
+import ArkLib.Refactor.Telescope.Reduction
+import ArkLib.Refactor.Telescope.Security
+import ArkLib.Refactor.Telescope.Security.Composition
+import ArkLib.Refactor.Telescope.Security.Composition.Soundness
+import ArkLib.Refactor.Telescope.Security.Defs
+import ArkLib.Refactor.Telescope.Sumcheck
 import ArkLib.Refactor.Transcript
 import ArkLib.Refactor.Verifier
 import ArkLib.ToMathlib.BigOperators.Fin

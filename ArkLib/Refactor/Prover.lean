@@ -231,15 +231,15 @@ theorem run_mapOutput {m : Type → Type} [Monad m] [LawfulMonad m] {A B : Type}
     Prover.run pSpec (mapOutput f pSpec prover) ch =
       (fun (tr, out) => (tr, f out)) <$> Prover.run pSpec prover ch
   | [], output, _ => by simp [run, mapOutput]
-  | (.P_to_V _ _) :: tl, (msg, cont), ch => by
-    show run _ (mapOutput f _ (msg, cont)) ch = _
+  | (.P_to_V T oi) :: tl, (msg, cont), ch => by
+    show run (.P_to_V T oi :: tl) (mapOutput f (.P_to_V T oi :: tl) (msg, cont)) ch = _
     simp only [run, mapOutput, bind_pure_comp, map_eq_bind_pure_comp, bind_assoc, pure_bind,
       Function.comp]
     congr 1; ext next
     rw [run_mapOutput f tl next]
     simp [map_eq_bind_pure_comp, bind_assoc]
-  | (.V_to_P _) :: tl, recv, ch => by
-    show run _ (mapOutput f _ recv) ch = _
+  | (.V_to_P T) :: tl, recv, ch => by
+    show run (.V_to_P T :: tl) (mapOutput f (.V_to_P T :: tl) recv) ch = _
     simp only [run, mapOutput, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp]
     congr 1; ext next
     rw [run_mapOutput f tl next]

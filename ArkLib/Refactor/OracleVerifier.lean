@@ -190,6 +190,43 @@ def reifySimulateCorrect
         simulateQ (oracleImplOfOStmtInMessages (pSpec := pSpec) oStmtInData msgs)
           (ov.simulate ⟨i, q⟩) = pure (OracleInterface.answer (oStmtOutData i) q)
 
+/-- Common forwarding constructor for the migration case where the output oracle
+family is exactly the input oracle family and only the public statement changes. -/
+def keepInputOracle
+    {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn StmtOut : Type} {ιₛ : Type} {OStmt : ιₛ → Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt i)]
+    (verify : StmtIn → Challenges pSpec →
+      OptionT (OracleComp (oSpec + [OStmt]ₒ + oracleSpecOfMessages pSpec)) StmtOut) :
+    OracleVerifier oSpec StmtIn OStmt StmtOut OStmt pSpec where
+  verify := verify
+  simulate := fun q =>
+    liftM (query (spec := [OStmt]ₒ + oracleSpecOfMessages pSpec) (Sum.inl q))
+  reify := fun oStmtData _ => some oStmtData
+
+theorem keepInputOracle_reifySimulateCorrect
+    {ι : Type} {oSpec : OracleSpec ι}
+    {StmtIn StmtOut : Type} {ιₛ : Type} {OStmt : ιₛ → Type}
+    {pSpec : ProtocolSpec}
+    [∀ i, OracleInterface (OStmt i)]
+    (verify : StmtIn → Challenges pSpec →
+      OptionT (OracleComp (oSpec + [OStmt]ₒ + oracleSpecOfMessages pSpec)) StmtOut) :
+    reifySimulateCorrect
+      (keepInputOracle (oSpec := oSpec) (StmtIn := StmtIn)
+        (StmtOut := StmtOut) (OStmt := OStmt) (pSpec := pSpec) verify) := by
+  intro oStmtInData msgs i q
+  rfl
+
+/-- Identity oracle verifier on the empty protocol. -/
+protected def id
+    {ι : Type} {oSpec : OracleSpec ι}
+    {S : Type} {ιₛ : Type} {OStmt : ιₛ → Type}
+    [∀ i, OracleInterface (OStmt i)] :
+    OracleVerifier oSpec S OStmt S OStmt [] :=
+  keepInputOracle (oSpec := oSpec) (StmtIn := S) (StmtOut := S)
+    (OStmt := OStmt) (pSpec := []) (fun stmt _ => pure stmt)
+
 /-- Convert an oracle verifier to a plain verifier by simulating all oracle queries
 with actual data. Extracts challenges and messages from the transcript, builds
 pure oracle implementations, and runs the oracle verifier via `simulateQ`. -/
@@ -215,6 +252,84 @@ def toVerifier
       | Sum.inr q => pure (answerMsgQuery pSpec tr q)
     (simulateQ impl (ov.verify stmt (Transcript.toChallenges pSpec tr)) :
       OracleComp oSpec (Option StmtOut))
+
+/-- Lift inner input-oracle routing into a context that also contains message oracles. -/
+def liftInputQueries
+    {Outer_ιₛ : Type} {OuterOStmt : Outer_ιₛ → Type} [∀ i, OracleInterface (OuterOStmt i)]
+    {Inner_ιₛ : Type} {InnerOStmt : Inner_ιₛ → Type} [∀ i, OracleInterface (InnerOStmt i)]
+    {pSpec : ProtocolSpec}
+    (simIn : QueryImpl [InnerOStmt]ₒ (OracleComp [OuterOStmt]ₒ)) :
+    QueryImpl [InnerOStmt]ₒ (OracleComp ([OuterOStmt]ₒ + oracleSpecOfMessages pSpec)) :=
+  fun q =>
+    simulateQ
+      (fun q' =>
+        liftM (query (spec := [OuterOStmt]ₒ + oracleSpecOfMessages pSpec) (Sum.inl q')))
+      (simIn q)
+
+/-- Lift the full verification context `oSpec + [InnerOStmtIn]ₒ + msgOracles`
+into `oSpec + [OuterOStmtIn]ₒ + msgOracles`. -/
+def liftVerifyQueries
+    {ι : Type} {oSpec : OracleSpec ι}
+    {Outer_ιₛ : Type} {OuterOStmt : Outer_ιₛ → Type} [∀ i, OracleInterface (OuterOStmt i)]
+    {Inner_ιₛ : Type} {InnerOStmt : Inner_ιₛ → Type} [∀ i, OracleInterface (InnerOStmt i)]
+    {pSpec : ProtocolSpec}
+    (simIn : QueryImpl [InnerOStmt]ₒ (OracleComp [OuterOStmt]ₒ)) :
+    QueryImpl (oSpec + [InnerOStmt]ₒ + oracleSpecOfMessages pSpec)
+      (OracleComp (oSpec + [OuterOStmt]ₒ + oracleSpecOfMessages pSpec)) := fun
+  | Sum.inl (Sum.inl q) =>
+      liftM (query (spec := oSpec + [OuterOStmt]ₒ + oracleSpecOfMessages pSpec)
+        (Sum.inl (Sum.inl q)))
+  | Sum.inl (Sum.inr q) => liftInputQueries (pSpec := pSpec) simIn q
+  | Sum.inr q =>
+      liftM (query (spec := oSpec + [OuterOStmt]ₒ + oracleSpecOfMessages pSpec) (Sum.inr q))
+
+/-- Lift inner output-oracle simulation into the outer input-oracle/message context. -/
+def liftInnerSimulateQueries
+    {Outer_ιₛᵢ : Type} {OuterOStmtIn : Outer_ιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    {Inner_ιₛᵢ : Type} {InnerOStmtIn : Inner_ιₛᵢ → Type}
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Inner_ιₛₒ : Type} {InnerOStmtOut : Inner_ιₛₒ → Type}
+    [∀ i, OracleInterface (InnerOStmtOut i)]
+    {pSpec : ProtocolSpec}
+    (simIn : QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (simulate : QueryImpl [InnerOStmtOut]ₒ
+      (OracleComp ([InnerOStmtIn]ₒ + oracleSpecOfMessages pSpec))) :
+    QueryImpl [InnerOStmtOut]ₒ
+      (OracleComp ([OuterOStmtIn]ₒ + oracleSpecOfMessages pSpec)) :=
+  fun q =>
+    simulateQ
+      (fun
+        | Sum.inl q' => liftInputQueries (pSpec := pSpec) simIn q'
+        | Sum.inr q' =>
+            liftM (query (spec := [OuterOStmtIn]ₒ + oracleSpecOfMessages pSpec) (Sum.inr q')))
+      (simulate q)
+
+/-- Compose outer output-oracle routing with the inner verifier's output simulation. -/
+def liftOutputQueries
+    {Outer_ιₛᵢ : Type} {OuterOStmtIn : Outer_ιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    {Outer_ιₛₒ : Type} {OuterOStmtOut : Outer_ιₛₒ → Type}
+    [∀ i, OracleInterface (OuterOStmtOut i)]
+    {Inner_ιₛᵢ : Type} {InnerOStmtIn : Inner_ιₛᵢ → Type}
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Inner_ιₛₒ : Type} {InnerOStmtOut : Inner_ιₛₒ → Type}
+    [∀ i, OracleInterface (InnerOStmtOut i)]
+    {pSpec : ProtocolSpec}
+    (simOut : QueryImpl [OuterOStmtOut]ₒ (OracleComp ([OuterOStmtIn]ₒ + [InnerOStmtOut]ₒ)))
+    (simIn : QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (simulate : QueryImpl [InnerOStmtOut]ₒ
+      (OracleComp ([InnerOStmtIn]ₒ + oracleSpecOfMessages pSpec))) :
+    QueryImpl [OuterOStmtOut]ₒ
+      (OracleComp ([OuterOStmtIn]ₒ + oracleSpecOfMessages pSpec)) :=
+  fun q =>
+    simulateQ
+      (fun
+        | Sum.inl q' =>
+            liftM (query (spec := [OuterOStmtIn]ₒ + oracleSpecOfMessages pSpec) (Sum.inl q'))
+        | Sum.inr q' =>
+            liftInnerSimulateQueries (pSpec := pSpec) simIn simulate q')
+      (simOut q)
 
 /-- Lift queries from `[OStmt₁]ₒ + msgOracles(pSpec₁)` into a target spec that
 contains both components via given SubSpec coercions. `[OStmt₁]ₒ` queries forward
@@ -329,14 +444,45 @@ def compNth
     [∀ i, OracleInterface (OStmt i)] : (n : Nat) →
     OracleVerifier oSpec S OStmt S OStmt pSpec →
     OracleVerifier oSpec S OStmt S OStmt (pSpec.replicate n)
-  | 0, _ =>
-    { verify := fun stmt _ => pure stmt,
-      simulate := fun q =>
-        liftM (query (spec := [OStmt]ₒ + oracleSpecOfMessages (pSpec.replicate 0))
-          (Sum.inl q)),
-      reify := fun oStmtData _ => some oStmtData }
+  | 0, _ => OracleVerifier.id
   | n + 1, ov => comp ov (compNth n ov)
 
 end OracleVerifier
+
+/-! ## Interactive Oracle Verifier
+
+The `InteractiveOracleVerifier` processes the protocol round by round, accumulating
+oracle access to prover messages. Unlike the batch `OracleVerifier` (which receives
+all challenges up front), the interactive version computes challenges adaptively
+using oracle queries to previously received messages.
+
+This generalizes the public-coin model: if challenges are sampled uniformly, the
+result is equivalent to a public-coin `OracleVerifier`. If challenges depend on
+oracle queries to prior messages, we have a private-coin protocol.
+
+The accumulated message oracle spec `accMsgSpec` starts at `[]ₒ` and grows
+by `oi.spec` at each `P_to_V` round. At `V_to_P` rounds, the verifier runs in
+`OracleComp (oSpec + [OStmtIn]ₒ + accMsgSpec)` to compute the challenge. -/
+
+/-- Interactive oracle verifier that processes the protocol round by round.
+
+- At `P_to_V T oi` rounds: the accumulated message oracle spec grows by `oi.spec`
+  (the verifier gains oracle access to the newly received message).
+- At `V_to_P T` rounds: the verifier computes a challenge of type `T` using
+  `OracleComp` with current accumulated oracle access.
+- At `[]` (end): the verifier makes a final accept/reject decision. -/
+def InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
+    (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
+    (StmtOut : Type)
+    [∀ i, OracleInterface (OStmtIn i)] :
+    {ιₐ : Type} → OracleSpec ιₐ → ProtocolSpec → Type
+  | _, accMsgSpec, [] =>
+      StmtIn → OptionT (OracleComp (oSpec + [OStmtIn]ₒ + accMsgSpec)) StmtOut
+  | _, accMsgSpec, (.P_to_V _ oi) :: tl =>
+      InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut
+        (accMsgSpec + @OracleInterface.spec _ oi) tl
+  | _, accMsgSpec, (.V_to_P T) :: tl =>
+      OracleComp (oSpec + [OStmtIn]ₒ + accMsgSpec)
+        (T × InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut accMsgSpec tl)
 
 end ProtocolSpec

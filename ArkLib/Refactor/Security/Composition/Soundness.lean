@@ -329,20 +329,6 @@ private theorem soundnessFromState_of_rbr
   simpa [Verifier.soundness] using
     (hSound (Output := Output) (prover := prover) (stmtIn := stmtIn) hstmtIn)
 
-theorem oracleAwareRbrSoundness_implies_soundness
-    {StmtIn StmtOut : Type}
-    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
-    {langIn : Set StmtIn} {langOut : Set StmtOut}
-    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
-    {Inv : σ → Prop}
-    {rbrError : ChallengeIndex pSpec → ℝ≥0}
-    (hInit : InitSatisfiesInv init Inv)
-    (hPres : QueryImpl.PreservesInv impl Inv)
-    (h : rbrSoundness impl langIn langOut verifier Inv rbrError) :
-    verifier.soundness init impl langIn langOut
-      (Finset.sum Finset.univ rbrError) := by
-  exact rbrSoundness_implies_soundness (init := init) (impl := impl) hInit hPres h
-
 set_option maxHeartbeats 300000 in
 -- This helper performs large bind reassociations and event rewrites over `ProbComp`.
 private theorem soundness_of_soundnessFromState
@@ -1033,7 +1019,7 @@ theorem Verifier.soundness_compNth
   exact soundness_of_soundnessFromState (init := init) (impl := impl)
     (hInit := hInit) (hσbound := hStateNth n)
 
-theorem Verifier.oracleAwareRbrSoundness_compNth
+theorem Verifier.soundness_compNth_of_rbrSoundness
     {S : Type}
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {lang : Set S}
@@ -1421,6 +1407,8 @@ private def rbrSoundness_comp_sf
     }
 
 set_option maxHeartbeats 300000 in
+-- This composition proof triggers large dependent rewrites across both verifier stages
+-- and the default heartbeat budget is not enough for elaboration.
 /-- Generic RBR soundness composition: given RBR soundness for `v₁` and `v₂`, with
 `v₁` oracle-free and the query implementation preserving the state invariant,
 `Verifier.comp v₁ v₂` is RBR sound with the appended error map. -/

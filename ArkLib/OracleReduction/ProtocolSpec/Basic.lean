@@ -6,7 +6,7 @@ Authors: Quang Dao
 
 import ArkLib.Data.Fin.Tuple.Lemmas
 import ArkLib.OracleReduction.Prelude
-import ArkLib.OracleReduction.OracleInterface
+import ArkLib.OracleInterface
 import ArkLib.ToVCVio.Oracle
 
 /-!

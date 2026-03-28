@@ -1,4 +1,6 @@
 import ArkLib.Refactor.Telescope.Basic
+import ArkLib.Refactor.Telescope.Boundary
+import ArkLib.Refactor.Telescope.Syntax
 import ArkLib.Refactor.Telescope.Security.Defs
 import ArkLib.Refactor.Sumcheck.Completeness
 import ArkLib.Refactor.Sumcheck.General
@@ -19,21 +21,52 @@ open ProtocolCtx
 
 namespace Sumcheck.Telescope
 
-variable (R : Type) [Field R] [BEq R] [LawfulBEq R] [Nontrivial R] [DecidableEq R]
+variable (R : Type) [Field R] [Nontrivial R] [DecidableEq R]
 variable (deg : ℕ)
+
+private abbrev RoundMsg (R : Type) [Field R] [DecidableEq R] (deg : ℕ) :=
+  @CDegreeLE R instBEqOfDecidableEq (inferInstance : Semiring R)
+    (inferInstance : LawfulBEq R) deg
+
+local instance : BEq R := instBEqOfDecidableEq
+local instance : LawfulBEq R := by infer_instance
+
+section Presentation
+
+open scoped TelescopeSyntax
 
 /-- The empty challenge prefix used to start the telescope-native protocol. -/
 def emptyPrefix : Vector R 0 := ⟨#[], rfl⟩
+
+/-- Single-round telescope context for sumcheck: one prover polynomial message followed
+by one verifier field challenge. -/
+@[reducible] def roundCtx : ProtocolCtx :=
+  rounds!{
+    send (RoundMsg R deg);
+    receive (_r : R);
+    done .nil
+  }
+
+/-- Extend the fixed challenge prefix after one realized sumcheck round. -/
+def nextFixed {i : Nat} (fixed : Vector R i) :
+    Transcript (roundCtx (R := R) (deg := deg)) → Vector R (i + 1)
+  | ⟪_, challenge, _⟫ => fixed.push challenge
 
 /-- Telescope-native sumcheck context for `remaining` rounds, starting from a fixed
 challenge prefix. The branch after each verifier challenge carries the extended
 prefix into the recursive call. -/
 @[reducible] def ctxFrom :
     (remaining : Nat) → {i : Nat} → Vector R i → ProtocolCtx
-  | 0, _, _ => .nil
-  | remaining + 1, _, fixed =>
-      .P_to_V (CDegreeLE R deg) inferInstance (fun _ =>
-        .V_to_P R (fun r => ctxFrom remaining (fixed.push r)))
+  | remaining, i, fixed =>
+      let stageCtx : (j : Nat) → Vector R j → ProtocolCtx :=
+        fun _ _ => roundCtx (R := R) (deg := deg)
+      let stageAdvance :
+          (j : Nat) → (fixedPrefix : Vector R j) →
+            Transcript (stageCtx j fixedPrefix) → Vector R (j + 1) :=
+        fun j fixedPrefix tr => nextFixed (R := R) (deg := deg) (i := j) fixedPrefix tr
+      ProtocolCtx.chain
+        (Stage := fun j => Vector R j)
+        stageCtx stageAdvance remaining i fixed
 
 /-- The full `n`-round telescope-native sumcheck context. -/
 @[reducible] def ctx (n : Nat) : ProtocolCtx :=
@@ -44,6 +77,22 @@ section Plain
 variable {R deg}
 variable {n m : ℕ}
 
+/-- Honest prover for one telescope-native sumcheck round at a fixed challenge prefix.
+It sends the round polynomial and returns the residual target after the challenge is
+received. -/
+def roundProverFrom
+    {i : Nat}
+    (poly : OStmt R deg n) (fixed : Vector R i)
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    ProtocolCtx.Prover Id (roundCtx (R := R) (deg := deg)) (fun _ => R) := by
+  letI : BEq R := instBEqOfDecidableEq
+  letI : LawfulBEq R := by infer_instance
+  let roundPoly : RoundMsg R deg :=
+    computeRoundPoly (R := R) (deg := deg) (n := n) (m := m) poly fixed D evalPoints
+  simpa [roundCtx, ProtocolCtx.msg, ProtocolCtx.Prover] using
+    (show (t : RoundMsg R deg) × Id (R → Id R) from
+      ⟨roundPoly, pure (fun r => pure (CPolynomial.eval r roundPoly.val))⟩)
+
 /-- Honest prover for the telescope-native sumcheck protocol from an arbitrary
 challenge prefix. At the leaf it returns the true residual target. -/
 def proverFrom :
@@ -51,23 +100,36 @@ def proverFrom :
     (poly : OStmt R deg n) → (fixed : Vector R i) →
     (D : Fin m → R) → (evalPoints : Vector R (deg + 1)) →
     ProtocolCtx.Prover Id (ctxFrom (R := R) (deg := deg) remaining fixed) (fun _ => R)
-  | 0, _, poly, fixed, D, _ =>
-      trueTarget (R := R) (n := n) (m := m) (poly := poly) fixed D
-  | remaining + 1, _, poly, fixed, D, evalPoints =>
-      let roundPoly := computeRoundPoly (R := R) (deg := deg) (n := n) (m := m)
-        poly fixed D evalPoints
-      let next :
-          ProtocolCtx.Prover Id
-            (.V_to_P R (fun r =>
-              ctxFrom (R := R) (deg := deg) remaining (fixed.push r)))
-            (fun _ => R) :=
-        fun r => pure (proverFrom remaining poly (fixed.push r) D evalPoints)
-      ((⟨roundPoly, (pure next : Id _)⟩) :
-          ProtocolCtx.Prover Id
-            (.P_to_V (CDegreeLE R deg) inferInstance (fun _ =>
-              .V_to_P R (fun r =>
-                ctxFrom (R := R) (deg := deg) remaining (fixed.push r))))
-            (fun _ => R))
+  | remaining, i, poly, fixed, D, evalPoints =>
+      let stageCtx : (j : Nat) → Vector R j → ProtocolCtx :=
+        fun _ _ => roundCtx (R := R) (deg := deg)
+      let stageAdvance :
+          (j : Nat) → (fixedPrefix : Vector R j) →
+            Transcript (stageCtx j fixedPrefix) → Vector R (j + 1) :=
+        fun j fixedPrefix tr => nextFixed (R := R) (deg := deg) (i := j) fixedPrefix tr
+      let stageStep :
+          (j : Nat) → (fixedPrefix : Vector R j) →
+            ProtocolCtx.Prover Id (stageCtx j fixedPrefix) (fun _ => R) :=
+        fun _ fixedPrefix =>
+          roundProverFrom (R := R) (deg := deg) (n := n) (m := m)
+            poly fixedPrefix D evalPoints
+      let finalTarget : (j : Nat) → Vector R j → R :=
+        fun _ fixedPrefix =>
+          trueTarget (R := R) (n := n) (m := m) (poly := poly) fixedPrefix D
+      ProtocolCtx.Prover.compFromConst
+        (Stage := fun j => Vector R j)
+        stageCtx stageAdvance stageStep finalTarget remaining i fixed
+
+/-- Plain verifier for one telescope-native sumcheck round. It checks the local sum
+identity and returns the residual target for the sampled challenge. -/
+def roundVerifier
+    (D : Fin m → R) :
+    ProtocolCtx.Verifier Id R (roundCtx (R := R) (deg := deg)) (fun _ => R) :=
+  verifier!{ target, ⟪roundPoly, challenge, _⟫ => do
+    guard <| (Finset.univ : Finset (Fin m)).sum
+      (fun a => CPolynomial.eval (D a) roundPoly.val) = target
+    pure (CPolynomial.eval challenge roundPoly.val)
+  }
 
 /-- Plain verifier for the telescope-native sumcheck protocol from an arbitrary
 challenge prefix. The current statement is just the target value for the remaining
@@ -77,16 +139,18 @@ def verifierFrom :
     (fixed : Vector R i) → (D : Fin m → R) →
     ProtocolCtx.Verifier Id R
       (ctxFrom (R := R) (deg := deg) remaining fixed) (fun _ => R)
-  | 0, _, _, _ => fun target _ => pure target
-  | remaining + 1, _, fixed, D => fun target tr =>
-      let roundPoly : CDegreeLE R deg := tr.1
-      let challenge : R := tr.2.1
-      if (Finset.univ : Finset (Fin m)).sum (fun a =>
-            CPolynomial.eval (D a) roundPoly.val) = target then
-        verifierFrom remaining (fixed.push challenge) D
-          (CPolynomial.eval challenge roundPoly.val) tr.2.2
-      else
-        failure
+  | remaining, i, fixed, D =>
+      let stageCtx : (j : Nat) → Vector R j → ProtocolCtx :=
+        fun _ _ => roundCtx (R := R) (deg := deg)
+      let stageAdvance :
+          (j : Nat) → (fixedPrefix : Vector R j) →
+            Transcript (stageCtx j fixedPrefix) → Vector R (j + 1) :=
+        fun j fixedPrefix tr => nextFixed (R := R) (deg := deg) (i := j) fixedPrefix tr
+      ProtocolCtx.Verifier.compFromConst
+        (Stage := fun j => Vector R j)
+        stageCtx stageAdvance
+        (fun _ _ => roundVerifier (R := R) (deg := deg) (m := m) D)
+        remaining i fixed
 
 /-- Top-level honest prover for telescope-native sumcheck. -/
 def prover
@@ -100,6 +164,104 @@ def verifier (D : Fin m → R) :
   verifierFrom (R := R) (deg := deg) n (emptyPrefix (R := R)) D
 
 end Plain
+
+section PullbackPrototype
+
+variable {R deg}
+variable {n m : ℕ}
+
+/-- Add inert root metadata to a telescope-native sumcheck claim. This models the old
+input-only `liftContext` use sites where the outer root statement carries extra data that
+the inner protocol ignores. -/
+structure RootedTarget (Root : Type) where
+  root : Root
+  target : R
+
+/-- Telescope-native sumcheck packaged as a plain reduction. The public statement is the
+claimed target sum; the witness provides the polynomial together with the prover-side
+evaluation points. -/
+def roundReductionFrom
+    {i : Nat}
+    (fixed : Vector R i) (D : Fin m → R) :
+    Reduction Id R
+      (fun _ => OStmt R deg n × Vector R (deg + 1))
+      (fun _ => roundCtx (R := R) (deg := deg))
+      (fun _ _ => R)
+      (fun _ _ => OStmt R deg n × Vector R (deg + 1)) where
+  prover := fun _ ⟨poly, evalPoints⟩ => do
+    pure <| Prover.mapOutput
+      (fun _ out => (out, (poly, evalPoints)))
+      (roundProverFrom (R := R) (deg := deg) (n := n) (m := m)
+        poly fixed D evalPoints)
+  verifier := roundVerifier (R := R) (deg := deg) (m := m) D
+
+/-- Telescope-native sumcheck packaged as a plain reduction. The public statement is the
+claimed target sum; the witness provides the polynomial together with the prover-side
+evaluation points. -/
+private def reductionIter (D : Fin m → R) :
+    Reduction Id R
+      (fun _ => OStmt R deg n × Vector R (deg + 1))
+      (fun _ => ctx (R := R) (deg := deg) n)
+      (fun _ _ => R)
+      (fun _ _ => OStmt R deg n × Vector R (deg + 1)) :=
+  let stageCtx : (j : Nat) → Vector R j → ProtocolCtx :=
+    fun _ _ => roundCtx (R := R) (deg := deg)
+  let stageAdvance :
+      (j : Nat) → (fixedPrefix : Vector R j) →
+        Transcript (stageCtx j fixedPrefix) → Vector R (j + 1) :=
+    fun j fixedPrefix tr => nextFixed (R := R) (deg := deg) (i := j) fixedPrefix tr
+  Reduction.compFromConst
+    (Stage := fun j => Vector R j)
+    stageCtx stageAdvance
+    (fun _ fixed => roundReductionFrom (R := R) (deg := deg) (n := n) (m := m) fixed D)
+    n 0 (emptyPrefix (R := R))
+
+/-- Telescope-native sumcheck packaged as a plain reduction. The public statement is the
+claimed target sum; the witness provides the polynomial together with the prover-side
+evaluation points. -/
+def reduction (D : Fin m → R) :
+    Reduction Id R
+      (fun _ => OStmt R deg n × Vector R (deg + 1))
+      (fun _ => ctx (R := R) (deg := deg) n)
+      (fun _ _ => R)
+      (fun _ _ => Unit) where
+  prover := fun statement wit => do
+    let prover ← (reductionIter (R := R) (deg := deg) (n := n) (m := m) D).prover statement wit
+    pure <| Prover.mapOutput
+      (fun _ out => (out.1, ()))
+      prover
+  verifier := (reductionIter (R := R) (deg := deg) (n := n) (m := m) D).verifier
+
+/-- Concrete prototype showing how an old root-only `liftContext` wrapper now becomes a
+direct call to `Reduction.pullbackInputOnly`. The extra `root` field is preserved at the
+outer surface and discarded before entering telescope-native sumcheck. -/
+def reductionWithRoot
+    (Root : Type) (D : Fin m → R) :
+    Reduction Id (RootedTarget (R := R) Root)
+      (fun _ => OStmt R deg n × Vector R (deg + 1))
+      (fun _ => ctx (R := R) (deg := deg) n)
+      (fun _ _ => R)
+      (fun _ _ => Unit) :=
+  Reduction.inputOnly
+    (stmtProj := fun outer => outer.target)
+    (witProj := fun _ wit => wit)
+    (reduction (R := R) (deg := deg) (n := n) (m := m) D)
+
+@[simp] theorem reductionWithRoot_verifier
+    (Root : Type) (D : Fin m → R)
+    (outer : RootedTarget (R := R) Root)
+    (tr : Transcript (ctx (R := R) (deg := deg) n)) :
+    (reductionWithRoot (R := R) (deg := deg) (n := n) (m := m) Root D).verifier outer tr =
+      (reduction (R := R) (deg := deg) (n := n) (m := m) D).verifier outer.target tr := by
+  apply OptionT.ext
+  simp [reductionWithRoot, Reduction.inputOnly, Reduction.pullbackInputOnly, Reduction.pullback,
+    Verifier.pullback, RootBoundary.Context.ofInputOnly, RootBoundary.Statement.ofInputOnly]
+  cases h : ((reduction (R := R) (deg := deg) (n := n) (m := m) D).verifier outer.target tr).run <;>
+    rfl
+
+end PullbackPrototype
+
+end Presentation
 
 noncomputable section Soundness
 
@@ -181,13 +343,12 @@ omit [SampleableType R] in
     ¬ (claimTreeFrom poly D remaining fixed).good none := by
   cases remaining <;> simp [claimTreeFrom, goodClaimFrom, ClaimTree.good]
 
-omit [Nontrivial R] [DecidableEq R] in
+omit [Nontrivial R] in
 private lemma prob_eval_eq_le_of_ne
-    (p q : CDegreeLE R deg) (hne : p.val.toPoly ≠ q.val.toPoly) :
+    (p q : RoundMsg R deg) (hne : p.val.toPoly ≠ q.val.toPoly) :
     Pr[fun r : R => CPolynomial.eval r p.val = CPolynomial.eval r q.val | $ᵗ R]
       ≤ ((deg : ℝ≥0) / (Fintype.card R : ℝ≥0) : ℝ≥0∞) := by
   classical
-  letI : DecidableEq R := Classical.decEq R
   have h_eval : ∀ r : R,
       (CPolynomial.eval r p.val = CPolynomial.eval r q.val) ↔
         (p.val.toPoly - q.val.toPoly).eval r = 0 := by
@@ -252,10 +413,9 @@ private lemma prob_eval_eq_le_of_ne
   rw [div_eq_mul_inv]
   exact mul_le_mul_of_nonneg_right hcard' (by positivity)
 
-omit [DecidableEq R] in
 private theorem prob_goodTarget_push_le_roundError
     (poly : OStmt R deg n) (D : Fin m → R) {i : Nat}
-    (fixed : Vector R i) (target : R) (msg : CDegreeLE R deg)
+    (fixed : Vector R i) (target : R) (msg : RoundMsg R deg)
     (hi : i < n)
     (hBad : ¬ goodTargetFrom (R := R) (n := n) (m := m) poly D fixed target)
     (hSum : (Finset.univ : Finset (Fin m)).sum
@@ -265,7 +425,6 @@ private theorem prob_goodTarget_push_le_roundError
           (fixed.push r) (CPolynomial.eval r msg.val) | $ᵗ R]
       ≤ (roundError (R := R) (deg := deg) : ℝ≥0∞) := by
   classical
-  letI : DecidableEq R := Classical.decEq R
   rcases trueRoundPolyExists_of_ostmt (R := R) (n := n) (m := m) poly D i hi fixed with
     ⟨qTrue, hqEval, hqSum⟩
   have hne : msg.val.toPoly ≠ qTrue.val.toPoly := by
@@ -383,7 +542,7 @@ theorem claimTreeFrom_isSound
                       (roundError (R := R) (deg := deg) : ℝ≥0∞) := by
                   rw [hEvent]
                   exact prob_goodTarget_push_le_roundError
-                    (R := R) (deg := deg) (n := n) (m := m)
+                    (deg := deg) (n := n) (m := m)
                     poly D fixed target msg hi hBadTarget hSum
                 simpa [hSum] using hProb
               · have hDead :
@@ -457,7 +616,8 @@ private theorem verifierFrom_accepts_terminal
       · have hRest :
             (verifierFrom remaining (fixed.push r) D (CPolynomial.eval r msg.val) trRest).run =
               some s := by
-            simpa [verifierFrom, hSum] using hRun
+            simpa [verifierFrom, ProtocolCtx.Verifier.compFromConst, ProtocolCtx.chain,
+              ProtocolCtx.Transcript.split, roundVerifier, roundCtx, nextFixed, hSum] using hRun
         have hTail :
             (claimTreeFrom poly D remaining (fixed.push r)).terminalGood trRest
               ((claimTreeFrom poly D remaining (fixed.push r)).follow trRest
@@ -474,7 +634,8 @@ private theorem verifierFrom_accepts_terminal
               else
                 none))
         simpa [hSum] using hTail
-      · simp [verifierFrom, hSum] at hRun
+      · simp [verifierFrom, ProtocolCtx.Verifier.compFromConst, ProtocolCtx.chain,
+          ProtocolCtx.Transcript.split, roundVerifier, roundCtx, nextFixed, hSum] at hRun
 
 /-- Soundness of the open telescope-native sumcheck verifier from an arbitrary challenge
 prefix. The statement is the claimed target value, and accepted outputs are exactly the

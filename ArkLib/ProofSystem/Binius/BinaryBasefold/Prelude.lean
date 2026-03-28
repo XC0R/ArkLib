@@ -13,7 +13,7 @@ import ArkLib.ProofSystem.Sumcheck.Spec.SingleRound
 
 namespace Binius.BinaryBasefold
 
-open OracleSpec OracleComp ProtocolSpec Finset AdditiveNTT Polynomial MvPolynomial
+open Finset AdditiveNTT Polynomial MvPolynomial
   Binius.BinaryBasefold
 open scoped NNReal
 open ReedSolomon Code BerlekampWelch

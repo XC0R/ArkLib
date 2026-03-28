@@ -73,8 +73,8 @@ def answer {Message : Type*} [O : OracleInterface Message]
   (O.toOC.impl q).run m
 
 /-- The default instance for `OracleInterface`, where the query is trivial (a `Unit`) and the
-  response returns the data. We do not register this as an instance, instead explicitly calling it
-  where necessary.
+response returns the data. We do not register this as an instance, instead explicitly calling it
+where necessary.
 -/
 def instDefault {Message : Type u} : OracleInterface Message where
   Query := Unit
@@ -101,7 +101,7 @@ def toOracleImpl {ι : Type u} (v : ι → Type v) [O : ∀ i, OracleInterface (
   fun | ⟨i, t⟩ => (O i).answer (data i) t
 
 /-- Any function type has a canonical `OracleInterface` instance, whose `answer` is the function
-  itself. -/
+itself. -/
 instance (i : Fin 0) : OracleInterface i.elim0 := Fin.elim0 i
 
 @[reducible, inline]
@@ -135,7 +135,7 @@ instance {ι₁ : Type u} {T₁ : ι₁ → Type v} [inst₁ : ∀ i, OracleInte
     | .inr i => inst₂ i
 
 /-- The tensor product oracle interface for the product of two types `α` and `β`, each with its own
-  oracle interface, is defined as:
+oracle interface, is defined as:
   - The query & response types are the product of the two query & response types.
   - The oracle will run both oracles and return the pair of responses.
 
@@ -151,7 +151,7 @@ instance (priority := low) instTensorProd {α β : Type*}
     return (Oα.answer a q₁, Oβ.answer b q₂)
 
 /-- The product oracle interface for the product of two types `α` and `β`, each with its own oracle
-  interface, is defined as:
+interface, is defined as:
   - The query & response types are the sum type of the two query & response types.
   - The oracle will answer depending on the input query.
 
@@ -330,11 +330,12 @@ variable {R : Type*} [CommRing R] {d : ℕ} [Fintype R] [DecidableEq R] [IsDomai
 @[simp]
 theorem distanceLE_polynomial_degreeLT :
     distanceLE (instPolynomialDegreeLT R d) (d - 1) := by
-  simp [distanceLE, instPolynomialDegreeLT, mem_degreeLT]
+  simp only [distanceLE, ne_eq, instPolynomialDegreeLT, bind_pure_comp, ReaderT.run_map,
+    Subtype.forall, mem_degreeLT, Subtype.mk.injEq]
   intro p hp p' hp' hNe
   have : ∀ q ∈ Finset.univ, p.eval q = p'.eval q ↔ q ∈ (p - p').roots := by
     intro q _
-    simp
+    simp only [mem_roots', ne_eq, IsRoot.def, Polynomial.eval_sub]
     constructor <;> intro h
     · constructor
       · intro h'; contrapose! hNe; exact sub_eq_zero.mp h'
@@ -343,18 +344,20 @@ theorem distanceLE_polynomial_degreeLT :
   conv =>
     enter [1, 1]
     apply Finset.filter_congr this
-  simp [Membership.mem, Finset.filter, Finset.card]
+  simp only [Finset.card, Finset.filter, Membership.mem]
   have : (p - p').roots.card < d := by
     have hSubNe : p - p' ≠ 0 := sub_ne_zero_of_ne hNe
     have hSubDegLt : (p - p').degree < d := lt_of_le_of_lt (degree_sub_le p p') (by simp [hp, hp'])
     have := Polynomial.card_roots hSubNe
     have : (p - p').roots.card < (d : WithBot ℕ) := lt_of_le_of_lt this hSubDegLt
-    simp at this; exact this
+    simp only [Nat.cast_lt] at this; exact this
   refine Nat.le_sub_one_of_lt (lt_of_le_of_lt ?_ this)
   apply Multiset.card_le_card
   rw [Multiset.le_iff_subset]
-  · intro x hx; simp at hx; exact hx
-  · simp [Multiset.nodup_iff_count_le_one]
+  · intro x hx
+    simp only [Multiset.mem_filter, Finset.mem_val, Finset.mem_univ, true_and] at hx
+    exact hx
+  · simp only [Multiset.nodup_iff_count_le_one]
     intro a; simp [Multiset.count_filter, Multiset.count_univ]
     aesop
 

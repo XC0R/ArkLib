@@ -3,7 +3,7 @@ Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
-import ArkLib.OracleReduction.OracleInterface
+import ArkLib.OracleInterface
 import CompPoly.Multivariate.CMvPolynomialEvalLemmas
 import CompPoly.Univariate.ToPoly
 import Init.Data.Vector.Lemmas

@@ -131,12 +131,7 @@ def compNth
     [∀ i, OracleInterface (OStmt i)] : (n : Nat) →
     OracleReduction oSpec S OStmt W S OStmt W pSpec →
     OracleReduction oSpec S OStmt W S OStmt W (pSpec.replicate n)
-  | 0, _ => { prover := fun sw => pure sw,
-              verifier := { verify := fun stmt _ => pure stmt,
-                            simulate := fun q =>
-                              liftM (query (spec := [OStmt]ₒ + oracleSpecOfMessages
-                                (pSpec.replicate 0)) (Sum.inl q)),
-                            reify := fun oStmtData _ => some oStmtData } }
+  | 0, _ => { prover := fun sw => pure sw, verifier := OracleVerifier.id }
   | n + 1, r => comp r (compNth n r)
 
 /-- Convert an oracle reduction to a plain reduction by providing oracle statement

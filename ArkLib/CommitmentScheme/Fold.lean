@@ -6,7 +6,7 @@ Authors: Quang Dao
 
 import ArkLib.CommitmentScheme.Basic
 import Batteries.Data.Vector.Basic
-import ArkLib.OracleReduction.OracleInterface
+import ArkLib.OracleInterface
 import Mathlib.Data.FinEnum
 import Mathlib.RingTheory.RootsOfUnity.PrimitiveRoots
 import ArkLib.Data.CodingTheory.ProximityGap.Basic

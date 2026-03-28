@@ -65,7 +65,7 @@ section OracleVerifier
 
 variable {ι : Type} {oSpec : OracleSpec ι}
 
-private noncomputable def queryRoundPoly (x : R) :
+def queryRoundPoly (x : R) :
     OracleComp (oSpec + [fun (_ : Unit) => OStmt R deg n]ₒ +
       oracleSpecOfMessages (pSpec R deg)) R := by
   change OracleComp _ (oracleSpecOfMessages (pSpec R deg) (Sum.inl x))
@@ -73,24 +73,68 @@ private noncomputable def queryRoundPoly (x : R) :
     oSpec + [fun (_ : Unit) => OStmt R deg n]ₒ + oracleSpecOfMessages (pSpec R deg))
     (Sum.inr (Sum.inl x)))
 
-noncomputable def oracleVerifier (D : Fin m → R) :
+def oracleVerifier (D : Fin m → R) :
     OracleVerifier oSpec
       (StmtIn R) (fun (_ : Unit) => OStmt R deg n)
       (StmtOut R) (fun (_ : Unit) => OStmt R deg n)
-      (pSpec R deg) where
-  verify := fun target challenges => do
-    let evals ← (List.finRange m).mapM (fun i =>
-      OptionT.lift (queryRoundPoly (D i)))
-    guard (evals.sum = target)
-    let chal := challenges.head
-    let newTarget ← OptionT.lift (queryRoundPoly chal)
-    pure { target := newTarget, challenge := chal }
-  simulate := fun q =>
-    liftM (query (spec := [fun (_ : Unit) => OStmt R deg n]ₒ +
-      oracleSpecOfMessages (pSpec R deg)) (Sum.inl q))
-  reify := fun oStmtData _ => some oStmtData
+      (pSpec R deg) :=
+  OracleVerifier.keepInputOracle (oSpec := oSpec)
+    (StmtIn := StmtIn R) (StmtOut := StmtOut R)
+    (OStmt := fun (_ : Unit) => OStmt R deg n) (pSpec := pSpec R deg)
+    (fun target challenges => do
+      let evals ← (List.finRange m).mapM (fun i =>
+        OptionT.lift (queryRoundPoly (oSpec := oSpec) (n := n) (deg := deg)
+          (R := R) (D i)))
+      guard (evals.sum = target)
+      let chal := challenges.head
+      let newTarget ←
+        OptionT.lift (queryRoundPoly (oSpec := oSpec) (n := n) (deg := deg)
+          (R := R) chal)
+      pure { target := newTarget, challenge := chal })
 
 end OracleVerifier
+
+/-! ## Oracle reduction -/
+
+section OracleReduction
+
+variable {ι : Type} {oSpec : OracleSpec ι}
+
+/-- A single-round oracle prover for sumcheck.
+
+The concrete multivariate polynomial is carried in the oracle statement data and is
+passed through unchanged; the honest prover computes the round polynomial from it and
+returns the updated target/challenge pair. -/
+def oracleProver {i : ℕ}
+    (prevChallenges : Vector R i)
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    OracleProver oSpec
+      (StmtIn R) (fun (_ : Unit) => OStmt R deg n) Unit
+      (StmtOut R) (fun (_ : Unit) => OStmt R deg n) Unit
+      (pSpec R deg) :=
+  fun ⟨⟨_, oStmtData⟩, ()⟩ => do
+    let roundPoly := computeRoundPoly (R := R) (deg := deg) (n := n) (m := m) (i := i)
+      (oStmtData ()) prevChallenges D evalPoints
+    pure (roundPoly, pure (fun chal =>
+      pure (({
+          target := CPolynomial.eval chal roundPoly.val
+          challenge := chal
+        }, oStmtData), ())))
+
+/-- A single-round oracle reduction pairing the oracle prover with the oracle
+verifier. The oracle statement is the underlying multivariate polynomial and is
+preserved across the round. -/
+def oracleReduction {i : ℕ}
+    (prevChallenges : Vector R i)
+    (D : Fin m → R) (evalPoints : Vector R (deg + 1)) :
+    OracleReduction oSpec
+      (StmtIn R) (fun (_ : Unit) => OStmt R deg n) Unit
+      (StmtOut R) (fun (_ : Unit) => OStmt R deg n) Unit
+      (pSpec R deg) where
+  prover := oracleProver (oSpec := oSpec) (prevChallenges := prevChallenges) D evalPoints
+  verifier := oracleVerifier (oSpec := oSpec) D
+
+end OracleReduction
 
 /-! ## Reduction -/
 

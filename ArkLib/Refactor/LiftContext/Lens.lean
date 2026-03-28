@@ -127,6 +127,47 @@ variable {OuterStmtIn OuterStmtOut InnerStmtIn InnerStmtOut : Type}
   proj := lens.proj
   lift := lens.lift
 
+@[inline, reducible] protected def id :
+    OracleStatement.Lens OuterStmtIn OuterStmtOut OuterStmtIn OuterStmtOut
+      OuterOStmtIn OuterOStmtOut OuterOStmtIn OuterOStmtOut where
+  projStmt := id
+  liftStmt := fun _ s => s
+  simIn := fun q => liftM (query (spec := [OuterOStmtIn]ₒ) q)
+  simOut := fun q =>
+    liftM (query (spec := [OuterOStmtIn]ₒ + [OuterOStmtOut]ₒ) (Sum.inr q))
+  reifyIn := id
+  reifyOut := fun _ innerOStmtOut => innerOStmtOut
+
+alias trivial := OracleStatement.Lens.id
+
+@[inline] def ofInputOnly
+    (projStmt : OuterStmtIn → InnerStmtIn)
+    (simIn : QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (reifyIn : (∀ i, OuterOStmtIn i) → (∀ i, InnerOStmtIn i)) :
+    OracleStatement.Lens OuterStmtIn OuterStmtOut InnerStmtIn OuterStmtOut
+      OuterOStmtIn OuterOStmtOut InnerOStmtIn OuterOStmtOut where
+  projStmt := projStmt
+  liftStmt := fun _ s => s
+  simIn := simIn
+  simOut := fun q =>
+    liftM (query (spec := [OuterOStmtIn]ₒ + [OuterOStmtOut]ₒ) (Sum.inr q))
+  reifyIn := reifyIn
+  reifyOut := fun _ innerOStmtOut => innerOStmtOut
+
+@[inline] def ofOutputOnly
+    (liftStmt : OuterStmtIn → InnerStmtOut → OuterStmtOut)
+    (simOut : QueryImpl [OuterOStmtOut]ₒ (OracleComp ([OuterOStmtIn]ₒ + [InnerOStmtOut]ₒ)))
+    (reifyOut :
+      (∀ i, OuterOStmtIn i) → (∀ i, InnerOStmtOut i) → (∀ i, OuterOStmtOut i)) :
+    OracleStatement.Lens OuterStmtIn OuterStmtOut OuterStmtIn InnerStmtOut
+      OuterOStmtIn OuterOStmtOut OuterOStmtIn InnerOStmtOut where
+  projStmt := id
+  liftStmt := liftStmt
+  simIn := fun q => liftM (query (spec := [OuterOStmtIn]ₒ) q)
+  simOut := simOut
+  reifyIn := id
+  reifyOut := reifyOut
+
 end OracleStatement.Lens
 
 @[ext]
@@ -181,6 +222,40 @@ variable {OuterStmtIn OuterStmtOut InnerStmtIn InnerStmtOut : Type}
       OuterWitIn OuterWitOut InnerWitIn InnerWitOut where
   stmt := lens.stmt.toStatementLens
   wit := lens.wit
+
+@[inline, reducible] protected def id :
+    OracleContext.Lens OuterStmtIn OuterStmtOut OuterStmtIn OuterStmtOut
+      OuterOStmtIn OuterOStmtOut OuterOStmtIn OuterOStmtOut
+      OuterWitIn OuterWitOut OuterWitIn OuterWitOut where
+  stmt := OracleStatement.Lens.id
+  wit := { proj := Prod.snd, lift := fun _ z => z.2 }
+
+alias trivial := OracleContext.Lens.id
+
+@[inline] def ofInputOnly
+    (stmtProj : OuterStmtIn → InnerStmtIn)
+    (simIn : QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (reifyIn : (∀ i, OuterOStmtIn i) → (∀ i, InnerOStmtIn i))
+    (witProj : (OuterStmtIn × (∀ i, OuterOStmtIn i)) × OuterWitIn → InnerWitIn) :
+    OracleContext.Lens OuterStmtIn OuterStmtOut InnerStmtIn OuterStmtOut
+      OuterOStmtIn OuterOStmtOut InnerOStmtIn OuterOStmtOut
+      OuterWitIn OuterWitOut InnerWitIn OuterWitOut where
+  stmt := OracleStatement.Lens.ofInputOnly stmtProj simIn reifyIn
+  wit := { proj := witProj, lift := fun _ z => z.2 }
+
+@[inline] def ofOutputOnly
+    (stmtLift : OuterStmtIn → InnerStmtOut → OuterStmtOut)
+    (simOut : QueryImpl [OuterOStmtOut]ₒ (OracleComp ([OuterOStmtIn]ₒ + [InnerOStmtOut]ₒ)))
+    (reifyOut :
+      (∀ i, OuterOStmtIn i) → (∀ i, InnerOStmtOut i) → (∀ i, OuterOStmtOut i))
+    (witLift :
+      ((OuterStmtIn × (∀ i, OuterOStmtIn i)) × OuterWitIn) →
+        ((InnerStmtOut × (∀ i, InnerOStmtOut i)) × InnerWitOut) → OuterWitOut) :
+    OracleContext.Lens OuterStmtIn OuterStmtOut OuterStmtIn InnerStmtOut
+      OuterOStmtIn OuterOStmtOut OuterOStmtIn InnerOStmtOut
+      OuterWitIn OuterWitOut OuterWitIn InnerWitOut where
+  stmt := OracleStatement.Lens.ofOutputOnly stmtLift simOut reifyOut
+  wit := { proj := Prod.snd, lift := witLift }
 
 end OracleContext.Lens
 

@@ -181,23 +181,6 @@ theorem rbrKnowledgeSoundness_implies_knowledgeSoundness
     rbrSoundness_implies_soundness (init := init) (impl := impl) hInit hPres hRbrSound
   exact knowledgeSoundness_of_soundness_choose (init := init) (impl := impl) hSound
 
-theorem oracleAwareRbrKnowledgeSoundness_implies_knowledgeSoundness
-    {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
-    {relIn : Set (StmtIn × WitIn)} {relOut : Set (StmtOut × WitOut)}
-    {verifier : Verifier (OracleComp oSpec) StmtIn StmtOut pSpec}
-    {Inv : σ → Prop}
-    {WitMid : Fin (pSpec.length + 1) → Type}
-    {extractor : Extractor.RoundByRound StmtIn WitIn WitOut pSpec WitMid}
-    {ksf : KnowledgeStateFunction impl Inv relIn relOut verifier extractor}
-    {rbrKnowledgeError : ChallengeIndex pSpec → ℝ≥0}
-    (hInit : InitSatisfiesInv init Inv)
-    (hPres : QueryImpl.PreservesInv impl Inv)
-    (h : rbrKnowledgeSoundness impl Inv extractor ksf rbrKnowledgeError) :
-    verifier.knowledgeSoundness init impl relIn relOut
-      (Finset.sum Finset.univ rbrKnowledgeError) := by
-  exact rbrKnowledgeSoundness_implies_knowledgeSoundness
-    (init := init) (impl := impl) hInit hPres h
-
 /-- Knowledge soundness of `n`-fold composition: if each copy has RBR knowledge
 soundness error `rbrKnowledgeError`, the composed protocol has total knowledge
 soundness error at most `n * Σᵢ rbrKnowledgeError(i)`. -/
@@ -230,7 +213,7 @@ theorem Verifier.knowledgeSoundness_compNth
     Verifier.soundness_compNth init impl hOut hState hInit hPres hRbrSound n
   exact knowledgeSoundness_of_soundness_choose (init := init) (impl := impl) hSound
 
-theorem Verifier.oracleAwareRbrKnowledgeSoundness_compNth
+theorem Verifier.knowledgeSoundness_compNth_of_rbrKnowledgeSoundness
     {S W : Type}
     {pSpec : ProtocolSpec} [ChallengesSampleable pSpec]
     {rel : Set (S × W)}
