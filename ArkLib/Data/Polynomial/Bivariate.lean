@@ -169,12 +169,256 @@ If `q * f ≠ 0`, then the `Y`-degree of `q` is bounded above by the difference 
 lemma degreeY_le_degreeY_sub_degreeY [IsDomain F] {f q : F[X][Y]} (hf : f ≠ 0) (hg : q * f ≠ 0) :
   natDegreeY q ≤ natDegreeY (q * f) - natDegreeY f := by grind
 
-/-- The total degree of the product of two bivariate polynomials is the sum of their total degrees.
--/
+set_option linter.flexible false in
+private theorem totalDegree_mul_le (f g : F[X][Y]) :
+    totalDegree (f * g) ≤ totalDegree f + totalDegree g := by
+  have h_coeff : ∀ m, (f * g).coeff m =
+      ∑ i ∈ Finset.range (m + 1),
+        f.coeff i * g.coeff (m - i) := by
+    intro m
+    rw [Polynomial.coeff_mul]
+    rw [Finset.Nat.sum_antidiagonal_eq_sum_range_succ
+      fun i j => f.coeff i * g.coeff j]
+  have h_deg_mul : ∀ m, ((f * g).coeff m).natDegree ≤
+      (f.support.sup (fun m => (f.coeff m).natDegree + m)) +
+      (g.support.sup (fun m => (g.coeff m).natDegree + m))
+        - m := by
+    intro m
+    rw [h_coeff]
+    refine le_trans (Polynomial.natDegree_sum_le _ _)
+      (Finset.sup_le ?_)
+    intro i hi
+    by_cases hi' : f.coeff i = 0 <;>
+      by_cases hi'' : g.coeff (m - i) = 0 <;>
+      simp_all +decide
+    refine le_trans Polynomial.natDegree_mul_le ?_
+    refine le_tsub_of_add_le_right ?_
+    refine le_trans ?_
+      (add_le_add
+        (Finset.le_sup
+          (f := fun m =>
+            (f.coeff m |> Polynomial.natDegree) + m)
+          (show i ∈ f.support from by aesop))
+        (Finset.le_sup
+          (f := fun m =>
+            (g.coeff m |> Polynomial.natDegree) + m)
+          (show m - i ∈ g.support from by aesop)))
+    simp +arith +decide [hi]
+  refine Finset.sup_le ?_
+  intro m hm
+  specialize h_deg_mul m
+  have h_le : ((f * g).coeff m).natDegree + m ≤
+      (f.support.sup
+        (fun m => (f.coeff m).natDegree + m)) +
+      (g.support.sup
+        (fun m => (g.coeff m).natDegree + m)) := by
+    contrapose! h_deg_mul
+    rw [tsub_lt_iff_left] <;> try linarith
+    contrapose! hm
+    simp_all +decide
+    refine Finset.sum_eq_zero fun i hi => ?_
+    by_cases hi' : i ∈ f.support <;>
+      by_cases hi'' : m - i ∈ g.support <;>
+      simp_all +decide
+    exact absurd hm (by
+      linarith [
+        show (f.support.sup fun m =>
+            (f.coeff m |> Polynomial.natDegree) + m) ≥
+          (f.coeff i |> Polynomial.natDegree) + i from
+          Finset.le_sup
+            (f := fun m =>
+              (f.coeff m |> Polynomial.natDegree) + m)
+            (by aesop),
+        show (g.support.sup fun m =>
+            (g.coeff m |> Polynomial.natDegree) + m) ≥
+          (g.coeff (m - i) |>
+            Polynomial.natDegree) + (m - i) from
+          Finset.le_sup
+            (f := fun m =>
+              (g.coeff m |> Polynomial.natDegree) + m)
+            (by aesop),
+        Nat.sub_add_cancel hi])
+  exact h_le
+
+private theorem exists_max_index_totalDegree
+    (f : F[X][Y]) (hf : f ≠ 0) :
+    ∃ mm ∈ f.support,
+      (f.coeff mm).natDegree + mm = totalDegree f := by
+  obtain ⟨mm, hmm⟩ :
+      ∃ mm ∈ f.support, ∀ m ∈ f.support,
+        (f.coeff m).natDegree + m ≤
+          (f.coeff mm).natDegree + mm := by
+    apply_rules [Finset.exists_max_image]
+    exact support_nonempty.mpr hf
+  exact ⟨mm, hmm.1,
+    le_antisymm
+      (Finset.le_sup
+        (f := fun m => (f.coeff m).natDegree + m)
+        hmm.1)
+      (Finset.sup_le fun m hm => hmm.2 m hm)⟩
+
+private theorem exists_largest_index_totalDegree
+    (f : F[X][Y]) (hf : f ≠ 0) :
+    ∃ mm ∈ f.support,
+      (f.coeff mm).natDegree + mm = totalDegree f ∧
+      ∀ n, mm < n →
+        (f.coeff n).natDegree + n < totalDegree f ∨
+          f.coeff n = 0 := by
+  obtain ⟨mm, hmm⟩ :
+      ∃ mm ∈ f.support,
+        (f.coeff mm).natDegree + mm = totalDegree f :=
+    exists_max_index_totalDegree f hf
+  set Sf := f.support.filter
+    fun n => (f.coeff n).natDegree + n = totalDegree f
+  obtain ⟨mm, hmm⟩ :
+      ∃ mm ∈ f.support,
+        (f.coeff mm).natDegree + mm = totalDegree f ∧
+        ∀ n ∈ f.support,
+          (f.coeff n).natDegree + n = totalDegree f →
+            n ≤ mm := by
+    exact ⟨Finset.max' Sf ⟨mm, by aesop⟩,
+      (Finset.mem_filter.mp
+        (Finset.max'_mem Sf ⟨mm, by aesop⟩)).1,
+      (Finset.mem_filter.mp
+        (Finset.max'_mem Sf ⟨mm, by aesop⟩)).2,
+      fun n hn hn' =>
+        Finset.le_max' _ _ <| by aesop⟩
+  refine ⟨mm, hmm.1, hmm.2.1,
+    fun n hn =>
+      Classical.or_iff_not_imp_right.2 fun h => ?_⟩
+  contrapose! hmm
+  exact fun _ _ =>
+    ⟨n, by aesop,
+      le_antisymm
+        (Finset.le_sup
+          (f := fun m =>
+            (f.coeff m |> Polynomial.natDegree) + m)
+          (by aesop))
+        hmm, hn⟩
+
+set_option linter.flexible false in
+set_option linter.style.multiGoal false in
+private theorem coeff_mul_natDegree_eq
+    [NoZeroDivisors F] {f g : F[X][Y]}
+    (_hf : f ≠ 0) (_hg : g ≠ 0)
+    {mmf mmg : ℕ}
+    (hmmf : mmf ∈ f.support)
+    (hmmg : mmg ∈ g.support)
+    (hmmf_eq : (f.coeff mmf).natDegree + mmf =
+      totalDegree f)
+    (hmmg_eq : (g.coeff mmg).natDegree + mmg =
+      totalDegree g)
+    (hmmf_max : ∀ n, mmf < n →
+      (f.coeff n).natDegree + n < totalDegree f ∨
+        f.coeff n = 0)
+    (hmmg_max : ∀ n, mmg < n →
+      (g.coeff n).natDegree + n < totalDegree g ∨
+        g.coeff n = 0) :
+    ((f * g).coeff (mmf + mmg)).natDegree =
+      (f.coeff mmf).natDegree +
+        (g.coeff mmg).natDegree := by
+  have h_coeff : (f * g).coeff (mmf + mmg) =
+      ∑ i ∈ Finset.range (mmf + mmg + 1),
+        f.coeff i * g.coeff (mmf + mmg - i) := by
+    rw [Polynomial.coeff_mul,
+      Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
+  rw [h_coeff, natDeg_sum_eq_of_unique]
+  use mmf
+  simp
+  · rw [Nat.add_sub_cancel_left,
+      Polynomial.natDegree_mul']
+    aesop
+  · intro i hi hi'
+    cases lt_or_gt_of_ne hi' <;>
+      simp_all +decide
+    · by_cases hi'' : g.coeff (mmf + mmg - i) = 0
+      · aesop
+      · cases hmmg_max (mmf + mmg - i) (by omega) <;>
+          simp_all +decide
+        have h_deg :
+            (f.coeff i *
+              g.coeff (mmf + mmg - i)).natDegree ≤
+            (f.coeff i).natDegree +
+              (g.coeff (mmf + mmg - i)).natDegree :=
+          natDegree_mul_le
+        have h_deg :
+            (f.coeff i).natDegree + i ≤
+              totalDegree f := by
+          by_cases hi''' : f.coeff i = 0 <;>
+            simp_all +decide
+              [Polynomial.natDegree_mul']
+          · linarith [Nat.zero_le
+              (Polynomial.natDegree (f.coeff mmf))]
+          · exact Finset.le_sup
+              (f := fun m =>
+                (f.coeff m |> Polynomial.natDegree) +
+                  m)
+              (by aesop)
+        omega
+    · cases hmmf_max i ‹_› <;>
+        simp_all +decide [add_comm, add_assoc]
+      contrapose! h_coeff
+      simp_all +decide
+      have h_natDegree_mul :
+          (f.coeff i *
+            g.coeff (mmf + mmg - i)).natDegree ≤
+          (f.coeff i).natDegree +
+            (g.coeff (mmf + mmg - i)).natDegree :=
+        natDegree_mul_le
+      have h_natDegree_g :
+          (g.coeff (mmf + mmg - i)).natDegree +
+            (mmf + mmg - i) ≤ totalDegree g :=
+        Finset.le_sup
+          (f := fun m =>
+            (g.coeff m |> Polynomial.natDegree) + m)
+          (by aesop) |> le_trans (by linarith)
+      omega
+
+set_option linter.flexible false in
+private theorem totalDegree_mul_ge
+    [NoZeroDivisors F] (f g : F[X][Y])
+    (hf : f ≠ 0) (hg : g ≠ 0) :
+    totalDegree f + totalDegree g ≤
+      totalDegree (f * g) := by
+  obtain ⟨mmf, hmmf⟩ := exists_largest_index_totalDegree
+    f hf
+  obtain ⟨mmg, hmmg⟩ := exists_largest_index_totalDegree
+    g hg
+  have h_deg :
+      ((f * g).coeff (mmf + mmg)).natDegree +
+        (mmf + mmg) =
+      totalDegree f + totalDegree g := by
+    have h_deg :
+        ((f * g).coeff (mmf + mmg)).natDegree =
+        (f.coeff mmf).natDegree +
+          (g.coeff mmg).natDegree := by
+      apply coeff_mul_natDegree_eq hf hg
+        hmmf.left hmmg.left hmmf.right.left
+        hmmg.right.left hmmf.right.right
+        hmmg.right.right
+    linarith
+  refine h_deg ▸ Finset.le_sup
+    (f := fun m =>
+      ((f * g |> Polynomial.coeff) m |>
+        Polynomial.natDegree) + m)
+    (show mmf + mmg ∈ (f * g |> Polynomial.support)
+      from ?_)
+  simp +zetaDelta at *
+  intro H
+  simp_all +decide [Polynomial.coeff_mul]
+  rw [Finset.sum_eq_single (mmf, mmg)] at H <;>
+    simp_all +decide [Finset.mem_antidiagonal]
+  grind
+
+/-- The total degree of the product of two bivariate
+polynomials is the sum of their total degrees. -/
 @[simp, grind _=_]
-theorem totalDegree_mul [NoZeroDivisors F] {f g : F[X][Y]} (hf : f ≠ 0) (hg : g ≠ 0) :
-    totalDegree (f * g) = totalDegree f + totalDegree g := by
-    sorry
+theorem totalDegree_mul [NoZeroDivisors F]
+    {f g : F[X][Y]} (hf : f ≠ 0) (hg : g ≠ 0) :
+    totalDegree (f * g) =
+      totalDegree f + totalDegree g :=
+  le_antisymm (totalDegree_mul_le f g)
+    (totalDegree_mul_ge f g hf hg)
 
 /-- Definition of a monomial when the bivariate polynomial is considered as a univariate
 polynomial in `Y`. -/
