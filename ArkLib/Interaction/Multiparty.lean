@@ -1,5 +1,8 @@
-import ArkLib.Interaction.Basic
-import ArkLib.Interaction.TwoParty
+import ArkLib.Interaction.Basic.Spec
+import ArkLib.Interaction.Basic.Decoration
+import ArkLib.Interaction.TwoParty.Role
+import ArkLib.Interaction.TwoParty.Decoration
+import ArkLib.Interaction.TwoParty.Strategy
 
 /-!
 # N-Party Sequential Interactions
@@ -41,6 +44,15 @@ abbrev PartyDecoration.toRoles {Party : Type} {spec : Spec}
     (resolve : Party → Role) (parties : PartyDecoration Party spec) :
     RoleDecoration spec :=
   Spec.Decoration.map (fun _ => resolve) spec parties
+
+/-- Relabeling party labels then projecting to roles equals projecting after
+`Decoration.map` (MPST-style relabeling commutes with local role projection). -/
+@[simp]
+theorem PartyDecoration.toRoles_comp {Party Party' : Type} {spec : Spec}
+    (resolve : Party → Role) (f : Party' → Party) (parties : PartyDecoration Party' spec) :
+    PartyDecoration.toRoles (resolve ∘ f) parties =
+      PartyDecoration.toRoles resolve (Spec.Decoration.map (fun _ => f) spec parties) := by
+  simp only [PartyDecoration.toRoles, Spec.Decoration.map_comp]
 
 /-! ## Three-Party Knowledge Soundness Example
 

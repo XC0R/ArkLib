@@ -1,0 +1,318 @@
+/-
+Copyright (c) 2026 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+-/
+import ArkLib.Interaction.Basic.Append
+import ArkLib.Interaction.Basic.Replicate
+import ArkLib.Interaction.Basic.Chain
+import ArkLib.Interaction.TwoParty.Role
+import ArkLib.Interaction.TwoParty.Decoration
+import ArkLib.Interaction.TwoParty.Compose
+import Mathlib.Logic.Equiv.Defs
+
+/-!
+# Role-aware refinement and bridge to `Decoration.Refine`
+
+`Role.Refine S` carries sender data `S X` and skips receiver nodes (no `PUnit` padding). Conversion
+to `Spec.Decoration.Refine` with fiber `Role.SenderData` is an equivalence; `map` laws commute with
+`append`, `replicate`, and `chain`.
+-/
+
+set_option autoImplicit false
+
+universe u v w w₂
+
+namespace Interaction
+
+/-- Role-aware displayed data: `S X` at sender nodes; `∀` recursion at receiver nodes. -/
+@[reducible] def Role.Refine (S : Type u → Type v) :
+    (spec : Spec.{u}) → RoleDecoration spec → Type (max u v)
+  | .done, _ => PUnit
+  | .node X rest, ⟨.sender, rRest⟩ =>
+      S X × (∀ x, Role.Refine S (rest x) (rRest x))
+  | .node _X rest, ⟨.receiver, rRest⟩ =>
+      ∀ x, Role.Refine S (rest x) (rRest x)
+
+namespace Role.Refine
+
+/-- Natural transformation of sender fibers, applied recursively. -/
+def map {S : Type u → Type v} {T : Type u → Type w}
+    (f : ∀ X, S X → T X) :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Role.Refine S spec roles → Role.Refine T spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨f _ s, fun x => map f (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, rr =>
+      fun x => map f (rest x) (rRest x) (rr x)
+
+/-- Append refinements over `RoleDecoration.append`. -/
+def append {S : Type u → Type v}
+    {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
+    {r₁ : RoleDecoration s₁}
+    {r₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)} :
+    Role.Refine S s₁ r₁ →
+    ((tr₁ : Spec.Transcript s₁) → Role.Refine S (s₂ tr₁) (r₂ tr₁)) →
+    Role.Refine S (s₁.append s₂) (r₁.append r₂) :=
+  match s₁, r₁ with
+  | .done, _ => fun _ sd₂ => sd₂ ⟨⟩
+  | .node _ _rest, ⟨.sender, _rRest⟩ => fun ⟨s, rr⟩ sd₂ =>
+      ⟨s, fun x => append (rr x) (fun p => sd₂ ⟨x, p⟩)⟩
+  | .node _ _rest, ⟨.receiver, _rRest⟩ => fun rr sd₂ =>
+      fun x => append (rr x) (fun p => sd₂ ⟨x, p⟩)
+
+/-- Replicate along `Spec.replicate` / `RoleDecoration.replicate`. -/
+def replicate {S : Type u → Type v}
+    {spec : Spec} {roles : RoleDecoration spec}
+    (sd : Role.Refine S spec roles) : (n : Nat) →
+    Role.Refine S (spec.replicate n) (roles.replicate n)
+  | 0 => ⟨⟩
+  | n + 1 => append sd (fun _ => replicate sd n)
+
+/-- Chain a family of refinements along `Spec.chain`. -/
+def chain {S : Type u → Type v}
+    {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    (sdeco : (i : Nat) → (s : Stage i) → Role.Refine S (spec i s) (roles i s)) :
+    (n : Nat) → (i : Nat) → (s : Stage i) →
+    Role.Refine S (Spec.chain Stage spec advance n i s)
+      (RoleDecoration.chain roles n i s)
+  | 0, _, _ => ⟨⟩
+  | n + 1, i, s =>
+      append (sdeco i s)
+        (fun tr => chain sdeco n (i + 1) (advance i s tr))
+
+end Role.Refine
+
+/-- Synonym for `Role.Refine` (sender-side data only). -/
+abbrev SenderDecoration (S : Type u → Type v) (spec : Spec.{u})
+    (roles : RoleDecoration spec) :=
+  Role.Refine S spec roles
+
+abbrev SenderDecoration.append {S : Type u → Type v}
+    {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
+    {r₁ : RoleDecoration s₁}
+    {r₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)}
+    (sd₁ : SenderDecoration S s₁ r₁)
+    (sd₂ : (tr₁ : Spec.Transcript s₁) → SenderDecoration S (s₂ tr₁) (r₂ tr₁)) :
+    SenderDecoration S (s₁.append s₂) (r₁.append r₂) :=
+  Role.Refine.append sd₁ sd₂
+
+abbrev SenderDecoration.replicate {S : Type u → Type v}
+    {spec : Spec} {roles : RoleDecoration spec}
+    (sd : SenderDecoration S spec roles) (n : Nat) :
+    SenderDecoration S (spec.replicate n) (roles.replicate n) :=
+  Role.Refine.replicate sd n
+
+abbrev SenderDecoration.chain {S : Type u → Type v}
+    {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    (sdeco : (i : Nat) → (s : Stage i) → SenderDecoration S (spec i s) (roles i s))
+    (n : Nat) (i : Nat) (s : Stage i) :
+    SenderDecoration S (Spec.chain Stage spec advance n i s)
+      (RoleDecoration.chain roles n i s) :=
+  Role.Refine.chain sdeco n i s
+
+namespace Role
+
+/-- Fiber `S X` at sender and `PUnit` at receiver (for the `Decoration.Refine` bridge). -/
+def SenderData (S : Type u → Type v) (X : Type u) : Role → Type v
+  | .sender => S X
+  | .receiver => PUnit
+
+/-- Functorial update of `SenderData` under `f : ∀ X, S X → T X`. -/
+def SenderData.map {S T : Type u → Type v} (f : ∀ X, S X → T X) (X : Type u) :
+    ∀ r : Role, SenderData S X r → SenderData T X r
+  | .sender, s => f X s
+  | .receiver, u => u
+
+end Role
+
+namespace Role.Refine
+
+@[simp, grind =]
+theorem map_id {S : Type u → Type v} :
+    (spec : Spec) → (roles : RoleDecoration spec) → (rr : Role.Refine S spec roles) →
+    map (fun X (s : S X) => s) spec roles rr = rr
+  | .done, _, _ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [map]; congr 1; funext x
+      exact map_id (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, rr => by
+      funext x
+      simp only [map]
+      exact map_id (rest x) (rRest x) (rr x)
+
+theorem map_comp {S : Type u → Type v} {T : Type u → Type w} {U : Type u → Type w₂}
+    (g : ∀ X, T X → U X) (f : ∀ X, S X → T X) :
+    (spec : Spec) → (roles : RoleDecoration spec) → (rr : Role.Refine S spec roles) →
+    map g spec roles (map f spec roles rr) =
+      map (fun X => g X ∘ f X) spec roles rr
+  | .done, _, _ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [map]; congr 1; funext x
+      exact map_comp g f (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, rr => by
+      funext x
+      simp only [map]
+      exact map_comp g f (rest x) (rRest x) (rr x)
+
+theorem map_append {S T : Type u → Type v} (f : ∀ X, S X → T X)
+    {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
+    {rd₁ : RoleDecoration s₁}
+    {rd₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)}
+    (sd₁ : Role.Refine S s₁ rd₁)
+    (sd₂ : (tr₁ : Spec.Transcript s₁) → Role.Refine S (s₂ tr₁) (rd₂ tr₁)) :
+    map f (s₁.append s₂) (rd₁.append rd₂) (append sd₁ sd₂) =
+      append (map f s₁ rd₁ sd₁)
+        (fun tr₁ => map f (s₂ tr₁) (rd₂ tr₁) (sd₂ tr₁)) := by
+  cases s₁ with
+  | done => rfl
+  | node X rest =>
+    rcases rd₁ with ⟨role, rRest⟩
+    cases role with
+    | sender =>
+      rcases sd₁ with ⟨_s, rr⟩
+      simp only [append, map]
+      refine Prod.ext rfl ?_
+      funext x
+      exact map_append f (rr x) (fun p => sd₂ ⟨x, p⟩)
+    | receiver =>
+      simp only [append, map]
+      funext x
+      exact map_append f (sd₁ x) (fun p => sd₂ ⟨x, p⟩)
+
+theorem map_replicate {S T : Type u → Type v} (f : ∀ X, S X → T X)
+    {spec : Spec} {roles : RoleDecoration spec}
+    (sd : Role.Refine S spec roles) (n : Nat) :
+    map f (spec.replicate n) (roles.replicate n) (replicate sd n) =
+      replicate (map f spec roles sd) n := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    simp only [replicate, Spec.replicate_succ, Spec.Decoration.replicate]
+    rw [map_append f sd (fun _ => replicate sd n)]
+    refine congrArg (append (map f spec roles sd)) ?_
+    funext _
+    exact ih
+
+theorem map_chain {S T : Type u → Type v} (f : ∀ X, S X → T X)
+    {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    (sdeco : (i : Nat) → (s : Stage i) → Role.Refine S (spec i s) (roles i s)) :
+    (n : Nat) → (i : Nat) → (s : Stage i) →
+    map f (Spec.chain Stage spec advance n i s)
+        (RoleDecoration.chain roles n i s) (chain sdeco n i s) =
+      chain (fun j t => map f (spec j t) (roles j t) (sdeco j t)) n i s
+  | 0, _, _ => rfl
+  | n + 1, i, s => by
+      simp only [Spec.chain_succ, chain, Spec.Decoration.chain]
+      rw [map_append f (sdeco i s)
+            (fun tr => chain sdeco n (i + 1) (advance i s tr))]
+      refine congrArg (append (map f (spec i s) (roles i s) (sdeco i s))) ?_
+      funext tr
+      exact map_chain f sdeco n (i + 1) (advance i s tr)
+
+def toDecorationRefine {S : Type u → Type v} :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Role.Refine S spec roles →
+    Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨s, fun x => toDecorationRefine (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, rr =>
+      ⟨⟨⟩, fun x => toDecorationRefine (rest x) (rRest x) (rr x)⟩
+
+def ofDecorationRefine {S : Type u → Type v} :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles →
+    Role.Refine S spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨s, fun x => ofDecorationRefine (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, rr⟩ =>
+      fun x => ofDecorationRefine (rest x) (rRest x) (rr x)
+
+@[simp]
+theorem toDecorationRefine_ofDecorationRefine {S : Type u → Type v} :
+    ∀ (spec : Spec) (roles : RoleDecoration spec)
+      (dr : Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles),
+      toDecorationRefine spec roles (ofDecorationRefine spec roles dr) = dr
+  | .done, _, ⟨⟩ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [toDecorationRefine, ofDecorationRefine]
+      congr 1
+      funext x
+      exact toDecorationRefine_ofDecorationRefine (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, ⟨u, rr⟩ => by
+      cases u
+      simp only [toDecorationRefine, ofDecorationRefine]
+      congr 1
+      funext x
+      exact toDecorationRefine_ofDecorationRefine (rest x) (rRest x) (rr x)
+
+@[simp]
+theorem ofDecorationRefine_toDecorationRefine {S : Type u → Type v} :
+    ∀ (spec : Spec) (roles : RoleDecoration spec)
+      (rr : Role.Refine S spec roles),
+      ofDecorationRefine spec roles (toDecorationRefine spec roles rr) = rr
+  | .done, _, ⟨⟩ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [toDecorationRefine, ofDecorationRefine]
+      congr 1
+      funext x
+      exact ofDecorationRefine_toDecorationRefine (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, rr => by
+      funext x
+      simp only [toDecorationRefine, ofDecorationRefine]
+      exact ofDecorationRefine_toDecorationRefine (rest x) (rRest x) (rr x)
+
+/-- Canonical equivalence with `Decoration.Refine` at fiber `SenderData`. -/
+def equivDecorationRefine {S : Type u → Type v}
+    (spec : Spec) (roles : RoleDecoration spec) :
+    Equiv (Role.Refine S spec roles)
+      (Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles) where
+  toFun := toDecorationRefine spec roles
+  invFun := ofDecorationRefine spec roles
+  left_inv rr := ofDecorationRefine_toDecorationRefine spec roles rr
+  right_inv dr := toDecorationRefine_ofDecorationRefine spec roles dr
+
+theorem toDecorationRefine_map {S T : Type u → Type v} (f : ∀ X, S X → T X) :
+    (spec : Spec) → (roles : RoleDecoration spec) → (rr : Role.Refine S spec roles) →
+    toDecorationRefine spec roles (map f spec roles rr) =
+      Spec.Decoration.Refine.map (fun X r => Role.SenderData.map f X r) spec roles
+        (toDecorationRefine spec roles rr)
+  | .done, _, _ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [toDecorationRefine, map, Spec.Decoration.Refine.map]
+      congr 1; funext x
+      exact toDecorationRefine_map f (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, rr => by
+      simp only [toDecorationRefine, map, Spec.Decoration.Refine.map,
+        Role.SenderData.map]
+      congr 1; funext x
+      exact toDecorationRefine_map f (rest x) (rRest x) (rr x)
+
+theorem ofDecorationRefine_map {S T : Type u → Type v} (f : ∀ X, S X → T X) :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    (dr : Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles) →
+    ofDecorationRefine spec roles
+        (Spec.Decoration.Refine.map (fun X r => Role.SenderData.map f X r) spec roles dr) =
+      map f spec roles (ofDecorationRefine spec roles dr)
+  | .done, _, _ => rfl
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ => by
+      simp only [ofDecorationRefine, Spec.Decoration.Refine.map, map]
+      congr 1; funext x
+      exact ofDecorationRefine_map f (rest x) (rRest x) (rr x)
+  | .node _ rest, ⟨.receiver, rRest⟩, ⟨u, rr⟩ => by
+      cases u
+      funext x
+      simp only [ofDecorationRefine, Spec.Decoration.Refine.map, map,
+        Role.SenderData.map]
+      exact ofDecorationRefine_map f (rest x) (rRest x) (rr x)
+
+end Role.Refine
+end Interaction

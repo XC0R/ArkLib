@@ -13,6 +13,7 @@ ArkLib/
   ProofSystem/        protocol families and higher-level proofs
   ToMathlib/          local additions not upstreamed to Mathlib
   ToVCVio/            bridge layer to VCV-io
+  Interaction/        `Spec` (W-type protocols), strategies, two-party roles (`Basic/`, `TwoParty/`)
 blueprint/src/        blueprint sources and references.bib
 scripts/              repo utilities
 home_page/            site assets and assembled website root

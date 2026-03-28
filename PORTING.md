@@ -22,6 +22,10 @@ Interaction/             ← generic, standalone (future VCVio)
                            Decoration.map), ThreeParty examples
   Reduction.lean           Prover, Verifier (with StmtOut, OptionT m StmtOut),
                            Reduction, Proof, execute
+  Security.lean            randomChallenger, completeness, soundness,
+                           ClaimTree (inductive on Spec + RoleDecoration),
+                           good/Terminal/follow/terminalGood/maxPathError/IsSound,
+                           bound_terminalProb, rbrSoundness, soundness_of_claimTree
   Oracle.lean              OracleDecoration (OracleInterface at sender nodes),
                            QueryHandle, toOracleSpec, answerQuery,
                            OracleCounterpart (growing oracle access),
@@ -86,6 +90,14 @@ roles are a decoration on `Spec`.
   `OracleVerifier` bundles `iov` + `simulate` + `reify` (both transcript-
   dependent). `OracleProver`, `OracleReduction`, `OracleProof` defined.
 
+- [x] **Phase 4: Security definitions** — `randomChallenger` (generic sampler
+  to `Counterpart ProbComp`), `Reduction.completeness` / `perfectCompleteness`,
+  `Verifier.soundness` (quantifies over all malicious provers), `ClaimTree`
+  (inductive on `Spec` + `RoleDecoration` with `sender`/`receiver` constructors),
+  `good`/`Terminal`/`follow`/`terminalGood`/`maxPathError`/`IsSound`,
+  `bound_terminalProb` (`sorry` proof), `rbrSoundness` (deterministic verify),
+  `soundness_of_claimTree` (`sorry` bridge).
+
 ## In progress
 
 - [ ] **Sequential composition** — `Strategy.comp`, `Counterpart.comp`, and
@@ -93,9 +105,6 @@ roles are a decoration on `Spec`.
   needs role-aware wrappers and `RoleDecoration.append`)
 
 ## Planned
-
-- [ ] **Phase 4: Security definitions** — completeness, soundness, knowledge
-  soundness, round-by-round state functions, composition theorems
 - [ ] **Phase 5: Sumcheck migration** — express sumcheck in new types
 - [ ] **Phase 6: Protocol migration** — FRI, Binius, Whir, Stir, Components,
   CommitmentScheme
@@ -153,7 +162,7 @@ Our framework independently converges with several lines of work:
 
 | Area | Files | Status |
 |------|-------|--------|
-| `OracleReduction/ProtocolSpec/` | 3 files | Replaced by `Interaction/Basic.lean` |
+| `OracleReduction/ProtocolSpec/` | 3 files | Replaced by `Interaction/Basic/` modules |
 | `OracleReduction/Basic.lean` | 1 file | Replaced by `Interaction/Reduction.lean` |
 | `OracleReduction/` (rest) | ~32 files | Untouched, will break |
 | `ProofSystem/` | ~50 files | Untouched, will break |
