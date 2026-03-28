@@ -205,10 +205,10 @@ lemma ps_degree_x_swap {F : Type} [CommRing F]
         -- inner induction on the coefficient `a : F[X]`
         induction a using Polynomial.induction_on' with
         | add p q hp hq =>
-            have hp' : ((Polynomial.Bivariate.swap ((monomial n) p)).coeff j).coeff i =
-                (((monomial n) p).coeff i).coeff j := by exact hp
-            have hq' : ((Polynomial.Bivariate.swap ((monomial n) q)).coeff j).coeff i =
-                (((monomial n) q).coeff i).coeff j := by exact hq
+            have hp' : ((Polynomial.Bivariate.swap ((Polynomial.monomial n) p)).coeff j).coeff i =
+                (((Polynomial.monomial n) p).coeff i).coeff j := by exact hp
+            have hq' : ((Polynomial.Bivariate.swap ((Polynomial.monomial n) q)).coeff j).coeff i =
+                (((Polynomial.monomial n) q).coeff i).coeff j := by exact hq
             simp [Polynomial.Bivariate.coeff, Polynomial.monomial_add,
               -Polynomial.Bivariate.swap_apply, hp', hq']
         | monomial m r =>

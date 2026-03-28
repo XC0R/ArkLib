@@ -478,7 +478,7 @@ lemma polySol_weightedDegree_le :
   convert Option.some_le_some.mpr
     (natWeightedDegree_coeffsToPoly_le k (proximity_gap_degree_bound k n m)
     (Classical.choose (exists_nonzero_solution k n m ωs f))) using 1
-  exact weightedDegree_eq_natWeightedDegree polySol_ne_zero
+  exact weightedDegree_eq_natWeightedDegree
 
 end weightedDegree
 
@@ -518,11 +518,8 @@ lemma rootMultiplicity_le_of_coeff_ne_zero [DecidableEq F] {Q : F[X][Y]} {x y : 
             if Bivariate.coeff g p.1 p.2 = 0 then none
             else some (p.1 + p.2)) (List.product (List.range
               (natWeightedDegree g 1 1 + 1)) (List.range (natWeightedDegree g 1 1 + 1)))) := by
-        rw [Bivariate.rootMultiplicity, Bivariate.rootMultiplicity₀]
-        rw [Bivariate.weightedDegree_eq_natWeightedDegree]
-        · rfl
-        · contrapose! h
-          convert congr_arg (fun p ↦ (Polynomial.coeff p t).coeff |> fun f ↦ f s) h using 1
+        rw [Bivariate.rootMultiplicity, Bivariate.rootMultiplicity₀,
+          Bivariate.weightedDegree_eq_natWeightedDegree]
       obtain ⟨p, hp⟩ : ∃ p ∈ List.product (List.range (natWeightedDegree g 1 1 + 1))
           (List.range (natWeightedDegree g 1 1 + 1)), p.1 + p.2 = s + t ∧
             Bivariate.coeff g p.1 p.2 ≠ 0 := by
@@ -572,14 +569,12 @@ lemma rootMultiplicity_ge_of_shift_zero [DecidableEq F] {f : F[X][Y]} {x y : F}
   cases h : rootMultiplicity f x y
   · simp_all only [ne_eq, Bivariate.rootMultiplicity, Option.le_none, reduceCtorEq,
       not_false_eq_true, rootMultiplicity₀]
-    cases h' : weightedDegree (map (X + (C : F → F[X]) x).compRingHom
-      (f.comp (Y + (C : F[X] → F[X][Y] ) (C y)))) 1 1
+    cases h' : weightedDegree (shift f x y) 1 1
     · exact absurd h' (weightedDegree_ne_none _ _ _)
     · simp_all +decide only [Nat.succ_eq_add_one, List.min?_eq_none_iff, List.filterMap_eq_nil_iff,
         ite_eq_left_iff, reduceCtorEq, imp_false, Decidable.not_not, Prod.forall,
         List.pair_mem_product, List.mem_range, and_imp]
-      have h_zero_poly : Polynomial.map (X + (C : F → F[X]) x).compRingHom
-          (f.comp (Y + (C : F[X] → F[X][Y]) ((C : F → F[X]) y))) = 0 := by
+      have h_zero_poly : shift f x y = 0 := by
         have h_zero_poly : ∀ p : F[X][Y], (∀ s t, s ≤ natWeightedDegree p 1 1 →
             t ≤ natWeightedDegree p 1 1 → Polynomial.Bivariate.coeff p s t = 0) → p = 0 := by
           intros p hp_zero
@@ -605,24 +600,15 @@ lemma rootMultiplicity_ge_of_shift_zero [DecidableEq F] {f : F[X][Y]} {x y : F}
         convert h s t _ _ using 1
         all_goals
           rw [weightedDegree_eq_natWeightedDegree] at h'
-          · grind
-          · intro H
-            simp [H] at h'
-            exact hf (by simpa [H] using shift_eq_zero_iff f x y |>.1 H)
+          grind
       simp_all only [weightedDegree, coeff_zero, natDegree_zero, mul_zero, one_mul, zero_add,
         Nat.succ_eq_add_one, List.range_one, List.map_cons, List.map_nil, List.max?_cons,
         List.max?_nil, Option.elim_none, Option.some.injEq]
-      rw [Polynomial.map_eq_zero_iff] at h_zero_poly
-      · simp_all only [comp_eq_zero_iff, coeff_add, map_add, false_or]
-        replace h_zero_poly := congr_arg (fun p ↦ Polynomial.coeff p 1) h_zero_poly.2
-        aesop
-      · intro p q h_eq
-        replace h_eq := congr_arg (Polynomial.comp · (X - C x)) h_eq
-        simp_all [Polynomial.comp_assoc]
+      exact hf (shift_eq_zero_iff f x y |>.1 h_zero_poly)
   · obtain ⟨deg, hdeg⟩ := Option.ne_none_iff_exists'.mp
-      (weightedDegree_ne_none (Polynomial.map (X + C x).compRingHom (f.comp (Y + C (C y)))) 1 1)
-    simp_all only [ne_eq, Option.some_le_some, not_le, weightedDegree, coeff_map, coe_compRingHom,
-      one_mul, Nat.succ_eq_add_one]
+      (weightedDegree_ne_none (shift f x y) 1 1)
+    simp_all only [ne_eq, Option.some_le_some, not_le, weightedDegree, shift,
+      coeff_map, coe_compRingHom, one_mul, Nat.succ_eq_add_one]
     have h_min_ge_m : ∀ p ∈ List.filterMap (fun p ↦ if Bivariate.coeff
         (Polynomial.map (X + C x).compRingHom (f.comp (Y + C (C y)))) p.1 p.2 = 0
           then Option.none else Option.some (p.1 + p.2))
@@ -632,10 +618,11 @@ lemma rootMultiplicity_ge_of_shift_zero [DecidableEq F] {f : F[X][Y]} {x y : F}
       intro p s t hs ht hne hp
       subst hp
       contrapose! hne
+      simp only [Bivariate.coeff, Polynomial.coeff_map, Polynomial.coe_compRingHom]
       aesop
     exact absurd (h_min_ge_m _
       (List.min?_mem (by simpa [Bivariate.rootMultiplicity, rootMultiplicity₀,
-        weightedDegree, hdeg] using h)))
+        weightedDegree, shift, hdeg] using h)))
       (by push_neg; exact h_contra)
 
 lemma polySol_multiplicity [DecidableEq F] (i : Fin n) :
@@ -803,7 +790,7 @@ lemma sufficient_multiplicity_bound {dist : ℕ}
     $(\omega_i, f_i)$, and if $P$ is a codeword close enough to $f$, then $Y - P(X)$
     divides $Q(X,Y)$. -/
 theorem dvd_property [DecidableEq F] (hk : k + 1 ≤ n) (hm : 1 ≤ m) (p : code ωs k)
-  {Q : F[X][Y]} (hQ_ne_0 : Q ≠ 0)
+  {Q : F[X][Y]}
   (hQ_deg : weightedDegree Q 1 (k - 1) ≤ proximity_gap_degree_bound k n m)
   (hQ_mult : ∀ i, m ≤ rootMultiplicity Q (ωs i) (f i))
   (h_dist : (hammingDist f (fun i ↦ (codewordToPoly p).eval (ωs i)) : ℝ) / n <
@@ -862,8 +849,7 @@ theorem dvd_property [DecidableEq F] (hk : k + 1 ≤ n) (hm : 1 ≤ m) (p : code
       refine le_trans hR_deg ?_
       convert hQ_deg using 1
       rw [weightedDegree_eq_natWeightedDegree]
-      · aesop
-      · assumption
+      aesop
     contrapose! hR_roots
     refine lt_of_le_of_lt hR_deg ?_
     convert sufficient_multiplicity_bound hk hm hR_roots using 1

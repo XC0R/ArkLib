@@ -448,7 +448,7 @@ lemma ps_resultant_dvd_pow_eval_x {F : Type} [Field F] [DecidableEq F]
                       · simp [hj]
                     simp [hfun]
             _ = Polynomial.monomial (j' : ℕ) (1 : F) := by
-                exact Fintype.sum_ite_eq' j' fun j ↦ (monomial ↑j) 1
+                exact Fintype.sum_ite_eq' j' fun j ↦ (Polynomial.monomial ↑j) 1
             _ = X ^ (j' : ℕ) := by exact monomial_one_right_eq_X_pow ↑j'
 
         simpa [hv] using hdelta
