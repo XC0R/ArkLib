@@ -84,7 +84,7 @@ abbrev RoleDecoration.replicate {spec : Spec}
 /-- Swapping commutes with `RoleDecoration.replicate`. -/
 theorem RoleDecoration.swap_replicate {spec : Spec}
     (roles : RoleDecoration spec) (n : Nat) :
-    RoleDecoration.swap (roles.replicate n) = (RoleDecoration.swap roles).replicate n :=
+    (roles.replicate n).swap = (roles.swap).replicate n :=
   Spec.Decoration.map_replicate (fun _ => Role.swap) roles n
 
 /-- `n`-fold counterpart composition on `spec.replicate n`. -/

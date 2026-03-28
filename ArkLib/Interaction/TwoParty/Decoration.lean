@@ -24,10 +24,23 @@ namespace Interaction
 /-- Per-node sender/receiver assignment on a `Spec`. -/
 abbrev RoleDecoration := Spec.Decoration (fun _ => Role)
 
-/-- Swap sender ↔ receiver at every node. -/
-abbrev RoleDecoration.swap {spec : Spec} (roles : RoleDecoration spec) :
-    RoleDecoration spec :=
-  Spec.Decoration.map (fun _ => Role.swap) spec roles
+namespace Spec
+namespace Decoration
+
+/-- Swap sender ↔ receiver at each node.
+
+Because `RoleDecoration` is an `abbrev` of `Decoration (fun _ => Role)`, dot notation on
+`roles : RoleDecoration spec` resolves this `Spec.Decoration.swap` (not `RoleDecoration.swap`). -/
+def swap {spec : Spec} (roles : Decoration (fun _ => Role) spec) :
+    Decoration (fun _ => Role) spec :=
+  map (fun _ => Role.swap) spec roles
+
+end Decoration
+end Spec
+
+/-- Explicit `RoleDecoration.swap roles` is the same as `roles.swap` (`Spec.Decoration.swap`). -/
+abbrev RoleDecoration.swap {spec : Spec} (roles : RoleDecoration spec) : RoleDecoration spec :=
+  Spec.Decoration.swap roles
 
 /-- Append role decorations along `Spec.append` (pointwise `Decoration.append`). -/
 abbrev RoleDecoration.append {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
