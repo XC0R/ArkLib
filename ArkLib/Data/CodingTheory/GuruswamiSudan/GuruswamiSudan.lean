@@ -45,8 +45,6 @@ Here:
 * `Q : F[X][Y]` — The candidate bivariate polynomial.
 -/
 structure Conditions (D : ℕ) (ωs : Fin n ↪ F) (f : Fin n → F) (Q : F[X][Y]) where
-  /-- Q ≠ 0 -/
-  Q_ne_0 : Q ≠ 0
   /-- (1, k-1)-weighted degree of the polynomial is bounded. -/
   Q_deg : weightedDegree Q 1 (k - 1) ≤ D
   /-- (ωs i, f i) must be root of the polynomial Q. -/
@@ -85,7 +83,7 @@ theorem decoder_dist_impl_mem
 theorem proximity_gap_existence (k n : ℕ) (ωs : Fin n ↪ F) (f : Fin n → F) (hm : 1 ≤ m) :
     ∃ Q, Conditions k m (proximity_gap_degree_bound k n m) ωs f Q := by
   use polySol k n m ωs f
-  exact ⟨polySol_ne_zero, polySol_weightedDegree_le, polySol_roots hm, polySol_multiplicity⟩
+  exact ⟨polySol_weightedDegree_le, polySol_roots hm, polySol_multiplicity⟩
 
 /-- Given any Reed-Solomon code `p`, any solution of the Guruswami-Sudan decoder is
     divisible by `Y - P(X)`, where `P(X)` is the polynomial corresponding to the codeword `p`.
@@ -95,6 +93,6 @@ theorem proximity_gap_divisibility (hk : k + 1 ≤ n) (hm : 1 ≤ m) (p : code �
     (h_dist : (hammingDist f (fun i ↦ (codewordToPoly p).eval (ωs i)) : ℝ) / n <
       proximity_gap_johnson k n m) :
     X - C (codewordToPoly p) ∣ Q :=
-  dvd_property (f := f) hk hm p hQ.Q_ne_0 hQ.Q_deg hQ.Q_multiplicity h_dist
+  dvd_property (f := f) hk hm p hQ.Q_deg hQ.Q_multiplicity h_dist
 
 end GuruswamiSudan
