@@ -33,7 +33,7 @@ variable {F : Type} [Semiring F]
 /-- The set of coefficients of a bivariate polynomial. -/
 def coeffs [DecidableEq F] (f : F[X][Y]) : Finset F[X] := f.support.image f.coeff
 
-/-- A bivariate polynomial is non-zero if and only if all its coefficients are non-zero. -/
+/-- A bivariate polynomial is non-zero if and only if its coefficient function is non-zero. -/
 @[grind =_]
 lemma ne_zero_iff_coeffs_ne_zero (f : F[X][Y]) : f ≠ 0 ↔ f.coeff ≠ 0 :=
   ⟨
@@ -173,8 +173,10 @@ lemma degreeY_le_degreeY_sub_degreeY [IsDomain F] {f q : F[X][Y]} (hf : f ≠ 0)
 
 /-- The total degree of the product of two bivariate polynomials is the sum of their total degrees.
 -/
+-- TODO: prove via connection to MvPolynomial.totalDegree_mul_of_isDomain or
+-- by adapting the `degreeX_mul_ge` strategy from CompPoly.
 @[simp, grind _=_]
-theorem totalDegree_mul {f g : F[X][Y]} (hf : f ≠ 0) (hg : g ≠ 0) :
+theorem totalDegree_mul [NoZeroDivisors F] {f g : F[X][Y]} (hf : f ≠ 0) (hg : g ≠ 0) :
     totalDegree (f * g) = totalDegree f + totalDegree g := by
     sorry
 

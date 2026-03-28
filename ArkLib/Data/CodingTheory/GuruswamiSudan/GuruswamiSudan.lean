@@ -31,11 +31,11 @@ variable (k m) in
 /--
 Guruswami–Sudan conditions for the polynomial searched by the decoder.
 
-These conditions characterize the existence of a nonzero bivariate
-polynomial `Q(X,Y)` that vanishes with sufficiently high multiplicity
-at all interpolation points `(ωs i, f i)`. As in the Berlekamp–Welch
-case, this can be shown to be equivalent to solving a system of linear
-equations.
+These conditions characterize a nonzero bivariate polynomial `Q(X,Y)`
+with bounded weighted degree that vanishes with sufficiently high
+multiplicity at all interpolation points `(ωs i, f i)`. As in the
+Berlekamp–Welch case, finding such a polynomial can be shown to be
+equivalent to solving a system of linear equations.
 
 Here:
 * `D : ℕ` — the **degree bound** for `Q` under the weighted degree measure.
@@ -45,6 +45,8 @@ Here:
 * `Q : F[X][Y]` — The candidate bivariate polynomial.
 -/
 structure Conditions (D : ℕ) (ωs : Fin n ↪ F) (f : Fin n → F) (Q : F[X][Y]) where
+  /-- The polynomial is non-zero. -/
+  Q_ne_0 : Q ≠ 0
   /-- (1, k-1)-weighted degree of the polynomial is bounded. -/
   Q_deg : weightedDegree Q 1 (k - 1) ≤ D
   /-- (ωs i, f i) must be root of the polynomial Q. -/
@@ -83,7 +85,7 @@ theorem decoder_dist_impl_mem
 theorem proximity_gap_existence (k n : ℕ) (ωs : Fin n ↪ F) (f : Fin n → F) (hm : 1 ≤ m) :
     ∃ Q, Conditions k m (proximity_gap_degree_bound k n m) ωs f Q := by
   use polySol k n m ωs f
-  exact ⟨polySol_weightedDegree_le, polySol_roots hm, polySol_multiplicity⟩
+  exact ⟨polySol_ne_zero, polySol_weightedDegree_le, polySol_roots hm, polySol_multiplicity⟩
 
 /-- Given any Reed-Solomon code `p`, any solution of the Guruswami-Sudan decoder is
     divisible by `Y - P(X)`, where `P(X)` is the polynomial corresponding to the codeword `p`.
