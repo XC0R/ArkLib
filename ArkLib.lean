@@ -114,6 +114,7 @@ import ArkLib.OracleReduction.Security.RoundByRound
 import ArkLib.OracleReduction.Security.SpecialSoundness
 import ArkLib.OracleReduction.Security.StateRestoration
 import ArkLib.OracleReduction.VectorIOR
+import ArkLib.ProofSystem.BatchedFri.Security
 import ArkLib.ProofSystem.BatchedFri.Spec.General
 import ArkLib.ProofSystem.BatchedFri.Spec.SingleRound
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Basic
@@ -169,6 +170,7 @@ import ArkLib.ToMathlib.Data.IndexedBinaryTree.Basic
 import ArkLib.ToMathlib.Data.IndexedBinaryTree.Equiv
 import ArkLib.ToMathlib.Data.IndexedBinaryTree.Lemmas
 import ArkLib.ToMathlib.Finset.Basic
+import ArkLib.ToMathlib.List.Basic
 import ArkLib.ToVCVio.DistEq
 import ArkLib.ToVCVio.Lemmas
 import ArkLib.ToVCVio.Oracle
