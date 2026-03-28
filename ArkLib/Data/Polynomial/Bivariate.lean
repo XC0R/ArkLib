@@ -56,7 +56,8 @@ attribute [local grind _=_] Finsupp.mem_support_iff toFinsupp_apply smul_monomia
 attribute [local grind =] natDegree_mul natDegree_add_eq_right_of_degree_lt
                           natDegree_zero
 
-theorem natDegree_sum_lt_of_forall_lt {F : Type} [Semiring F] {α : Type} {s : Finset α} {g : α → F[X]} {deg : ℕ} :
+theorem natDegree_sum_lt_of_forall_lt {F : Type} [Semiring F]
+    {α : Type} {s : Finset α} {g : α → F[X]} {deg : ℕ} :
   0 < deg → (∀ x ∈ s, (g x).natDegree < deg) → (∑ x ∈ s, g x).natDegree < deg := by
   intro deg_pos h
   have hle : (∑ x ∈ s, g x).natDegree ≤ Nat.pred deg := by
@@ -74,13 +75,11 @@ theorem natDeg_sum_eq_of_unique {α : Type} {s : Finset α} {f : α → F[X]} {d
   classical
   intro hmxdeg others
   by_cases hdeg0 : deg = 0
-  ·
-    have hothers0 : ∀ y ∈ s, y ≠ mx → f y = 0 := by
+  · have hothers0 : ∀ y ∈ s, y ≠ mx → f y = 0 := by
       intro y hy hne
       have h' := others y hy hne
       rcases h' with hlt | hy0
-      · have hlt0 : (f y).natDegree < 0 := by simpa [hdeg0] using hlt
-        exact (False.elim ((Nat.not_lt_zero _ ) hlt0))
+      · simp [hdeg0] at hlt
       · exact hy0
     have hsum : (∑ x ∈ s, f x) = f mx := by
       classical
@@ -88,10 +87,9 @@ theorem natDeg_sum_eq_of_unique {α : Type} {s : Finset α} {f : α → F[X]} {d
       intro y hy hne
       exact hothers0 y hy hne
     calc
-      (∑ x ∈ s, f x).natDegree = (f mx).natDegree := by simpa [hsum]
+      (∑ x ∈ s, f x).natDegree = (f mx).natDegree := by simp [hsum]
       _ = deg := hmxdeg
-  ·
-    have deg_pos : 0 < deg := Nat.pos_of_ne_zero hdeg0
+  · have deg_pos : 0 < deg := Nat.pos_of_ne_zero hdeg0
     have hlt_sum : (∑ x ∈ s \ {mx}, f x).natDegree < deg := by
       refine natDegree_sum_lt_of_forall_lt (s := s \ {mx}) (g := f) (deg := deg) deg_pos ?_
       intro y hy
@@ -110,7 +108,7 @@ theorem natDeg_sum_eq_of_unique {α : Type} {s : Finset α} {f : α → F[X]} {d
       simpa using (Finset.sum_eq_sum_diff_singleton_add (s := s) (i := mx) (f := f) h)
     calc
       (∑ x ∈ s, f x).natDegree = ((∑ x ∈ s \ {mx}, f x) + f mx).natDegree := by
-        simpa [hsum_decomp]
+        simp [hsum_decomp]
       _ = (f mx).natDegree := by
         exact Polynomial.natDegree_add_eq_right_of_natDegree_lt hlt_mx
       _ = deg := hmxdeg
@@ -158,7 +156,7 @@ lemma degreeX_le_degreeX_sub_degreeX [IsDomain F] {f q : F[X][Y]} (hf : f ≠ 0)
   have hq : q ≠ 0 := quotient_nezero (f := f) (q := q) hg
   have hmul : degreeX (q * f) = degreeX q + degreeX f := degreeX_mul q f hq hf
   have hsum : degreeX q + degreeX f ≤ degreeX (q * f) := by
-    simpa [hmul] using (le_rfl : degreeX q + degreeX f ≤ degreeX q + degreeX f)
+    simp [hmul]
   have hfb : degreeX f ≤ degreeX (q * f) := by
     exact le_trans (Nat.le_add_left _ _) hsum
   exact (Nat.le_sub_iff_add_le hfb).2 hsum
@@ -173,8 +171,6 @@ lemma degreeY_le_degreeY_sub_degreeY [IsDomain F] {f q : F[X][Y]} (hf : f ≠ 0)
 
 /-- The total degree of the product of two bivariate polynomials is the sum of their total degrees.
 -/
--- TODO: prove via connection to MvPolynomial.totalDegree_mul_of_isDomain or
--- by adapting the `degreeX_mul_ge` strategy from CompPoly.
 @[simp, grind _=_]
 theorem totalDegree_mul [NoZeroDivisors F] {f g : F[X][Y]} (hf : f ≠ 0) (hg : g ≠ 0) :
     totalDegree (f * g) = totalDegree f + totalDegree g := by
