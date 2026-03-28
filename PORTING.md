@@ -11,19 +11,26 @@ Reference branch: `quang/iop-refactor` (old Refactor/ approach, archived).
 ```
 Interaction/             ← generic, standalone (future VCVio)
   Basic.lean               Spec.{u} (W-type), Transcript, Strategy, Decoration,
-                           Decoration.map, BundledMonad, MonadDecoration,
-                           append, comp — universe-polymorphic throughout
+                           Decoration.map, Decoration.Refine, BundledMonad,
+                           MonadDecoration, append/replicate/chain, comp
+                           — universe-polymorphic throughout
   TwoParty.lean            Role, RoleDecoration (= Decoration on Spec),
                            Strategy.withRoles, Counterpart, runWithRoles,
-                           per-node monad variants (withRolesAndMonads,
-                           Counterpart.withMonads, runWithRolesAndMonads)
+                           SenderDecoration (= Refine over RoleDecoration),
+                           per-node monad variants, composition combinators
   Multiparty.lean          PartyDecoration, PartyDecoration.toRoles (via
                            Decoration.map), ThreeParty examples
-  Reduction.lean           Prover, Verifier, Reduction, Proof, execute
+  Reduction.lean           Prover, Verifier (with StmtOut, OptionT m StmtOut),
+                           Reduction, Proof, execute
+  Oracle.lean              OracleDecoration (OracleInterface at sender nodes),
+                           QueryHandle, toOracleSpec, answerQuery,
+                           OracleCounterpart (growing oracle access),
+                           InteractiveOracleVerifier (unified challenger+verify),
+                           OracleVerifier (batch: iov + simulate + reify),
+                           OracleProver, OracleReduction, OracleProof
 
-OracleReduction/         ← ArkLib-specific (oracle access layer)
-  (TODO) OracleVerifier    Verifier that queries messages via OracleInterface
-  (TODO) OracleReduction   OracleProver + OracleVerifier
+OracleReduction/         ← ArkLib-specific (old core, to be replaced)
+  OracleInterface.lean     Stable, reused by Interaction/Oracle.lean
   (TODO) Security/         Completeness, soundness, knowledge soundness, RBR
 
 ProofSystem/             ← concrete protocols on top of the above
@@ -54,21 +61,32 @@ roles are a decoration on `Spec`.
 - [x] **Phase 2d: Universe polymorphism** — `Spec.{u}`, `BundledMonad.{u,v}`,
   `Decoration.{u,v}`, `Strategy.{u}`, all combinators universe-polymorphic;
   `TwoParty.lean` / `Reduction.lean` work at `u = 0`
+- [x] **Phase 2e: N-ary composition** — `replicate`, `chain`, `iterate`,
+  `chainComp` for `Spec`, `Decoration`, `Strategy`, `Transcript`; round-trip
+  lemmas (`split_join`, `chainSplit_chainJoin`); role-aware wrappers for
+  `RoleDecoration`, `Counterpart`, `Strategy.withRoles`
+- [x] **Phase 2f: Decoration.Refine** — displayed decoration combinator
+  (cf. displayed algebras, ornaments). `Refine F spec d` carries `F X l` at
+  each node with label `l : L X` from decoration `d`. Composition:
+  `Refine.append`, `.replicate`, `.chain`, `.map`. `SenderDecoration` in
+  `TwoParty.lean` as a specialization to `RoleDecoration`.
+- [x] **Phase 3: OracleDecoration** — `OracleDecoration` assigns
+  `OracleInterface` instances at sender nodes (data, not typeclass).
+  `QueryHandle` indexes oracle queries parameterized by a transcript (path-
+  dependent oracle access — fundamental to W-type interactions where move types
+  depend on prior moves). `toOracleSpec` and `answerQuery` defined by recursion.
+- [x] **Phase 3b: Oracle verifier redesign** — `Verifier` updated with
+  `StmtOut` output type and `verify : StmtIn → Transcript → OptionT m StmtOut`
+  (was `decide : StmtIn → Transcript → m Bool`).
+  `OracleCounterpart` models round-by-round challenger with growing oracle
+  access (`accSpec` starts at `[]ₒ`, grows by `oi.toOC.spec` at sender nodes).
+  `InteractiveOracleVerifier` unifies challenger + verification into one
+  recursive type (= `OracleCounterpart` at internal nodes, verification
+  function at `.done`). `toOracleCounterpart` extracts the challenger.
+  `OracleVerifier` bundles `iov` + `simulate` + `reify` (both transcript-
+  dependent). `OracleProver`, `OracleReduction`, `OracleProof` defined.
 
 ## In progress
-
-- [ ] **Phase 3: OracleVerifier + OracleReduction** — the only ArkLib-specific
-  layer; needs `OracleInterface` (currently at `OracleReduction/OracleInterface.lean`)
-  to express oracle queries on prover messages. This bridges the generic
-  `Interaction` layer (monad `m`) with VCVio's `OracleComp oSpec`.
-
-  Key question: how does `OracleInterface` attach to `Spec` + `RoleDecoration`?
-  In the old core, `OracleInterface` is a typeclass on `Message` types, used
-  to define `OracleVerifier` (verifier that queries prover messages as oracles).
-  In the new core, the message types are the `Moves` at sender nodes. We need
-  to either:
-  - Decorate sender nodes with `OracleInterface` instances (another `Decoration`)
-  - Pass `OracleInterface` instances structurally alongside the spec
 
 - [ ] **Sequential composition** — `Strategy.comp`, `Counterpart.comp`, and
   `Reduction.comp` for role-aware specs (infrastructure in place on `Spec`,
@@ -87,23 +105,49 @@ roles are a decoration on `Spec`.
 
 ## Open questions / issues
 
-- **OracleInterface integration**: The old `OracleInterface` is a typeclass
-  `class OracleInterface (Message : Type) where Query : Type; ...`. In the new
-  `Spec`-based world, how should oracle access be parameterized? Options:
-  (a) A `Decoration` that assigns `OracleInterface` at each sender node;
-  (b) A separate oracle spec parameter alongside the interaction spec;
-  (c) Bake oracle access into the monad via `OracleComp`.
+- **OracleInterface integration** (RESOLVED): Oracle access is modeled via
+  `OracleDecoration` — a per-sender-node attachment of `OracleInterface`
+  instances as data (not typeclass). The oracle spec for querying messages is
+  path-dependent (parameterized by the transcript), reflecting the W-type
+  structure where move types depend on prior moves. This differs fundamentally
+  from the old flat `ProtocolSpec n` approach.
 
-- **Composition types**: `Strategy.comp` exists on raw `Spec` but needs
-  role-aware wrappers: `RoleDecoration.append` (concatenate role decorations)
-  and `Strategy.withRoles` composition that preserves role structure.
+- **Execution of OracleReduction**: `OracleReduction.execute` needs
+  `simulateQ` to resolve transcript-dependent oracle queries. The type
+  involves `OracleComp (oSpec + od.toOracleSpec tr)` where `tr` is the
+  transcript — requires careful monad plumbing. Currently `sorry`.
+
+- **Growing oracle access**: Both `OracleCounterpart` and
+  `InteractiveOracleVerifier` use an `accSpec` parameter that grows at each
+  sender node. This faithfully models verifier gaining oracle access round by
+  round, supporting non-public-coin protocols. The accumulation is:
+  `accSpec₀ = []ₒ`, then `accSpecᵢ₊₁ = accSpecᵢ + oiᵢ.toOC.spec`.
+  The `OracleVerifier.iov` field starts with `accSpec = []ₒ`.
+
+- **`simulate` and `reify` are transcript-dependent**: Unlike the flat
+  `ProtocolSpec n` model where message types are static, in the W-type model
+  the oracle spec depends on the transcript (path through the tree). Both
+  `simulate` and `reify` must take a `Transcript` argument.
 
 - **Dependent vs non-dependent output**: `Prover` currently uses non-dependent
   output `(fun _ => StmtOut × WitOut)`. Dependent output is possible via
   raw `Strategy.withRoles` but no named wrapper exists.
 
 - **Where Interaction goes long-term**: planned to move to VCVio once stable.
-  Keep it import-free from ArkLib.
+  Keep it import-free from ArkLib (except `Oracle.lean` which bridges VCVio).
+
+## Related work
+
+Our framework independently converges with several lines of work:
+
+- **Escardo–Oliva (2023)** "Higher-order Games with Dependent Types" (TCS 974):
+  type trees `𝑻` (= `Spec`), paths (= `Transcript`), `structure S`
+  (= `Decoration S`), strategies, `Overline` (= `Decoration.map`).
+  Multiple independent decorations; our `Refine` generalizes to dependent ones.
+- **Hancock–Setzer (2000)**: structural recursion on interaction interface.
+- **Interaction Trees** (Xia et al., POPL 2020): coinductive free monad analog.
+- **Displayed algebras / Ornaments** (McBride 2010): `Decoration.Refine`.
+- **Session types**: `Spec + RoleDecoration` as dependent session types.
 
 ## Old core (to be replaced)
 

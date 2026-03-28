@@ -15,7 +15,9 @@ a `RoleDecoration` that assigns sender/receiver roles to each node.
 - **Prover**: takes (statement, witness), produces a role-dependent `Strategy`
   that interacts with the verifier and outputs a new (statement, witness) pair.
 - **Verifier**: holds a `Counterpart` (challenge sampler / message observer)
-  and a decision function applied after the interaction completes.
+  and a verification function applied after the interaction completes.
+  Returns `OptionT m StmtOut` — `none` means reject, `some stmtOut` means
+  accept with output statement (needed for sequential composition of reductions).
 - **Reduction**: pairs a prover with a verifier for the same protocol spec.
 
 ## Running a reduction
@@ -42,19 +44,21 @@ structure Prover (m : Type → Type) (pSpec : Spec) (roles : RoleDecoration pSpe
 /-- A verifier in an interactive protocol. The `challenger` field is the
 verifier's behavior during interaction: it observes prover messages (Pi at
 sender nodes) and samples challenges (Sigma at receiver nodes). After the
-interaction, `decide` examines the statement and full transcript. -/
+interaction, `verify` examines the statement and full transcript, returning
+`none` to reject or `some stmtOut` to accept with output. -/
 structure Verifier (m : Type → Type) (pSpec : Spec) (roles : RoleDecoration pSpec)
-    (StmtIn : Type) where
+    (StmtIn StmtOut : Type) where
   challenger : Spec.Counterpart m pSpec roles
-  decide : StmtIn → Spec.Transcript pSpec → m Bool
+  verify : StmtIn → Spec.Transcript pSpec → OptionT m StmtOut
 
 /-- A reduction pairs a prover with a verifier for the same protocol. -/
 structure Reduction (m : Type → Type) (pSpec : Spec) (roles : RoleDecoration pSpec)
     (StmtIn WitIn StmtOut WitOut : Type) where
   prover : Prover m pSpec roles StmtIn WitIn StmtOut WitOut
-  verifier : Verifier m pSpec roles StmtIn
+  verifier : Verifier m pSpec roles StmtIn StmtOut
 
-/-- A proof system: a reduction with no witness/statement output. -/
+/-- A proof system: a reduction with trivial statement/witness output.
+Verification accepts (`some ()`) or rejects (`none`). -/
 abbrev Proof (m : Type → Type) (pSpec : Spec) (roles : RoleDecoration pSpec)
     (StmtIn WitIn : Type) :=
   Reduction m pSpec roles StmtIn WitIn PUnit PUnit
@@ -62,18 +66,18 @@ abbrev Proof (m : Type → Type) (pSpec : Spec) (roles : RoleDecoration pSpec)
 /-! ## Execution -/
 
 /-- Execute a reduction: run the prover's strategy against the verifier's
-counterpart, then apply the decision function. Returns the transcript, the
-verifier's decision, and the prover's output. -/
+counterpart, then apply the verification function. Returns the transcript,
+the verifier's output (as `Option`), and the prover's output. -/
 def Reduction.execute {m : Type → Type} [Monad m]
     {pSpec : Spec} {roles : RoleDecoration pSpec}
     {StmtIn WitIn StmtOut WitOut : Type}
     (r : Reduction m pSpec roles StmtIn WitIn StmtOut WitOut)
     (stmt : StmtIn) (wit : WitIn) :
-    m ((_ : Spec.Transcript pSpec) × Bool × StmtOut × WitOut) := do
+    m ((_ : Spec.Transcript pSpec) × Option StmtOut × StmtOut × WitOut) := do
   let ⟨tr, stmtOut, witOut⟩ ←
     Spec.Strategy.runWithRoles pSpec roles (r.prover.run stmt wit) r.verifier.challenger
-  let b ← r.verifier.decide stmt tr
-  return ⟨tr, b, stmtOut, witOut⟩
+  let verResult ← (r.verifier.verify stmt tr).run
+  return ⟨tr, verResult, stmtOut, witOut⟩
 
 /-! ## Sequential composition (TODO: Strategy.comp and Reduction.comp) -/
 
