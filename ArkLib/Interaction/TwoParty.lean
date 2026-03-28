@@ -368,24 +368,86 @@ theorem RoleDecoration.swap_append
     (r₁.append r₂).swap = (r₁.swap).append (fun tr₁ => (r₂ tr₁).swap) :=
   Spec.Decoration.map_append (fun _ => Role.swap) s₁ s₂ r₁ r₂
 
-/-! ## Sender decoration
+/-! ## Role-aware refinement
 
-A `SenderDecoration S` carries data `S X` at sender nodes and `PUnit` at receiver
-nodes. This is `Decoration.Refine` specialized to `RoleDecoration` with a
-role-dependent fiber family. -/
+`Role.Refine S` is a role-aware displayed decoration: it carries `S X` data at
+sender nodes and recurses directly at receiver nodes (no `PUnit` junk). This is
+the preferred interface for sender-specific data in two-party protocols.
 
-/-- Fiber family selecting `S X` at sender nodes and `PUnit` at receiver nodes. -/
-def Role.SenderData (S : Type u → Type v) (X : Type u) : Role → Type v
-  | .sender => S X
-  | .receiver => PUnit
+Compare with the generic `Decoration.Refine`, which carries `F X l` uniformly
+at every node regardless of label. `Role.Refine` exploits the two-element
+`Role` inductive to skip receiver nodes entirely. -/
 
-/-- Decoration carrying `S X` at sender nodes only, defined via
-`Decoration.Refine` over a `RoleDecoration`. -/
+/-- Role-aware refinement: carries `S X` at sender nodes, recurses at receiver
+nodes, `PUnit` at done. Defined by recursion on `spec` + `RoleDecoration`.
+
+Marked `@[reducible]` so downstream pattern matching on `spec` + `roles`
+automatically reduces the `Role.Refine` type (needed for equation compilation
+in definitions like `QueryHandle` that match on both). -/
+@[reducible] def Role.Refine (S : Type u → Type v) :
+    (spec : Spec.{u}) → RoleDecoration spec → Type (max u v)
+  | .done, _ => PUnit
+  | .node X rest, ⟨.sender, rRest⟩ =>
+      S X × (∀ x, Role.Refine S (rest x) (rRest x))
+  | .node _X rest, ⟨.receiver, rRest⟩ =>
+      ∀ x, Role.Refine S (rest x) (rRest x)
+
+/-- Apply a fiberwise transformation to a `Role.Refine`. -/
+def Role.Refine.map {S : Type u → Type v} {T : Type u → Type w}
+    (f : ∀ X, S X → T X) :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Role.Refine S spec roles → Role.Refine T spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨f _ s, fun x => Refine.map f (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, rr =>
+      fun x => Refine.map f (rest x) (rRest x) (rr x)
+
+/-- Compose two `Role.Refine`s along `Spec.append`. -/
+def Role.Refine.append {S : Type u → Type v}
+    {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
+    {r₁ : RoleDecoration s₁}
+    {r₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)} :
+    Role.Refine S s₁ r₁ →
+    ((tr₁ : Spec.Transcript s₁) → Role.Refine S (s₂ tr₁) (r₂ tr₁)) →
+    Role.Refine S (s₁.append s₂) (r₁.append r₂) :=
+  match s₁, r₁ with
+  | .done, _ => fun _ sd₂ => sd₂ ⟨⟩
+  | .node _ _rest, ⟨.sender, _rRest⟩ => fun ⟨s, rr⟩ sd₂ =>
+      ⟨s, fun x => Refine.append (rr x) (fun p => sd₂ ⟨x, p⟩)⟩
+  | .node _ _rest, ⟨.receiver, _rRest⟩ => fun rr sd₂ =>
+      fun x => Refine.append (rr x) (fun p => sd₂ ⟨x, p⟩)
+
+/-- Replicate a `Role.Refine` along `Spec.replicate`. -/
+def Role.Refine.replicate {S : Type u → Type v}
+    {spec : Spec} {roles : RoleDecoration spec}
+    (sd : Role.Refine S spec roles) : (n : Nat) →
+    Role.Refine S (spec.replicate n) (roles.replicate n)
+  | 0 => ⟨⟩
+  | n + 1 => Refine.append sd (fun _ => Refine.replicate sd n)
+
+/-- Compose a `Role.Refine` family along `Spec.chain`. -/
+def Role.Refine.chain {S : Type u → Type v}
+    {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    (sdeco : (i : Nat) → (s : Stage i) → Role.Refine S (spec i s) (roles i s)) :
+    (n : Nat) → (i : Nat) → (s : Stage i) →
+    Role.Refine S (Spec.chain Stage spec advance n i s)
+      (RoleDecoration.chain roles n i s)
+  | 0, _, _ => ⟨⟩
+  | n + 1, i, s =>
+      Refine.append (sdeco i s)
+        (fun tr => Refine.chain sdeco n (i + 1) (advance i s tr))
+
+/-! ### SenderDecoration (abbrev for Role.Refine) -/
+
+/-- `SenderDecoration S` is `Role.Refine S`: carries `S X` at sender nodes,
+recurses directly at receiver nodes. -/
 abbrev SenderDecoration (S : Type u → Type v) (spec : Spec.{u})
     (roles : RoleDecoration spec) :=
-  Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles
+  Role.Refine S spec roles
 
-/-- Compose two sender decorations along `Spec.append`. -/
 abbrev SenderDecoration.append {S : Type u → Type v}
     {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
     {r₁ : RoleDecoration s₁}
@@ -393,16 +455,14 @@ abbrev SenderDecoration.append {S : Type u → Type v}
     (sd₁ : SenderDecoration S s₁ r₁)
     (sd₂ : (tr₁ : Spec.Transcript s₁) → SenderDecoration S (s₂ tr₁) (r₂ tr₁)) :
     SenderDecoration S (s₁.append s₂) (r₁.append r₂) :=
-  Spec.Decoration.Refine.append sd₁ sd₂
+  Role.Refine.append sd₁ sd₂
 
-/-- Replicate a sender decoration `n` times along `Spec.replicate`. -/
 abbrev SenderDecoration.replicate {S : Type u → Type v}
     {spec : Spec} {roles : RoleDecoration spec}
     (sd : SenderDecoration S spec roles) (n : Nat) :
     SenderDecoration S (spec.replicate n) (roles.replicate n) :=
-  Spec.Decoration.Refine.replicate sd n
+  Role.Refine.replicate sd n
 
-/-- Compose a sender decoration along a chain. -/
 abbrev SenderDecoration.chain {S : Type u → Type v}
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
@@ -411,7 +471,39 @@ abbrev SenderDecoration.chain {S : Type u → Type v}
     (n : Nat) (i : Nat) (s : Stage i) :
     SenderDecoration S (Spec.chain Stage spec advance n i s)
       (RoleDecoration.chain roles n i s) :=
-  Spec.Decoration.Refine.chain sdeco n i s
+  Role.Refine.chain sdeco n i s
+
+/-! ### Equivalence with Decoration.Refine -/
+
+/-- Fiber family selecting `S X` at sender nodes and `PUnit` at receiver nodes.
+Used only for the equivalence between `Role.Refine` and `Decoration.Refine`. -/
+def Role.SenderData (S : Type u → Type v) (X : Type u) : Role → Type v
+  | .sender => S X
+  | .receiver => PUnit
+
+/-- Convert `Role.Refine` to `Decoration.Refine` by inserting `PUnit` at
+receiver nodes. -/
+def Role.Refine.toDecorationRefine {S : Type u → Type v} :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Role.Refine S spec roles →
+    Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨s, fun x => toDecorationRefine (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, rr =>
+      ⟨⟨⟩, fun x => toDecorationRefine (rest x) (rRest x) (rr x)⟩
+
+/-- Convert `Decoration.Refine` to `Role.Refine` by dropping `PUnit` at
+receiver nodes. -/
+def Role.Refine.ofDecorationRefine {S : Type u → Type v} :
+    (spec : Spec) → (roles : RoleDecoration spec) →
+    Spec.Decoration.Refine (fun X r => Role.SenderData S X r) spec roles →
+    Role.Refine S spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨s, rr⟩ =>
+      ⟨s, fun x => ofDecorationRefine (rest x) (rRest x) (rr x)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, rr⟩ =>
+      fun x => ofDecorationRefine (rest x) (rRest x) (rr x)
 
 /-! ## Examples -/
 

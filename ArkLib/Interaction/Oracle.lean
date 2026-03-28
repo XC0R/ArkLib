@@ -60,14 +60,14 @@ namespace Interaction
 
 /-! ## Oracle decoration
 
-`OracleDecoration` is a `SenderDecoration` specialized to `OracleInterface`:
-it carries an `OracleInterface X` at each sender node and `PUnit` at receiver
-nodes. -/
+`OracleDecoration` is a `Role.Refine` specialized to `OracleInterface`:
+it carries an `OracleInterface X` at each sender node and recurses directly
+at receiver nodes (no junk data). -/
 
 /-- An `OracleDecoration` assigns an `OracleInterface` instance (as data, not a
-typeclass) to each sender node. Defined as `SenderDecoration OracleInterface`. -/
+typeclass) to each sender node. Defined as `Role.Refine OracleInterface`. -/
 abbrev OracleDecoration (spec : Spec.{0}) (roles : RoleDecoration spec) :=
-  SenderDecoration OracleInterface spec roles
+  Interaction.Role.Refine OracleInterface spec roles
 
 /-! ## Query handles and oracle spec -/
 
@@ -86,7 +86,7 @@ def OracleDecoration.QueryHandle :
   | .done, _, _, _ => Empty
   | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, ⟨x, trRest⟩ =>
       oi.Query ⊕ QueryHandle (rest x) (rRest x) (odRest x) trRest
-  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩, ⟨x, trRest⟩ =>
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, ⟨x, trRest⟩ =>
       QueryHandle (rest x) (rRest x) (odFn x) trRest
 
 /-- The oracle specification for querying sender-node messages along a given
@@ -99,7 +99,7 @@ def OracleDecoration.toOracleSpec :
     fun
     | .inl q => oi.toOC.spec q
     | .inr handle => toOracleSpec (rest x) (rRest x) (odRest x) trRest handle
-  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩, ⟨x, trRest⟩ =>
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, ⟨x, trRest⟩ =>
       toOracleSpec (rest x) (rRest x) (odFn x) trRest
 
 /-- Answer oracle queries using the message values from a transcript. At each
@@ -114,7 +114,7 @@ def OracleDecoration.answerQuery :
     fun
     | .inl q => (oi.toOC.impl q).run x
     | .inr handle => answerQuery (rest x) (rRest x) (odRest x) trRest handle
-  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩, ⟨x, trRest⟩ =>
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, ⟨x, trRest⟩ =>
       answerQuery (rest x) (rRest x) (odFn x) trRest
 
 namespace OracleDecoration
@@ -144,7 +144,7 @@ def OracleCounterpart {ι : Type} (oSpec : OracleSpec ι)
   | .node X rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
       ∀ x : X, OracleCounterpart oSpec OStmtIn
         (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
-  | .node X rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩, _, accSpec =>
+  | .node X rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
       OracleComp (oSpec + [OStmtIn]ₒ + accSpec)
         ((x : X) × OracleCounterpart oSpec OStmtIn
           (rest x) (rRest x) (odFn x) accSpec)
@@ -166,7 +166,7 @@ def InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
   | .node X rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
       ∀ x : X, InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut
         (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
-  | .node X rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩, _, accSpec =>
+  | .node X rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
       OracleComp (oSpec + [OStmtIn]ₒ + accSpec)
         ((x : X) × InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut
           (rest x) (rRest x) (odFn x) accSpec)
@@ -187,7 +187,7 @@ def toOracleCounterpart {ι : Type} {oSpec : OracleSpec ι}
   | .done, _, _ => fun _ => ⟨⟩
   | .node _ rest, ⟨.sender, rRest⟩, ⟨_, odRest⟩ =>
       fun iov x => toOracleCounterpart (rest x) (rRest x) (odRest x) _ (iov x)
-  | .node _ rest, ⟨.receiver, rRest⟩, ⟨_, odFn⟩ =>
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn =>
       fun iov => do
         let ⟨x, iovRest⟩ ← iov
         return ⟨x, toOracleCounterpart (rest x) (rRest x) (odFn x) accSpec iovRest⟩
