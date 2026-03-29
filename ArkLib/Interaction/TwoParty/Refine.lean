@@ -16,7 +16,7 @@ import Mathlib.Logic.Equiv.Defs
 
 `Role.Refine S` carries sender data `S X` and skips receiver nodes (no `PUnit` padding). Conversion
 to `Spec.Decoration.Refine` with fiber `Role.SenderData` is an equivalence; `map` laws commute with
-`append`, `replicate`, and `chain`.
+`append`, `replicate`, and `stateChain`.
 -/
 
 universe u v w w₂
@@ -68,19 +68,19 @@ def replicate {S : Type u → Type v}
   | 0 => ⟨⟩
   | n + 1 => append sd (fun _ => replicate sd n)
 
-/-- Chain a family of refinements along `Spec.chain`. -/
-def chain {S : Type u → Type v}
+/-- Chain a family of refinements along `Spec.stateChain`. -/
+def stateChain {S : Type u → Type v}
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
     (sdeco : (i : Nat) → (s : Stage i) → Role.Refine S (spec i s) (roles i s)) :
     (n : Nat) → (i : Nat) → (s : Stage i) →
-    Role.Refine S (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s)
+    Role.Refine S (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s)
   | 0, _, _ => ⟨⟩
   | n + 1, i, s =>
       append (sdeco i s)
-        (fun tr => chain sdeco n (i + 1) (advance i s tr))
+        (fun tr => stateChain sdeco n (i + 1) (advance i s tr))
 
 end Role.Refine
 
@@ -104,15 +104,15 @@ abbrev SenderDecoration.replicate {S : Type u → Type v}
     SenderDecoration S (spec.replicate n) (roles.replicate n) :=
   Role.Refine.replicate sd n
 
-abbrev SenderDecoration.chain {S : Type u → Type v}
+abbrev SenderDecoration.stateChain {S : Type u → Type v}
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
     (sdeco : (i : Nat) → (s : Stage i) → SenderDecoration S (spec i s) (roles i s))
     (n : Nat) (i : Nat) (s : Stage i) :
-    SenderDecoration S (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s) :=
-  Role.Refine.chain sdeco n i s
+    SenderDecoration S (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) :=
+  Role.Refine.stateChain sdeco n i s
 
 namespace Role
 
@@ -197,23 +197,23 @@ theorem map_replicate {S T : Type u → Type v} (f : ∀ X, S X → T X)
     funext _
     exact ih
 
-theorem map_chain {S T : Type u → Type v} (f : ∀ X, S X → T X)
+theorem map_stateChain {S T : Type u → Type v} (f : ∀ X, S X → T X)
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
     (sdeco : (i : Nat) → (s : Stage i) → Role.Refine S (spec i s) (roles i s)) :
     (n : Nat) → (i : Nat) → (s : Stage i) →
-    map f (Spec.chain Stage spec advance n i s)
-        (RoleDecoration.chain roles n i s) (chain sdeco n i s) =
-      chain (fun j t => map f (spec j t) (roles j t) (sdeco j t)) n i s
+    map f (Spec.stateChain Stage spec advance n i s)
+        (RoleDecoration.stateChain roles n i s) (stateChain sdeco n i s) =
+      stateChain (fun j t => map f (spec j t) (roles j t) (sdeco j t)) n i s
   | 0, _, _ => rfl
   | n + 1, i, s => by
-      simp only [Spec.chain_succ, chain, Spec.Decoration.chain]
+      simp only [Spec.stateChain_succ, stateChain, Spec.Decoration.stateChain]
       rw [map_append f (sdeco i s)
-            (fun tr => chain sdeco n (i + 1) (advance i s tr))]
+            (fun tr => stateChain sdeco n (i + 1) (advance i s tr))]
       refine congrArg (append (map f (spec i s) (roles i s) (sdeco i s))) ?_
       funext tr
-      exact map_chain f sdeco n (i + 1) (advance i s tr)
+      exact map_stateChain f sdeco n (i + 1) (advance i s tr)
 
 def toDecorationRefine {S : Type u → Type v} :
     (spec : Spec) → (roles : RoleDecoration spec) →

@@ -13,7 +13,7 @@ import ArkLib.Interaction.TwoParty.Strategy
 # Composing two-party protocols
 
 Role-aware composition of strategies and counterparts along `Spec.append`, `Spec.replicate`,
-and `Spec.chain`. Each combinator dispatches on the role at each node—sending or receiving—to
+and `Spec.stateChain`. Each combinator dispatches on the role at each node—sending or receiving—to
 compose the two-party strategies correctly.
 
 For binary composition, `compWithRoles` and `Counterpart.append` use `Transcript.liftAppend`
@@ -122,6 +122,31 @@ def Counterpart.appendFlat {m : Type u → Type u} [Monad m]
       let ⟨x, cRest⟩ ← c₁
       return ⟨x, Counterpart.appendFlat cRest (fun p o => c₂ ⟨x, p⟩ o)⟩
 
+/-- Compose per-node-monad counterparts along `Spec.append` with a two-argument
+output family lifted through `Transcript.liftAppend`. At each node, the recursive
+composition is lifted through the node's `BundledMonad` via `Functor.map`. -/
+def Counterpart.withMonads.append
+    {s₁ : Spec} {s₂ : Transcript s₁ → Spec}
+    {r₁ : RoleDecoration s₁}
+    {r₂ : (tr₁ : Transcript s₁) → RoleDecoration (s₂ tr₁)}
+    {md₁ : MonadDecoration s₁}
+    {md₂ : (tr₁ : Transcript s₁) → MonadDecoration (s₂ tr₁)}
+    {Output₁ : Transcript s₁ → Type u}
+    {F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u} :
+    Counterpart.withMonads s₁ r₁ md₁ Output₁ →
+    ((tr₁ : Transcript s₁) → Output₁ tr₁ →
+      Counterpart.withMonads (s₂ tr₁) (r₂ tr₁) (md₂ tr₁) (F tr₁)) →
+    Counterpart.withMonads (s₁.append s₂) (r₁.append r₂)
+      (Decoration.append md₁ md₂) (Transcript.liftAppend s₁ s₂ F) :=
+  match s₁, r₁, md₁ with
+  | .done, _, _ => fun out₁ c₂ => c₂ ⟨⟩ out₁
+  | .node _ _, ⟨.sender, _⟩, ⟨_, _⟩ => fun c₁ c₂ =>
+      fun x => Functor.map
+        (fun rec => append rec (fun p o => c₂ ⟨x, p⟩ o)) (c₁ x)
+  | .node _ _, ⟨.receiver, _⟩, ⟨_, _⟩ => fun c₁ c₂ =>
+      Functor.map
+        (fun ⟨x, rec⟩ => ⟨x, append rec (fun p o => c₂ ⟨x, p⟩ o)⟩) c₁
+
 /-- Run a strategy against a counterpart on a composed interaction. -/
 def Strategy.runWithRolesAppend {m : Type u → Type u} [Monad m]
     {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
@@ -189,22 +214,22 @@ def Strategy.iterateWithRolesUniform {m : Type u → Type u} [Monad m]
 
 end Spec
 
-/-- Role decoration along `Spec.chain`: use `roles i s` at each stage. -/
-abbrev RoleDecoration.chain
+/-- Role decoration along `Spec.stateChain`: use `roles i s` at each stage. -/
+abbrev RoleDecoration.stateChain
     {Stage : Nat → Type v} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     (roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s))
     (n : Nat) (i : Nat) (s : Stage i) :
-    RoleDecoration (Spec.chain Stage spec advance n i s) :=
-  Spec.Decoration.chain roles n i s
+    RoleDecoration (Spec.stateChain Stage spec advance n i s) :=
+  Spec.Decoration.stateChain roles n i s
 
 namespace Spec
 
-/-- Compose counterparts along a chain with stage-dependent output. At each stage,
+/-- Compose counterparts along a state chain with stage-dependent output. At each stage,
 the step transforms `Family i s` into a counterpart whose output is
-`Family (i+1) (advance i s tr)`. The full chain output is
-`Transcript.chainFamily Family`. -/
-def Counterpart.chainComp {m : Type u → Type u} [Monad m]
+`Family (i+1) (advance i s tr)`. The full state chain output is
+`Transcript.stateChainFamily Family`. -/
+def Counterpart.stateChainComp {m : Type u → Type u} [Monad m]
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
@@ -212,15 +237,15 @@ def Counterpart.chainComp {m : Type u → Type u} [Monad m]
     (step : (i : Nat) → (s : Stage i) → Family i s →
       Counterpart m (spec i s) (roles i s) (fun tr => Family (i + 1) (advance i s tr))) :
     (n : Nat) → (i : Nat) → (s : Stage i) → Family i s →
-    Counterpart m (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s) (Spec.Transcript.chainFamily Family n i s)
+    Counterpart m (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) (Spec.Transcript.stateChainFamily Family n i s)
   | 0, _, _, b => b
   | n + 1, i, s, b =>
       Counterpart.append (step i s b)
-        (fun tr b' => chainComp step n (i + 1) (advance i s tr) b')
+        (fun tr b' => stateChainComp step n (i + 1) (advance i s tr) b')
 
-/-- Uniform `Counterpart.chainComp` with a fixed output type `β` at every stage. -/
-def Counterpart.chainCompUniform {m : Type u → Type u} [Monad m]
+/-- Uniform `Counterpart.stateChainComp` with a fixed output type `β` at every stage. -/
+def Counterpart.stateChainCompUniform {m : Type u → Type u} [Monad m]
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
@@ -228,18 +253,18 @@ def Counterpart.chainCompUniform {m : Type u → Type u} [Monad m]
     (step : (i : Nat) → (s : Stage i) → β →
       Counterpart m (spec i s) (roles i s) (fun _ => β)) :
     (n : Nat) → (i : Nat) → (s : Stage i) → β →
-    Counterpart m (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s) (fun _ => β)
+    Counterpart m (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) (fun _ => β)
   | 0, _, _, b => b
   | n + 1, i, s, b =>
       Counterpart.appendFlat (step i s b)
-        (fun tr b' => chainCompUniform step n (i + 1) (advance i s tr) b')
+        (fun tr b' => stateChainCompUniform step n (i + 1) (advance i s tr) b')
 
-/-- Compose role-aware strategies along a chain with stage-dependent output.
+/-- Compose role-aware strategies along a state chain with stage-dependent output.
 At each stage, the step transforms `Family i s` into a strategy whose output is
-`Family (i+1) (advance i s tr)`. The full chain output is
-`Transcript.chainFamily Family`. -/
-def Strategy.chainCompWithRoles {m : Type u → Type u} [Monad m]
+`Family (i+1) (advance i s tr)`. The full state chain output is
+`Transcript.stateChainFamily Family`. -/
+def Strategy.stateChainCompWithRoles {m : Type u → Type u} [Monad m]
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
@@ -248,16 +273,16 @@ def Strategy.chainCompWithRoles {m : Type u → Type u} [Monad m]
       m (Strategy.withRoles m (spec i s) (roles i s)
         (fun tr => Family (i + 1) (advance i s tr)))) :
     (n : Nat) → (i : Nat) → (s : Stage i) → Family i s →
-    m (Strategy.withRoles m (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s) (Spec.Transcript.chainFamily Family n i s))
+    m (Strategy.withRoles m (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) (Spec.Transcript.stateChainFamily Family n i s))
   | 0, _, _, a => pure a
   | n + 1, i, s, a => do
     let strat ← step i s a
     compWithRoles strat
-      (fun tr mid => chainCompWithRoles step n (i + 1) (advance i s tr) mid)
+      (fun tr mid => stateChainCompWithRoles step n (i + 1) (advance i s tr) mid)
 
-/-- Uniform `Strategy.chainCompWithRoles` with a fixed output type `α` at every stage. -/
-def Strategy.chainCompWithRolesUniform {m : Type u → Type u} [Monad m]
+/-- Uniform `Strategy.stateChainCompWithRoles` with a fixed output type `α` at every stage. -/
+def Strategy.stateChainCompWithRolesUniform {m : Type u → Type u} [Monad m]
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
     {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
@@ -265,13 +290,36 @@ def Strategy.chainCompWithRolesUniform {m : Type u → Type u} [Monad m]
     (step : (i : Nat) → (s : Stage i) → α →
       m (Strategy.withRoles m (spec i s) (roles i s) (fun _ => α))) :
     (n : Nat) → (i : Nat) → (s : Stage i) → α →
-    m (Strategy.withRoles m (Spec.chain Stage spec advance n i s)
-      (RoleDecoration.chain roles n i s) (fun _ => α))
+    m (Strategy.withRoles m (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) (fun _ => α))
   | 0, _, _, a => pure a
   | n + 1, i, s, a => do
     let strat ← step i s a
     compWithRolesFlat strat
-      (fun tr mid => chainCompWithRolesUniform step n (i + 1) (advance i s tr) mid)
+      (fun tr mid => stateChainCompWithRolesUniform step n (i + 1) (advance i s tr) mid)
+
+/-- Compose per-node-monad counterparts along a state chain with stage-dependent output.
+At each stage, the step transforms `Family i s` into a counterpart whose output is
+`Family (i+1) (advance i s tr)`. The full state chain output is
+`Transcript.stateChainFamily Family`. -/
+def Counterpart.withMonads.stateChainComp
+    {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    {md : (i : Nat) → (s : Stage i) → MonadDecoration (spec i s)}
+    {Family : (i : Nat) → Stage i → Type u}
+    (step : (i : Nat) → (s : Stage i) → Family i s →
+      Counterpart.withMonads (spec i s) (roles i s) (md i s)
+        (fun tr => Family (i + 1) (advance i s tr))) :
+    (n : Nat) → (i : Nat) → (s : Stage i) → Family i s →
+    Counterpart.withMonads (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s)
+      (Decoration.stateChain md n i s)
+      (Spec.Transcript.stateChainFamily Family n i s)
+  | 0, _, _, b => b
+  | n + 1, i, s, b =>
+      Counterpart.withMonads.append (step i s b)
+        (fun tr b' => stateChainComp step n (i + 1) (advance i s tr) b')
 
 end Spec
 end Interaction

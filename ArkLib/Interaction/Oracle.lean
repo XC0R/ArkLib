@@ -21,13 +21,17 @@ computation model. It introduces:
 - `OracleDecoration.toOracleSpec` — the VCVio `OracleSpec` for querying sender
   messages along a given transcript path.
 
-- `OracleCounterpart` — the round-by-round challenger with growing oracle access.
-  At each sender node the oracle spec accumulates the new interface; at receiver
-  nodes the challenger computes a challenge in `OracleComp` with current access.
-- `InteractiveOracleVerifier` — a unified structure that is `OracleCounterpart`
-  at internal nodes and a verification function at `.done`.
-- `OracleVerifier` — the batch structure with `iov`, `simulate`, and `reify`.
-- `OracleProver` / `OracleReduction` — prover and reduction with oracle statements.
+- `OracleDecoration.toMonadDecoration` — bridge from oracle decoration to per-node
+  `MonadDecoration`: sender nodes get `Id`, receiver nodes get `OracleComp`.
+- `OracleDecoration.liftOutput` — converts oracle-spec-indexed output to
+  transcript-indexed output by threading the accumulated spec.
+- `OracleCounterpart` — round-by-round challenger with growing oracle access,
+  unified as `Counterpart.withMonads` via `toMonadDecoration`.
+- `InteractiveOracleVerifier` — an `OracleCounterpart` whose output is a
+  verification function.
+- `OracleVerifier` — batch structure with `iov`, `simulate`, and `reify`.
+- `OracleProver` / `OracleReduction` — prover and reduction with oracle statements,
+  using the full dependency chain.
 
 ## Path-dependent oracle access
 
@@ -35,20 +39,24 @@ In a W-type interaction spec, move types at each node depend on prior moves.
 Consequently, the oracle interfaces available to the verifier depend on the
 actual transcript. This is reflected in the type of `toOracleSpec`: it takes a
 `Transcript` and produces an `OracleSpec` over `QueryHandle` for that specific
-path. The verifier's verification function is therefore a dependent function whose
-oracle monad varies with the transcript.
+path.
 
-This is a fundamental difference from the old flat `ProtocolSpec n` approach,
-where message types were independent of prior moves and the oracle spec was
-static.
+## Unification with `Counterpart.withMonads`
 
-## Growing oracle access
+`OracleCounterpart` is defined as `Counterpart.withMonads` with a
+`MonadDecoration` computed from the oracle decoration via `toMonadDecoration`.
+Sender nodes use `Id` (pure observation, `Id α = α` definitionally) and receiver
+nodes use `OracleComp` with the current accumulated oracle access. This means all
+generic `Counterpart.withMonads` composition combinators automatically apply to
+oracle counterparts.
 
-The `OracleCounterpart` and `InteractiveOracleVerifier` model the key concept
-of **growing oracle access**: the accumulated oracle spec starts at `[]ₒ` and
-grows at each sender node by the `OracleInterface.spec` of that node's message
-type. This faithfully models the verifier gaining oracle access to each prover
-message as it arrives, which is essential for non-public-coin protocols.
+## Universe constraints
+
+The oracle decoration layer (`OracleDecoration`, `QueryHandle`, `toOracleSpec`,
+`answerQuery`) is universe-polymorphic in the `Spec` universe. Downstream
+definitions (`toMonadDecoration`, `OracleCounterpart`, `OracleVerifier`,
+`OracleProver`, `OracleReduction`) are at `Spec.{0}` because `OracleComp`
+requires `Type → Type`.
 -/
 
 universe u
@@ -65,7 +73,7 @@ at receiver nodes (no junk data). -/
 
 /-- An `OracleDecoration` assigns an `OracleInterface` instance (as data, not a
 typeclass) to each sender node. Defined as `Role.Refine OracleInterface`. -/
-abbrev OracleDecoration (spec : Spec.{0}) (roles : RoleDecoration spec) :=
+abbrev OracleDecoration (spec : Spec) (roles : RoleDecoration spec) :=
   Interaction.Role.Refine OracleInterface spec roles
 
 /-! ## Query handles and oracle spec -/
@@ -80,7 +88,7 @@ At receiver nodes, there is no oracle to query, so we recurse immediately.
 The transcript parameter ensures that the index type is well-typed: it
 determines which subtree (and hence which oracle interfaces) are reachable. -/
 def OracleDecoration.QueryHandle :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
+    (spec : Spec) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
     Spec.Transcript spec → Type
   | .done, _, _, _ => Empty
   | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, ⟨x, trRest⟩ =>
@@ -91,7 +99,7 @@ def OracleDecoration.QueryHandle :
 /-- The oracle specification for querying sender-node messages along a given
 transcript path. Maps each `QueryHandle` to its response type. -/
 def OracleDecoration.toOracleSpec :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) → (od : OracleDecoration spec roles) →
+    (spec : Spec) → (roles : RoleDecoration spec) → (od : OracleDecoration spec roles) →
     (tr : Spec.Transcript spec) → OracleSpec (QueryHandle spec roles od tr)
   | .done, _, _, _ => Empty.elim
   | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, ⟨x, trRest⟩ =>
@@ -105,7 +113,7 @@ def OracleDecoration.toOracleSpec :
 sender node, the transcript provides the actual move `x : X`, which is used as
 the message argument to `OracleInterface`'s implementation. -/
 def OracleDecoration.answerQuery :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) → (od : OracleDecoration spec roles) →
+    (spec : Spec) → (roles : RoleDecoration spec) → (od : OracleDecoration spec roles) →
     (tr : Spec.Transcript spec) →
     QueryImpl (toOracleSpec spec roles od tr) Id
   | .done, _, _, _ => fun q => q.elim
@@ -118,38 +126,66 @@ def OracleDecoration.answerQuery :
 
 namespace OracleDecoration
 
-/-! ## Oracle counterpart (interactive challenger)
+/-! ## Bridge definitions
 
-The `OracleCounterpart` processes the protocol round by round, accumulating
-oracle access to prover messages:
+These definitions bridge `OracleDecoration` to `MonadDecoration` and
+transcript-indexed output, enabling the unification of `OracleCounterpart`
+with `Counterpart.withMonads`. The oracle computation monad `OracleComp`
+constrains these definitions to `Spec.{0}`. -/
 
-- At **sender** nodes: the verifier observes the message (Pi), and the
-  accumulated oracle spec grows by `oi.spec` (= `oi.toOC.spec`).
-- At **receiver** nodes: the verifier computes a challenge (Sigma) in
-  `OracleComp` with the current accumulated oracle access.
-- At **done**: produces `Output accSpec`.
+/-- Compute the per-node `MonadDecoration` from an oracle decoration and
+accumulated oracle spec. Sender nodes get `Id` (pure observation, `Id α = α`
+definitionally), receiver nodes get `OracleComp (oSpec + [OStmtIn]ₒ + accSpec)`
+(oracle computation with current access). The accumulated spec grows at sender
+nodes and stays fixed at receiver nodes. -/
+def toMonadDecoration {ι : Type} (oSpec : OracleSpec ι)
+    {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) [∀ i, OracleInterface (OStmtIn i)] :
+    (spec : Spec) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
+    {ιₐ : Type} → OracleSpec ιₐ → Spec.MonadDecoration spec
+  | .done, _, _, _, _ => ⟨⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
+      ⟨⟨Id, inferInstance⟩,
+       fun x => toMonadDecoration oSpec OStmtIn (rest x) (rRest x) (odRest x)
+         (accSpec + @OracleInterface.spec _ oi)⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
+      ⟨⟨OracleComp (oSpec + [OStmtIn]ₒ + accSpec), inferInstance⟩,
+       fun x => toMonadDecoration oSpec OStmtIn (rest x) (rRest x) (odFn x) accSpec⟩
 
-The `accSpec` parameter tracks the oracle spec accumulated so far from
-previously seen sender-node messages. The `Output` parameter determines
-what the counterpart produces at `.done` — it depends on the final
-accumulated oracle spec. -/
-
-/-- Round-by-round challenger with growing oracle access at sender nodes and
-explicit output at `.done`. The accumulated oracle spec `accSpec` starts at
-`[]ₒ` and grows by `oi.toOC.spec` at each sender node. -/
-def OracleCounterpart {ι : Type} (oSpec : OracleSpec ι)
-    {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) [∀ i, OracleInterface (OStmtIn i)]
+/-- Convert oracle-spec-indexed output to transcript-indexed output by threading
+the accumulated oracle spec through the tree. At each `.done` node, applies
+`Output` to the final accumulated spec. At sender nodes, the accumulated spec
+grows by the sender's oracle interface spec. At receiver nodes, the accumulated
+spec is unchanged. -/
+def liftOutput
     (Output : {ιₐ : Type} → OracleSpec ιₐ → Type) :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
-    {ιₐ : Type} → OracleSpec ιₐ → Type
-  | .done, _, _, _, accSpec => Output accSpec
-  | .node X rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
-      ∀ x : X, OracleCounterpart oSpec OStmtIn Output
-        (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
-  | .node X rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
-      OracleComp (oSpec + [OStmtIn]ₒ + accSpec)
-        ((x : X) × OracleCounterpart oSpec OStmtIn Output
-          (rest x) (rRest x) (odFn x) accSpec)
+    (spec : Spec) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
+    {ιₐ : Type} → OracleSpec ιₐ → Spec.Transcript spec → Type
+  | .done, _, _, _, accSpec, _ => Output accSpec
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec, ⟨x, trRest⟩ =>
+      liftOutput Output (rest x) (rRest x) (odRest x)
+        (accSpec + @OracleInterface.spec _ oi) trRest
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, _, accSpec, ⟨x, trRest⟩ =>
+      liftOutput Output (rest x) (rRest x) (odFn x) accSpec trRest
+
+/-! ## Oracle counterpart (unified with `Counterpart.withMonads`)
+
+`OracleCounterpart` is the round-by-round challenger with growing oracle access,
+defined as `Counterpart.withMonads` with the `MonadDecoration` computed from
+the oracle decoration. At sender nodes the monad is `Id` (pure observation);
+at receiver nodes the monad is `OracleComp` with accumulated oracle access. -/
+
+/-- Round-by-round challenger with growing oracle access, defined as
+`Counterpart.withMonads` with the monad decoration computed from the oracle
+decoration. The oracle-spec-indexed `Output` is converted to a
+transcript-indexed family by `liftOutput`. -/
+abbrev OracleCounterpart {ι : Type} (oSpec : OracleSpec ι)
+    {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) [∀ i, OracleInterface (OStmtIn i)]
+    (Output : {ιₐ : Type} → OracleSpec ιₐ → Type)
+    (spec : Spec) (roles : RoleDecoration spec) (od : OracleDecoration spec roles)
+    {ιₐ : Type} (accSpec : OracleSpec ιₐ) :=
+  Spec.Counterpart.withMonads spec roles
+    (toMonadDecoration oSpec OStmtIn spec roles od accSpec)
+    (liftOutput Output spec roles od accSpec)
 
 /-- `InteractiveOracleVerifier` is an `OracleCounterpart` whose output at
 `.done` is a verification function: given the statement and accumulated
@@ -157,7 +193,7 @@ oracle access, produce `OptionT (OracleComp ...) StmtOut`. -/
 abbrev InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
     (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
     (StmtOut : Type) [∀ i, OracleInterface (OStmtIn i)]
-    (spec : Spec.{0}) (roles : RoleDecoration spec)
+    (spec : Spec) (roles : RoleDecoration spec)
     (od : OracleDecoration spec roles)
     {ιₐ : Type} (accSpec : OracleSpec ιₐ) :=
   OracleCounterpart oSpec OStmtIn
@@ -167,12 +203,14 @@ abbrev InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
 
 /-! ## Conversions -/
 
-/-- Map the output of an `OracleCounterpart`, applying `f` at `.done`. -/
+/-- Map the output of an `OracleCounterpart`, applying `f` at each `.done` leaf.
+At sender nodes (monad = `Id`), the map is applied purely. At receiver nodes
+(monad = `OracleComp`), the map is lifted through the oracle computation. -/
 def OracleCounterpart.mapOutput {ι : Type} {oSpec : OracleSpec ι}
     {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
     {Output₁ Output₂ : {ιₐ : Type} → OracleSpec ιₐ → Type}
     (f : ∀ {ιₐ : Type} (accSpec : OracleSpec ιₐ), Output₁ accSpec → Output₂ accSpec) :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) →
+    (spec : Spec) → (roles : RoleDecoration spec) →
     (od : OracleDecoration spec roles) →
     {ιₐ : Type} → (accSpec : OracleSpec ιₐ) →
     OracleCounterpart oSpec OStmtIn Output₁ spec roles od accSpec →
@@ -197,7 +235,7 @@ the oracle spec available depends on the path through the interaction tree. -/
 
 /-- Full oracle verifier with `simulate` and `reify` fields for oracle output. -/
 structure OracleVerifier {ι : Type} (oSpec : OracleSpec ι)
-    (pSpec : Spec.{0}) (roles : RoleDecoration pSpec)
+    (pSpec : Spec) (roles : RoleDecoration pSpec)
     (oracleDec : OracleDecoration pSpec roles)
     (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
     (StmtOut : Type) {ιₛₒ : Type} (OStmtOut : ιₛₒ → Type)
@@ -212,28 +250,207 @@ structure OracleVerifier {ι : Type} (oSpec : OracleSpec ι)
 
 /-! ## Oracle prover and oracle reduction -/
 
-/-- Oracle prover: a prover whose statement includes oracle data as an
-indexed family. Runs in `OracleComp oSpec`. The prover's output bundles
-the output witness with the output oracle data. -/
-abbrev OracleProver {ι : Type} (oSpec : OracleSpec ι)
-    (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) (WitIn : Type)
-    (StmtOut : Type) {ιₛₒ : Type} (OStmtOut : ιₛₒ → Type) (WitOut : Type)
-    (pSpec : Spec.{0}) (roles : RoleDecoration pSpec) :=
-  Prover (OracleComp oSpec)
-    (StmtIn × (∀ i, OStmtIn i)) WitIn
-    (fun _ => pSpec) (fun _ => roles)
-    (fun _ _ => (StmtOut × (∀ i, OStmtOut i)) × WitOut)
+/-- Oracle prover: given a statement `s : StatementIn` augmented with oracle data
+`∀ i, OStmtIn i`, performs monadic setup in `OracleComp oSpec` and produces a
+role-dependent strategy. Uses the full dependency chain: `Context`, `Roles`,
+and `WitnessOut` all depend on the statement.
 
-/-- Oracle reduction: pairs an oracle prover with an oracle verifier. -/
+This is a specialization of `Prover` with `m = OracleComp oSpec` and the
+statement type augmented with oracle data. -/
+abbrev OracleProver {ι : Type} (oSpec : OracleSpec ι)
+    (StatementIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
+    (WitnessIn : Type)
+    (Context : StatementIn → Spec)
+    (Roles : (s : StatementIn) → RoleDecoration (Context s))
+    (WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) :=
+  Prover (OracleComp oSpec)
+    (StatementIn × (∀ i, OStmtIn i)) WitnessIn
+    (fun ⟨s, _⟩ => Context s) (fun ⟨s, _⟩ => Roles s) (fun ⟨s, _⟩ tr => WitnessOut s tr)
+
+/-- Oracle reduction: pairs an oracle prover with a verifier that uses per-node
+monads (`Id` at sender, `OracleComp` at receiver) via `Counterpart.withMonads`.
+This is the oracle analog of `Reduction`, where the verifier's per-node monad
+structure (growing oracle access) replaces the fixed monad of `Counterpart`.
+
+Uses the full dependency chain: `Context`, `Roles`, oracle decoration `OD`,
+`StatementOut`, and `WitnessOut` all depend on the statement. -/
 structure OracleReduction {ι : Type} (oSpec : OracleSpec ι)
-    (pSpec : Spec.{0}) (roles : RoleDecoration pSpec)
-    (oracleDec : OracleDecoration pSpec roles)
-    (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) (WitIn : Type)
-    (StmtOut : Type) {ιₛₒ : Type} (OStmtOut : ιₛₒ → Type) (WitOut : Type)
+    (StatementIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
     [∀ i, OracleInterface (OStmtIn i)]
-    [∀ i, OracleInterface (OStmtOut i)] where
-  prover : OracleProver oSpec StmtIn OStmtIn WitIn StmtOut OStmtOut WitOut pSpec roles
-  verifier : OracleVerifier oSpec pSpec roles oracleDec StmtIn OStmtIn StmtOut OStmtOut
+    (WitnessIn : Type)
+    (Context : StatementIn → Spec)
+    (Roles : (s : StatementIn) → RoleDecoration (Context s))
+    (OD : (s : StatementIn) → OracleDecoration (Context s) (Roles s))
+    (StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) where
+  prover : OracleProver oSpec StatementIn OStmtIn WitnessIn Context Roles WitnessOut
+  verifier : (s : StatementIn) →
+    Spec.Counterpart.withMonads (Context s) (Roles s)
+      (toMonadDecoration oSpec OStmtIn (Context s) (Roles s) (OD s) (ιₐ := PEmpty) []ₒ)
+      (fun tr => StatementOut s tr)
+
+/-! ## Composition infrastructure
+
+To compose oracle reductions, we need that `toMonadDecoration` distributes over
+`Spec.append` and `Spec.stateChain`. The accumulated oracle spec after the first phase
+serves as the starting spec for the second phase. -/
+
+/-- Accumulated oracle spec after traversing `spec` along transcript `tr`,
+starting from `accSpec`. At sender nodes, adds the node's oracle interface spec.
+At receiver nodes, the accumulated spec is unchanged. -/
+def accSpecAfter :
+    (spec : Spec) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
+    {ιₐ : Type} → OracleSpec ιₐ → Spec.Transcript spec →
+    Σ (ιₐ' : Type), OracleSpec ιₐ'
+  | .done, _, _, _, accSpec, _ => ⟨_, accSpec⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec, ⟨x, trRest⟩ =>
+      accSpecAfter (rest x) (rRest x) (odRest x)
+        (accSpec + @OracleInterface.spec _ oi) trRest
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, _, accSpec, ⟨x, trRest⟩ =>
+      accSpecAfter (rest x) (rRest x) (odFn x) accSpec trRest
+
+/-- `toMonadDecoration` distributes over `Spec.append`: the monad decoration for
+the appended spec equals `Decoration.append` of the individual monad decorations,
+where the second phase starts from the accumulated oracle spec of the first. -/
+theorem toMonadDecoration_append
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)] :
+    (spec₁ : Spec) → (spec₂ : Spec.Transcript spec₁ → Spec) →
+    (roles₁ : RoleDecoration spec₁) →
+    (roles₂ : (tr₁ : Spec.Transcript spec₁) → RoleDecoration (spec₂ tr₁)) →
+    (od₁ : OracleDecoration spec₁ roles₁) →
+    (od₂ : (tr₁ : Spec.Transcript spec₁) → OracleDecoration (spec₂ tr₁) (roles₂ tr₁)) →
+    {ιₐ : Type} → (accSpec : OracleSpec ιₐ) →
+    toMonadDecoration oSpec OStmtIn (spec₁.append spec₂)
+      (Spec.Decoration.append roles₁ roles₂) (Role.Refine.append od₁ od₂) accSpec =
+    Spec.Decoration.append (toMonadDecoration oSpec OStmtIn spec₁ roles₁ od₁ accSpec)
+      (fun tr₁ => toMonadDecoration oSpec OStmtIn (spec₂ tr₁) (roles₂ tr₁) (od₂ tr₁)
+        (accSpecAfter spec₁ roles₁ od₁ accSpec tr₁).2)
+  | .done, _, _, _, _, _, _, _ => rfl
+  | .node _ rest, spec₂, ⟨.sender, rRest⟩, roles₂, ⟨oi, odRest⟩, od₂, _, accSpec => by
+      simp only [Spec.append, toMonadDecoration, Spec.Decoration.append,
+        Role.Refine.append, accSpecAfter]
+      congr 1; funext x
+      exact toMonadDecoration_append (rest x) (fun p => spec₂ ⟨x, p⟩)
+        (rRest x) (fun p => roles₂ ⟨x, p⟩) (odRest x) (fun p => od₂ ⟨x, p⟩) _
+  | .node _ rest, spec₂, ⟨.receiver, rRest⟩, roles₂, odFn, od₂, _, accSpec => by
+      simp only [Spec.append, toMonadDecoration, Spec.Decoration.append,
+        Role.Refine.append, accSpecAfter]
+      congr 1; funext x
+      exact toMonadDecoration_append (rest x) (fun p => spec₂ ⟨x, p⟩)
+        (rRest x) (fun p => roles₂ ⟨x, p⟩) (odFn x) (fun p => od₂ ⟨x, p⟩) _
+
+/-! ## Oracle reduction composition -/
+
+/-- Binary sequential composition of oracle reductions. The first reduction runs
+over `ctx₁`, producing intermediate outputs. The second-phase prover and verifier
+receive these intermediate outputs and run over `ctx₂`.
+
+The second verifier's monad decoration uses `accSpecAfter` to determine the
+oracle spec accumulated from the first phase. -/
+def OracleReduction.comp {ι : Type} {oSpec : OracleSpec ι}
+    {StatementIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
+    [∀ i, OracleInterface (OStmtIn i)]
+    {WitnessIn : Type}
+    {ctx₁ : StatementIn → Spec}
+    {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
+    {OD₁ : (s : StatementIn) → OracleDecoration (ctx₁ s) (roles₁ s)}
+    {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type}
+    {ctx₂ : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Spec}
+    {roles₂ : (s : StatementIn) → (tr₁ : Spec.Transcript (ctx₁ s)) →
+      RoleDecoration (ctx₂ s tr₁)}
+    {OD₂ : (s : StatementIn) → (tr₁ : Spec.Transcript (ctx₁ s)) →
+      OracleDecoration (ctx₂ s tr₁) (roles₂ s tr₁)}
+    {StmtOut₂ WitOut₂ : (s : StatementIn) → (tr₁ : Spec.Transcript (ctx₁ s)) →
+      Spec.Transcript (ctx₂ s tr₁) → Type}
+    (r₁ : OracleReduction oSpec StatementIn OStmtIn WitnessIn
+      ctx₁ roles₁ OD₁ StmtMid WitMid)
+    (prover₂ : (s : StatementIn × (∀ i, OStmtIn i)) →
+      (tr₁ : Spec.Transcript (ctx₁ s.1)) → WitMid s.1 tr₁ →
+        OracleComp oSpec (Spec.Strategy.withRoles (OracleComp oSpec)
+          (ctx₂ s.1 tr₁) (roles₂ s.1 tr₁) (WitOut₂ s.1 tr₁)))
+    (verifier₂ : (s : StatementIn) → (tr₁ : Spec.Transcript (ctx₁ s)) →
+      StmtMid s tr₁ →
+        Spec.Counterpart.withMonads (ctx₂ s tr₁) (roles₂ s tr₁)
+          (toMonadDecoration oSpec OStmtIn (ctx₂ s tr₁) (roles₂ s tr₁) (OD₂ s tr₁)
+            (accSpecAfter (ctx₁ s) (roles₁ s) (OD₁ s) []ₒ tr₁).2)
+          (StmtOut₂ s tr₁)) :
+    OracleReduction oSpec StatementIn OStmtIn WitnessIn
+      (fun s => (ctx₁ s).append (ctx₂ s))
+      (fun s => (roles₁ s).append (roles₂ s))
+      (fun s => Role.Refine.append (OD₁ s) (fun tr₁ => OD₂ s tr₁))
+      (fun s => Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut₂ s))
+      (fun s => Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut₂ s)) where
+  prover sWithOracles w := do
+    let strat₁ ← r₁.prover sWithOracles w
+    Spec.Strategy.compWithRoles strat₁
+      (fun tr₁ wMid => prover₂ sWithOracles tr₁ wMid)
+  verifier s := by
+    rw [toMonadDecoration_append]
+    exact Spec.Counterpart.withMonads.append (r₁.verifier s)
+      (fun tr₁ sMid => verifier₂ s tr₁ sMid)
+
+/-- `toMonadDecoration` distributes over `Spec.stateChain`: the monad decoration for
+the chained spec equals `Decoration.stateChain` of per-stage monad decorations,
+where each stage starts from the accumulated oracle spec of preceding stages. -/
+private theorem toMonadDecoration_chain
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
+    {Stage : Nat → Type} {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    (od : (i : Nat) → (s : Stage i) → OracleDecoration (spec i s) (roles i s))
+    {ιₐ : Type} (accSpec : OracleSpec ιₐ) :
+    (n : Nat) → (i : Nat) → (s : Stage i) →
+    toMonadDecoration oSpec OStmtIn (Spec.stateChain Stage spec advance n i s)
+      (RoleDecoration.stateChain roles n i s) (Role.Refine.stateChain od n i s) accSpec =
+    Spec.Decoration.stateChain
+      (fun j st => toMonadDecoration oSpec OStmtIn (spec j st) (roles j st) (od j st) accSpec)
+      n i s
+  | 0, _, _ => rfl
+  | n + 1, i, s => by
+      simp only [Spec.stateChain_succ, Spec.Decoration.stateChain, Role.Refine.stateChain]
+      rw [toMonadDecoration_append]
+      congr 1; funext tr
+      sorry
+
+/-- N-ary state chain composition of oracle reductions. At each stage, the step functions
+transform prover state and verifier state. Each stage's verifier sees oracle
+access from `oSpec + [OStmtIn]ₒ` plus the accumulated spec. -/
+def OracleReduction.stateChainComp {ι : Type} {oSpec : OracleSpec ι}
+    {StatementIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
+    [∀ i, OracleInterface (OStmtIn i)]
+    {WitnessIn : Type}
+    {Stage : Nat → Type}
+    {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    {od : (i : Nat) → (s : Stage i) → OracleDecoration (spec i s) (roles i s)}
+    {ProverState VerifierState : (i : Nat) → Stage i → Type}
+    (n : Nat)
+    (initStage : StatementIn → Stage 0)
+    (proverInit : (s : StatementIn × (∀ i, OStmtIn i)) → WitnessIn →
+      OracleComp oSpec (ProverState 0 (initStage s.1)))
+    (proverStep : (i : Nat) → (st : Stage i) → ProverState i st →
+      OracleComp oSpec (Spec.Strategy.withRoles (OracleComp oSpec) (spec i st) (roles i st)
+        (fun tr => ProverState (i + 1) (advance i st tr))))
+    (verifierInit : (s : StatementIn) → VerifierState 0 (initStage s))
+    (verifierStep : (i : Nat) → (st : Stage i) → VerifierState i st →
+      Spec.Counterpart.withMonads (spec i st) (roles i st)
+        (toMonadDecoration oSpec OStmtIn (spec i st) (roles i st) (od i st)
+          (ιₐ := PEmpty) []ₒ)
+        (fun tr => VerifierState (i + 1) (advance i st tr))) :
+    OracleReduction oSpec StatementIn OStmtIn WitnessIn
+      (fun s => Spec.stateChain Stage spec advance n 0 (initStage s))
+      (fun s => RoleDecoration.stateChain roles n 0 (initStage s))
+      (fun s => Role.Refine.stateChain (fun i st => od i st) n 0 (initStage s))
+      (fun s => Spec.Transcript.stateChainFamily VerifierState n 0 (initStage s))
+      (fun s => Spec.Transcript.stateChainFamily ProverState n 0 (initStage s)) where
+  prover sWithOracles w := do
+    let a ← proverInit sWithOracles w
+    Spec.Strategy.stateChainCompWithRoles proverStep n 0 (initStage sWithOracles.1) a
+  verifier s := by
+    rw [toMonadDecoration_chain]
+    exact Spec.Counterpart.withMonads.stateChainComp verifierStep n 0 (initStage s) (verifierInit s)
 
 end OracleDecoration
 

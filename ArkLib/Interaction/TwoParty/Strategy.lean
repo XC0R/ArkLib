@@ -47,6 +47,28 @@ def Counterpart (m : Type u → Type u) :
       role.Dual m X (fun x => Counterpart m (rest x) (dRest x)
         (fun p => Output ⟨x, p⟩))
 
+/-- Functorial output map for role-dependent strategies. -/
+def Strategy.mapOutputWithRoles {m : Type u → Type u} [Functor m] :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {A B : Transcript spec → Type u} →
+    (∀ tr, A tr → B tr) → Strategy.withRoles m spec roles A → Strategy.withRoles m spec roles B
+  | .done, _, _, _, f, a => f ⟨⟩ a
+  | .node _ _, ⟨.sender, _⟩, _, _, f, ⟨x, cont⟩ =>
+      ⟨x, (mapOutputWithRoles (fun p => f ⟨x, p⟩) ·) <$> cont⟩
+  | .node _ _, ⟨.receiver, _⟩, _, _, f, respond =>
+      fun x => (mapOutputWithRoles (fun p => f ⟨x, p⟩) ·) <$> respond x
+
+/-- Functorial output map for counterparts. -/
+def Counterpart.mapOutput {m : Type u → Type u} [Functor m] :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {A B : Transcript spec → Type u} →
+    (∀ tr, A tr → B tr) → Counterpart m spec roles A → Counterpart m spec roles B
+  | .done, _, _, _, f, a => f ⟨⟩ a
+  | .node _ _, ⟨.sender, _⟩, _, _, f, observe =>
+      fun x => mapOutput (fun p => f ⟨x, p⟩) (observe x)
+  | .node _ _, ⟨.receiver, _⟩, _, _, f, sample =>
+      (fun ⟨x, c⟩ => ⟨x, mapOutput (fun p => f ⟨x, p⟩) c⟩) <$> sample
+
 /-- Execute `withRoles` against a `Counterpart`, producing transcript, prover output,
 and counterpart output. -/
 def Strategy.runWithRoles {m : Type u → Type u} [Monad m] :
