@@ -129,69 +129,63 @@ oracle access to prover messages:
   accumulated oracle spec grows by `oi.spec` (= `oi.toOC.spec`).
 - At **receiver** nodes: the verifier computes a challenge (Sigma) in
   `OracleComp` with the current accumulated oracle access.
-- At **done**: no more interaction (`PUnit`).
+- At **done**: produces `Output accSpec`.
 
 The `accSpec` parameter tracks the oracle spec accumulated so far from
-previously seen sender-node messages. -/
+previously seen sender-node messages. The `Output` parameter determines
+what the counterpart produces at `.done` — it depends on the final
+accumulated oracle spec. -/
 
-/-- Round-by-round challenger with growing oracle access at sender nodes.
-The accumulated oracle spec `accSpec` starts at `[]ₒ` and grows by
-`oi.toOC.spec` at each sender node. -/
+/-- Round-by-round challenger with growing oracle access at sender nodes and
+explicit output at `.done`. The accumulated oracle spec `accSpec` starts at
+`[]ₒ` and grows by `oi.toOC.spec` at each sender node. -/
 def OracleCounterpart {ι : Type} (oSpec : OracleSpec ι)
-    {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) [∀ i, OracleInterface (OStmtIn i)] :
+    {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) [∀ i, OracleInterface (OStmtIn i)]
+    (Output : {ιₐ : Type} → OracleSpec ιₐ → Type) :
     (spec : Spec.{0}) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
     {ιₐ : Type} → OracleSpec ιₐ → Type
-  | .done, _, _, _, _ => PUnit
+  | .done, _, _, _, accSpec => Output accSpec
   | .node X rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
-      ∀ x : X, OracleCounterpart oSpec OStmtIn
+      ∀ x : X, OracleCounterpart oSpec OStmtIn Output
         (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
   | .node X rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
       OracleComp (oSpec + [OStmtIn]ₒ + accSpec)
-        ((x : X) × OracleCounterpart oSpec OStmtIn
+        ((x : X) × OracleCounterpart oSpec OStmtIn Output
           (rest x) (rRest x) (odFn x) accSpec)
 
-/-! ## Interactive oracle verifier (unified challenger + verify)
-
-Structurally identical to `OracleCounterpart` at internal nodes, but at `.done`
-the type is the verification function instead of `PUnit`. -/
-
-/-- Unified interactive oracle verifier: challenger behavior at internal nodes,
-verification function at `.done`. -/
-def InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
+/-- `InteractiveOracleVerifier` is an `OracleCounterpart` whose output at
+`.done` is a verification function: given the statement and accumulated
+oracle access, produce `OptionT (OracleComp ...) StmtOut`. -/
+abbrev InteractiveOracleVerifier {ι : Type} (oSpec : OracleSpec ι)
     (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
-    (StmtOut : Type) [∀ i, OracleInterface (OStmtIn i)] :
-    (spec : Spec.{0}) → (roles : RoleDecoration spec) → OracleDecoration spec roles →
-    {ιₐ : Type} → OracleSpec ιₐ → Type
-  | .done, _, _, _, accSpec =>
-      StmtIn → OptionT (OracleComp (oSpec + [OStmtIn]ₒ + accSpec)) StmtOut
-  | .node X rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec =>
-      ∀ x : X, InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut
-        (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
-  | .node X rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
-      OracleComp (oSpec + [OStmtIn]ₒ + accSpec)
-        ((x : X) × InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut
-          (rest x) (rRest x) (odFn x) accSpec)
-
-/-! ## Conversions between OracleCounterpart and InteractiveOracleVerifier -/
-
-/-- Extract the challenger part from an `InteractiveOracleVerifier`,
-discarding the verification function at `.done`. -/
-def toOracleCounterpart {ι : Type} {oSpec : OracleSpec ι}
-    {StmtIn : Type} {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type}
-    {StmtOut : Type} [∀ i, OracleInterface (OStmtIn i)]
+    (StmtOut : Type) [∀ i, OracleInterface (OStmtIn i)]
     (spec : Spec.{0}) (roles : RoleDecoration spec)
     (od : OracleDecoration spec roles)
-    {ιₐ : Type} (accSpec : OracleSpec ιₐ) :
-    InteractiveOracleVerifier oSpec StmtIn OStmtIn StmtOut spec roles od accSpec →
-    OracleCounterpart oSpec OStmtIn spec roles od accSpec :=
-  match spec, roles, od with
-  | .done, _, _ => fun _ => ⟨⟩
-  | .node _ rest, ⟨.sender, rRest⟩, ⟨_, odRest⟩ =>
-      fun iov x => toOracleCounterpart (rest x) (rRest x) (odRest x) _ (iov x)
-  | .node _ rest, ⟨.receiver, rRest⟩, odFn =>
-      fun iov => do
-        let ⟨x, iovRest⟩ ← iov
-        return ⟨x, toOracleCounterpart (rest x) (rRest x) (odFn x) accSpec iovRest⟩
+    {ιₐ : Type} (accSpec : OracleSpec ιₐ) :=
+  OracleCounterpart oSpec OStmtIn
+    (fun {ιₐ} (accSpec : OracleSpec ιₐ) =>
+      StmtIn → OptionT (OracleComp (oSpec + [OStmtIn]ₒ + accSpec)) StmtOut)
+    spec roles od accSpec
+
+/-! ## Conversions -/
+
+/-- Map the output of an `OracleCounterpart`, applying `f` at `.done`. -/
+def OracleCounterpart.mapOutput {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
+    {Output₁ Output₂ : {ιₐ : Type} → OracleSpec ιₐ → Type}
+    (f : ∀ {ιₐ : Type} (accSpec : OracleSpec ιₐ), Output₁ accSpec → Output₂ accSpec) :
+    (spec : Spec.{0}) → (roles : RoleDecoration spec) →
+    (od : OracleDecoration spec roles) →
+    {ιₐ : Type} → (accSpec : OracleSpec ιₐ) →
+    OracleCounterpart oSpec OStmtIn Output₁ spec roles od accSpec →
+    OracleCounterpart oSpec OStmtIn Output₂ spec roles od accSpec
+  | .done, _, _, _, accSpec => f accSpec
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨_, odRest⟩, _, _ =>
+      fun oc x => mapOutput f (rest x) (rRest x) (odRest x) _ (oc x)
+  | .node _ rest, ⟨.receiver, rRest⟩, odFn, _, accSpec =>
+      fun oc => do
+        let ⟨x, ocRest⟩ ← oc
+        return ⟨x, mapOutput f (rest x) (rRest x) (odFn x) accSpec ocRest⟩
 
 /-! ## Full oracle verifier (batch structure)
 
@@ -221,14 +215,16 @@ structure OracleVerifier {ι : Type} (oSpec : OracleSpec ι)
 /-! ## Oracle prover and oracle reduction -/
 
 /-- Oracle prover: a prover whose statement includes oracle data as an
-indexed family. Runs in `OracleComp oSpec`. -/
+indexed family. Runs in `OracleComp oSpec`. The prover's output bundles
+the output witness with the output oracle data. -/
 abbrev OracleProver {ι : Type} (oSpec : OracleSpec ι)
     (StmtIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type) (WitIn : Type)
     (StmtOut : Type) {ιₛₒ : Type} (OStmtOut : ιₛₒ → Type) (WitOut : Type)
     (pSpec : Spec.{0}) (roles : RoleDecoration pSpec) :=
-  Prover (OracleComp oSpec) pSpec roles
+  Prover (OracleComp oSpec)
     (StmtIn × (∀ i, OStmtIn i)) WitIn
-    (StmtOut × (∀ i, OStmtOut i)) WitOut
+    (fun _ => pSpec) (fun _ => roles)
+    (fun _ _ => (StmtOut × (∀ i, OStmtOut i)) × WitOut)
 
 /-- Oracle reduction: pairs an oracle prover with an oracle verifier. -/
 structure OracleReduction {ι : Type} (oSpec : OracleSpec ι)

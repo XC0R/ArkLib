@@ -15,23 +15,28 @@ Interaction/             ← generic, standalone (future VCVio)
                            MonadDecoration, append/replicate/chain, comp
                            — universe-polymorphic throughout
   TwoParty.lean            Role, RoleDecoration (= Decoration on Spec),
-                           Strategy.withRoles, Counterpart, runWithRoles,
+                           Strategy.withRoles, Counterpart (with Output param),
+                           runWithRoles (returns both outputs),
                            SenderDecoration (= Refine over RoleDecoration),
                            per-node monad variants, composition combinators
   Multiparty.lean          PartyDecoration, PartyDecoration.toRoles (via
                            Decoration.map), ThreeParty examples
-  Reduction.lean           Prover, Verifier (with StmtOut, OptionT m StmtOut),
-                           Reduction, Proof, execute
-  Security.lean            randomChallenger, completeness, soundness,
-                           ClaimTree (inductive on Spec + RoleDecoration),
+  Reduction.lean           Prover (monadic, full dependency chain, dependent
+                           WitnessOut), Verifier (= Counterpart with OptionT
+                           output), Reduction, Proof, execute, Verifier.run
+  Security.lean            randomChallenger, completeness (HasEvalSPMF,
+                           statement-indexed), soundness (HasEvalSPMF, Accepts
+                           set), ClaimTree (inductive on Spec + RoleDecoration),
                            good/Terminal/follow/terminalGood/maxPathError/IsSound,
-                           bound_terminalProb, rbrSoundness, soundness_of_claimTree
+                           bound_terminalProb, rbrSoundness (with Accepts),
+                           soundness_of_claimTree
   Oracle.lean              OracleDecoration (OracleInterface at sender nodes),
                            QueryHandle, toOracleSpec, answerQuery,
-                           OracleCounterpart (growing oracle access),
-                           InteractiveOracleVerifier (unified challenger+verify),
+                           OracleCounterpart (with Output param, growing oracle
+                           access), InteractiveOracleVerifier (= OracleCounterpart
+                           with verify output), OracleCounterpart.mapOutput,
                            OracleVerifier (batch: iov + simulate + reify),
-                           OracleProver, OracleReduction, OracleProof
+                           OracleProver (full dependency chain), OracleReduction
 
 OracleReduction/         ← ArkLib-specific (old core, to be replaced)
   OracleInterface.lean     Stable, reused by Interaction/Oracle.lean
@@ -92,11 +97,23 @@ roles are a decoration on `Spec`.
 
 - [x] **Phase 4: Security definitions** — `randomChallenger` (generic sampler
   to `Counterpart ProbComp`), `Reduction.completeness` / `perfectCompleteness`,
-  `Verifier.soundness` (quantifies over all malicious provers), `ClaimTree`
-  (inductive on `Spec` + `RoleDecoration` with `sender`/`receiver` constructors),
+  `soundness` (quantifies over all malicious provers, uses `Accepts` set),
+  `ClaimTree` (inductive on `Spec` + `RoleDecoration`),
   `good`/`Terminal`/`follow`/`terminalGood`/`maxPathError`/`IsSound`,
-  `bound_terminalProb` (`sorry` proof), `rbrSoundness` (deterministic verify),
-  `soundness_of_claimTree` (`sorry` bridge).
+  `bound_terminalProb` (`sorry` proof), `rbrSoundness` (deterministic verify,
+  with `Accepts`), `soundness_of_claimTree` (`sorry` bridge).
+- [x] **Phase 4b: Generalize Counterpart, Reduction, Security** —
+  `Counterpart` takes explicit `Output : Transcript spec → Type u` parameter
+  (`Output ⟨⟩` at `.done`; old no-output = `fun _ => PUnit`).
+  `runWithRoles` returns both prover and counterpart outputs.
+  `Counterpart.iterate`/`chainComp` thread state `β` (mirrors strategy pattern).
+  `OracleCounterpart` takes `Output : OracleSpec → Type` at `.done`;
+  `InteractiveOracleVerifier` is now an abbrev to `OracleCounterpart`.
+  `Prover` is monadic (`run` returns `m (Strategy ...)`), statement-indexed
+  with full dependency chain (`Context : Statement → Spec`, `Roles`,
+  `StatementOut`, `WitnessOut : ... → StatementOut → Type`).
+  `Verifier` is an `abbrev` for `Counterpart` with `OptionT m (VerOutput)`.
+  Security uses generic `[HasEvalSPMF m]` instead of `ProbComp`.
 
 ## In progress
 
@@ -138,9 +155,10 @@ roles are a decoration on `Spec`.
   the oracle spec depends on the transcript (path through the tree). Both
   `simulate` and `reify` must take a `Transcript` argument.
 
-- **Dependent vs non-dependent output**: `Prover` currently uses non-dependent
-  output `(fun _ => StmtOut × WitOut)`. Dependent output is possible via
-  raw `Strategy.withRoles` but no named wrapper exists.
+- **Dependent vs non-dependent output** (RESOLVED): `Prover` now uses
+  dependent output `(fun tr => (sOut : StatementOut s tr) × WitnessOut s tr sOut)`.
+  `Verifier` output is `OptionT m (VerOutput s tr)`. `Counterpart` takes
+  explicit `Output : Transcript spec → Type u` parameter.
 
 - **Where Interaction goes long-term**: planned to move to VCVio once stable.
   Keep it import-free from ArkLib (except `Oracle.lean` which bridges VCVio).

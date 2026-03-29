@@ -1,6 +1,7 @@
 /-
 Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
 -/
 import ArkLib.Interaction.Basic.Spec
 import ArkLib.Interaction.Basic.Decoration
@@ -38,29 +39,35 @@ abbrev Strategy.withRoles' (m : Type u → Type u) (spec : Spec)
     (roles : RoleDecoration spec) (α : Type u) :=
   Strategy.withRoles m spec roles (fun _ => α)
 
-/-- Counterpart / environment type: dual actions at each node. -/
+/-- Counterpart / environment type with transcript-dependent output: dual actions at
+each node, producing `Output ⟨⟩` at `.done`. For a no-output counterpart (the old
+behavior), use `Counterpart m spec roles (fun _ => PUnit)`. -/
 def Counterpart (m : Type u → Type u) :
-    (spec : Spec) → RoleDecoration spec → Type u
-  | .done, _ => PUnit
-  | .node X rest, ⟨role, dRest⟩ =>
-      role.Dual m X (fun x => Counterpart m (rest x) (dRest x))
+    (spec : Spec) → RoleDecoration spec → (Transcript spec → Type u) → Type u
+  | .done, _, Output => Output ⟨⟩
+  | .node X rest, ⟨role, dRest⟩, Output =>
+      role.Dual m X (fun x => Counterpart m (rest x) (dRest x)
+        (fun p => Output ⟨x, p⟩))
 
-/-- Execute `withRoles` against a `Counterpart`, producing transcript and output. -/
+/-- Execute `withRoles` against a `Counterpart`, producing transcript, prover output,
+and counterpart output. -/
 def Strategy.runWithRoles {m : Type u → Type u} [Monad m] :
     (spec : Spec) → (roles : RoleDecoration spec) →
-    {Output : Transcript spec → Type u} →
-    Strategy.withRoles m spec roles Output → Counterpart m spec roles →
-    m ((tr : Transcript spec) × Output tr)
-  | .done, _, _, output, _ => pure ⟨⟨⟩, output⟩
-  | .node _ rest, ⟨.sender, dRest⟩, _, ⟨x, cont⟩, dualFn => do
+    {OutputP : Transcript spec → Type u} →
+    {OutputC : Transcript spec → Type u} →
+    Strategy.withRoles m spec roles OutputP →
+    Counterpart m spec roles OutputC →
+    m ((tr : Transcript spec) × OutputP tr × OutputC tr)
+  | .done, _, _, _, output, cOutput => pure ⟨⟨⟩, output, cOutput⟩
+  | .node _ rest, ⟨.sender, dRest⟩, _, _, ⟨x, cont⟩, dualFn => do
       let next ← cont
-      let ⟨tail, out⟩ ← runWithRoles (rest x) (dRest x) next (dualFn x)
-      return ⟨⟨x, tail⟩, out⟩
-  | .node _ rest, ⟨.receiver, dRest⟩, _, respond, dualSample => do
+      let ⟨tail, outP, outC⟩ ← runWithRoles (rest x) (dRest x) next (dualFn x)
+      return ⟨⟨x, tail⟩, outP, outC⟩
+  | .node _ rest, ⟨.receiver, dRest⟩, _, _, respond, dualSample => do
       let ⟨x, dualRest⟩ ← dualSample
       let next ← respond x
-      let ⟨tail, out⟩ ← runWithRoles (rest x) (dRest x) next dualRest
-      return ⟨⟨x, tail⟩, out⟩
+      let ⟨tail, outP, outC⟩ ← runWithRoles (rest x) (dRest x) next dualRest
+      return ⟨⟨x, tail⟩, outP, outC⟩
 
 /-- `withRoles` using the monad attached at each node (from `MonadDecoration`). -/
 def Strategy.withRolesAndMonads :
@@ -72,40 +79,45 @@ def Strategy.withRolesAndMonads :
         (fun x => withRolesAndMonads (rest x) (rRest x) (mRest x)
           (fun p => Output ⟨x, p⟩))
 
-/-- Counterpart where each node uses its bundled monad (both roles). -/
+/-- Counterpart with per-node monads and transcript-dependent output. -/
 def Counterpart.withMonads :
-    (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec → Type u
-  | .done, _, _ => PUnit
-  | .node X rest, ⟨.sender, rRest⟩, ⟨bm, mRest⟩ =>
-      (x : X) → bm.M (withMonads (rest x) (rRest x) (mRest x))
-  | .node X rest, ⟨.receiver, rRest⟩, ⟨bm, mRest⟩ =>
-      bm.M ((x : X) × withMonads (rest x) (rRest x) (mRest x))
+    (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec →
+    (Transcript spec → Type u) → Type u
+  | .done, _, _, Output => Output ⟨⟩
+  | .node X rest, ⟨.sender, rRest⟩, ⟨bm, mRest⟩, Output =>
+      (x : X) → bm.M (withMonads (rest x) (rRest x) (mRest x)
+        (fun p => Output ⟨x, p⟩))
+  | .node X rest, ⟨.receiver, rRest⟩, ⟨bm, mRest⟩, Output =>
+      bm.M ((x : X) × withMonads (rest x) (rRest x) (mRest x)
+        (fun p => Output ⟨x, p⟩))
 
-/-- Run `withRolesAndMonads` vs. `Counterpart.withMonads`, lifting both sides into one monad `m`. -/
+/-- Run `withRolesAndMonads` vs. `Counterpart.withMonads`, lifting both sides into
+one monad `m`. Returns transcript, prover output, and counterpart output. -/
 def Strategy.runWithRolesAndMonads {m : Type u → Type u} [Monad m]
     (liftStrat : ∀ (bm : BundledMonad) {α : Type u}, bm.M α → m α)
     (liftCpt : ∀ (bm : BundledMonad) {α : Type u}, bm.M α → m α) :
     (spec : Spec.{u}) → (roles : RoleDecoration spec) →
     (stratDeco : MonadDecoration spec) → (cptDeco : MonadDecoration spec) →
-    {Output : Transcript spec → Type u} →
-    Strategy.withRolesAndMonads spec roles stratDeco Output →
-    Counterpart.withMonads spec roles cptDeco →
-    m ((tr : Transcript spec) × Output tr)
-  | .done, _, _, _, _, output, _ => pure ⟨⟨⟩, output⟩
-  | .node _ rest, ⟨.sender, rRest⟩, ⟨bmS, mRestS⟩, ⟨bmC, mRestC⟩, _,
+    {OutputP : Transcript spec → Type u} →
+    {OutputC : Transcript spec → Type u} →
+    Strategy.withRolesAndMonads spec roles stratDeco OutputP →
+    Counterpart.withMonads spec roles cptDeco OutputC →
+    m ((tr : Transcript spec) × OutputP tr × OutputC tr)
+  | .done, _, _, _, _, _, output, cOutput => pure ⟨⟨⟩, output, cOutput⟩
+  | .node _ rest, ⟨.sender, rRest⟩, ⟨bmS, mRestS⟩, ⟨bmC, mRestC⟩, _, _,
       ⟨x, cont⟩, dualFn => do
       let next ← liftStrat bmS cont
       let cptNext ← liftCpt bmC (dualFn x)
-      let ⟨tail, out⟩ ← runWithRolesAndMonads liftStrat liftCpt
+      let ⟨tail, outP, outC⟩ ← runWithRolesAndMonads liftStrat liftCpt
         (rest x) (rRest x) (mRestS x) (mRestC x) next cptNext
-      return ⟨⟨x, tail⟩, out⟩
-  | .node _ rest, ⟨.receiver, rRest⟩, ⟨bmS, mRestS⟩, ⟨bmC, mRestC⟩, _,
+      return ⟨⟨x, tail⟩, outP, outC⟩
+  | .node _ rest, ⟨.receiver, rRest⟩, ⟨bmS, mRestS⟩, ⟨bmC, mRestC⟩, _, _,
       respond, dualSample => do
       let ⟨x, dualRest⟩ ← liftCpt bmC dualSample
       let next ← liftStrat bmS (respond x)
-      let ⟨tail, out⟩ ← runWithRolesAndMonads liftStrat liftCpt
+      let ⟨tail, outP, outC⟩ ← runWithRolesAndMonads liftStrat liftCpt
         (rest x) (rRest x) (mRestS x) (mRestC x) next dualRest
-      return ⟨⟨x, tail⟩, out⟩
+      return ⟨⟨x, tail⟩, outP, outC⟩
 
 end Spec
 end Interaction

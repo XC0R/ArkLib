@@ -1,3 +1,9 @@
+/-
+Copyright (c) 2026 ArkLib Contributors. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
+-/
+
 import ArkLib.Interaction.Basic.Spec
 import ArkLib.Interaction.Basic.Decoration
 import ArkLib.Interaction.TwoParty.Role
@@ -151,9 +157,9 @@ example : Spec.Strategy.withRoles m (ksSpec Msg Chal WitOut Decision ExtractedWi
 sample chal, observe witOut, sample decision, sample extraction. -/
 example : Spec.Counterpart m (ksSpec Msg Chal WitOut Decision ExtractedWit)
     ((ksPartyDeco Msg Chal WitOut Decision ExtractedWit).toRoles
-      (ThreeParty.resolveFor .prover))
+      (ThreeParty.resolveFor .prover)) (fun _ => α)
     = ((_ : Msg) → m ((_ : Chal) × ((_ : WitOut) → m
-        ((_ : Decision) × m ((_ : ExtractedWit) × PUnit))))) := rfl
+        ((_ : Decision) × m ((_ : ExtractedWit) × α))))) := rfl
 
 end KnowledgeSoundnessInteraction
 
