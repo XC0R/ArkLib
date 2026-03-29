@@ -35,6 +35,8 @@ Start with [`README.md`](README.md) for project overview.
   `dependency_graphs/`, or `home_page/docs/`.
 - Pre-existing `sorry` blocks exist in active formalizations; distinguish existing gaps from new
   regressions.
+- Docstrings must be intrinsic and descriptive. Cross-reference *live* sibling definitions, but
+  never reference removed/renamed definitions, change history, or use reactive language.
 - If a PR changes commands, repo structure, generated outputs, or the blueprint/citation
   workflow, update the matching page in [`docs/wiki/`](docs/wiki/README.md) in the same PR.
 - Promote recurring agent learnings into [`docs/wiki/`](docs/wiki/README.md); do not let stable

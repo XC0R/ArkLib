@@ -32,7 +32,7 @@ theorem replicate_succ (spec : Spec) (n : Nat) :
 abbrev Transcript.replicateCons (spec : Spec) (n : Nat) :
     Transcript spec → Transcript (spec.replicate n) →
     Transcript (spec.replicate (n + 1)) :=
-  Transcript.join spec (fun _ => spec.replicate n)
+  Transcript.append spec (fun _ => spec.replicate n)
 
 /-- Split the head round from a length-`(n+1)` replicated transcript. -/
 abbrev Transcript.replicateUncons (spec : Spec) (n : Nat) :
@@ -47,7 +47,7 @@ def Transcript.replicateJoin (spec : Spec) :
     (n : Nat) → (Fin n → Transcript spec) → Transcript (spec.replicate n)
   | 0, _ => ⟨⟩
   | n + 1, trs =>
-      Transcript.join spec (fun _ => spec.replicate n)
+      Transcript.append spec (fun _ => spec.replicate n)
         (trs 0) (Transcript.replicateJoin spec n (fun i => trs i.succ))
 
 /-- Split `spec.replicate n` into `n` per-round transcripts. -/
@@ -66,24 +66,24 @@ theorem Transcript.replicateSplit_replicateJoin (spec : Spec) :
     Transcript.replicateSplit spec n (Transcript.replicateJoin spec n trs) i = trs i
   | 0, _, i => i.elim0
   | n + 1, trs, ⟨0, _⟩ => by
-      simp [replicateSplit, replicateJoin, split_join]
+      simp [replicateSplit, replicateJoin, split_append]
   | n + 1, trs, ⟨i + 1, h⟩ => by
-      simp only [replicateSplit, replicateJoin, split_join]
+      simp only [replicateSplit, replicateJoin, split_append]
       exact replicateSplit_replicateJoin spec n (fun i => trs i.succ) ⟨i, Nat.lt_of_succ_lt_succ h⟩
 
 theorem Transcript.replicateSplit_join_zero (spec : Spec) (n : Nat)
     (hd : Transcript spec) (tl : Transcript (spec.replicate n)) :
-    Transcript.replicateSplit spec (n + 1) (Transcript.join spec (fun _ => spec.replicate n) hd tl)
-        ⟨0, n.succ_pos⟩ =
+    Transcript.replicateSplit spec (n + 1)
+        (Transcript.append spec (fun _ => spec.replicate n) hd tl) ⟨0, n.succ_pos⟩ =
       hd := by
-  simp [replicateSplit, split_join]
+  simp [replicateSplit, split_append]
 
 theorem Transcript.replicateSplit_join_succ (spec : Spec) (n : Nat)
     (hd : Transcript spec) (tl : Transcript (spec.replicate n)) (i : Fin n) :
     Transcript.replicateSplit spec (n + 1)
-        (Transcript.join spec (fun _ => spec.replicate n) hd tl) i.succ =
+        (Transcript.append spec (fun _ => spec.replicate n) hd tl) i.succ =
       Transcript.replicateSplit spec n tl i := by
-  simp [replicateSplit, split_join, Fin.succ]
+  simp [replicateSplit, split_append, Fin.succ]
 
 @[simp, grind =]
 theorem Transcript.replicateJoin_replicateSplit (spec : Spec) (n : Nat)
@@ -97,14 +97,14 @@ theorem Transcript.replicateJoin_replicateSplit (spec : Spec) (n : Nat)
     let hd := (Transcript.split spec (fun _ => spec.replicate n) tr).1
     let tl := (Transcript.split spec (fun _ => spec.replicate n) tr).2
     have htr :
-        tr = Transcript.join spec (fun _ => spec.replicate n) hd tl :=
-      (Transcript.join_split spec (fun _ => spec.replicate n) tr).symm
+        tr = Transcript.append spec (fun _ => spec.replicate n) hd tl :=
+      (Transcript.append_split spec (fun _ => spec.replicate n) tr).symm
     rw [htr, replicateJoin]
     congr 1
     · simpa using replicateSplit_join_zero spec n hd tl
     · have hfns :
           (fun i => Transcript.replicateSplit spec (n + 1)
-              (Transcript.join spec (fun _ => spec.replicate n) hd tl) i.succ) =
+              (Transcript.append spec (fun _ => spec.replicate n) hd tl) i.succ) =
             Transcript.replicateSplit spec n tl := by
         funext i
         exact replicateSplit_join_succ spec n hd tl i
@@ -169,7 +169,7 @@ def Strategy.iterate {m : Type u → Type u} [Monad m]
   | 0, _, a => pure a
   | n + 1, step, a => do
     let strat ← step 0 a
-    Strategy.comp spec (fun _ => spec.replicate n) strat
+    Strategy.compFlat spec (fun _ => spec.replicate n) strat
       (fun _ mid => iterate n (fun i => step i.succ) mid)
 
 /-- Uniform `iterate`: the same step function at every round index. -/

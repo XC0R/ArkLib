@@ -196,6 +196,11 @@ Every definition and major theorem should have a docstring.
     * Use backticks for Lean names: `` `List.map` ``.
     * Use LaTeX for math: `$ f(x) = y $` (inline) or `$$ \sum_{i=0}^n i $$` (display).
 * **Tactic Documentation**: Complete and self-contained descriptions for tactics.
+* **Docstring Quality**: Docstrings must describe what a definition *is* or what a theorem
+  *states*, not how it came about or what change introduced it. Cross-references to other
+  *live* definitions in the codebase are encouraged (e.g., "See also `Strategy.comp`"), but
+  references to removed or renamed definitions, change history, or reactive language
+  (e.g., "renamed from X", "replaces the old Y") are prohibited.
 
 ### Citation Standards
 

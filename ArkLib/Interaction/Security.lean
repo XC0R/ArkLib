@@ -40,6 +40,8 @@ noncomputable section
 open OracleComp
 open scoped NNReal ENNReal
 
+universe u
+
 namespace Interaction
 
 /-! ## Random challenger -/
@@ -64,11 +66,11 @@ inputs, honest execution produces a valid output with probability at least
 `1 - ε`. The `relOut` predicate on the full output (prover + verifier)
 specifies what counts as a successful execution. -/
 def Reduction.completeness
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {StatementIn WitnessIn : Type u}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (reduction : Reduction m StatementIn WitnessIn Context Roles StatementOut WitnessOut)
     (relIn : Set (StatementIn × WitnessIn))
     (relOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
@@ -79,11 +81,11 @@ def Reduction.completeness
 
 /-- Perfect completeness: completeness with error `0`. -/
 def Reduction.perfectCompleteness
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {StatementIn WitnessIn : Type u}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (reduction : Reduction m StatementIn WitnessIn Context Roles StatementOut WitnessOut)
     (relIn : Set (StatementIn × WitnessIn))
     (relOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
@@ -100,17 +102,17 @@ outputs are considered acceptance.
 Soundness is a property of the verifier alone — no honest prover appears.
 The prover can use any output type and any strategy. -/
 def soundness
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {StatementIn : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {StatementIn : Type u}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
-    {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type}
+    {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (verifier : Verifier m StatementIn Context Roles StatementOut)
     (langIn : Set StatementIn)
     (Accepts : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
       Set (StatementOut s tr))
     (ε : ℝ≥0∞) : Prop :=
-  ∀ {OutputP : (s : StatementIn) → Spec.Transcript (Context s) → Type},
+  ∀ {OutputP : (s : StatementIn) → Spec.Transcript (Context s) → Type u},
   ∀ (prover : (s : StatementIn) → Spec.Strategy.withRoles m (Context s) (Roles s) (OutputP s)),
   ∀ (s : StatementIn), s ∉ langIn →
     Pr[fun z => z.2.2 ∈ Accepts s z.1
@@ -124,11 +126,11 @@ witness whenever the output is in `relOut`. The bound says: the probability that
 the output is in `relOut` but the extracted input witness is not in `relIn` is
 at most `ε`. -/
 def knowledgeSoundness
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {StatementIn WitnessIn : Type u}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (verifier : Verifier m StatementIn Context Roles StatementOut)
     (relIn : Set (StatementIn × WitnessIn))
     (relOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
@@ -147,11 +149,11 @@ def knowledgeSoundness
 /-- Knowledge soundness implies soundness: if an extractor exists, then the
 verifier is also sound (ignoring the witness). -/
 theorem knowledgeSoundness_implies_soundness
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {StatementIn WitnessIn : Type u}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     {verifier : Verifier m StatementIn Context Roles StatementOut}
     {relIn : Set (StatementIn × WitnessIn)}
     {relOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
@@ -184,26 +186,26 @@ This gives a round-by-round soundness analysis. -/
 /-- A recursive claim tree annotating each node of a `Spec` with a soundness
 witness. The `Claim` type may change at each node via `NextClaim`. -/
 inductive ClaimTree : (spec : Spec) → (roles : RoleDecoration spec) →
-    (Claim : Type) → Type 1 where
+    (Claim : Type u) → Type (u + 1) where
   /-- Base case: leaf with a good predicate. -/
-  | done {Claim : Type} (good : Claim → Prop) :
+  | done {Claim : Type u} (good : Claim → Prop) :
       ClaimTree .done ⟨⟩ Claim
   /-- Sender (prover message) node: the prover's choice cannot improve a bad
   claim. `advance` maps the current claim through the message. -/
   | sender
-      {Claim : Type} {X : Type} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
+      {Claim : Type u} {X : Type u} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
       (good : Claim → Prop)
-      (NextClaim : X → Type)
+      (NextClaim : X → Type u)
       (next : (x : X) → ClaimTree (rest x) (rRest x) (NextClaim x))
       (advance : Claim → (x : X) → NextClaim x) :
       ClaimTree (.node X rest) ⟨.sender, rRest⟩ Claim
   /-- Receiver (verifier challenge) node: a bad claim may flip to good
   with probability at most `error`. -/
   | receiver
-      {Claim : Type} {X : Type} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
+      {Claim : Type u} {X : Type u} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
       (good : Claim → Prop)
       (error : ℝ≥0)
-      (NextClaim : X → Type)
+      (NextClaim : X → Type u)
       (next : (x : X) → ClaimTree (rest x) (rRest x) (NextClaim x))
       (advance : Claim → (x : X) → NextClaim x) :
       ClaimTree (.node X rest) ⟨.receiver, rRest⟩ Claim
@@ -211,7 +213,7 @@ inductive ClaimTree : (spec : Spec) → (roles : RoleDecoration spec) →
 namespace ClaimTree
 
 /-- The root "good" predicate. -/
-def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : ClaimTree spec roles Claim) : Claim → Prop :=
   match tree with
   | .done g => g
@@ -219,8 +221,8 @@ def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
   | .receiver g _ _ _ _ => g
 
 /-- The claim type at the terminal (leaf) of a transcript path. -/
-def Terminal {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
-    (tree : ClaimTree spec roles Claim) (tr : Spec.Transcript spec) : Type :=
+def Terminal {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
+    (tree : ClaimTree spec roles Claim) (tr : Spec.Transcript spec) : Type u :=
   match spec, roles, tree, tr with
   | .done, _, .done _, _ => Claim
   | .node _ _, ⟨.sender, _⟩, .sender _ _ next _, ⟨x, trRest⟩ =>
@@ -229,7 +231,7 @@ def Terminal {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
       (next x).Terminal trRest
 
 /-- Transport a root claim along a transcript to the terminal claim. -/
-def follow {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def follow {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : ClaimTree spec roles Claim)
     (tr : Spec.Transcript spec) (claim : Claim) : tree.Terminal tr :=
   match spec, roles, tree, tr with
@@ -240,7 +242,7 @@ def follow {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
       (next x).follow trRest (advance claim x)
 
 /-- The "good" predicate at the terminal claim reached by a transcript. -/
-def terminalGood {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def terminalGood {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : ClaimTree spec roles Claim)
     (tr : Spec.Transcript spec) (terminal : tree.Terminal tr) : Prop :=
   match spec, roles, tree, tr with
@@ -253,7 +255,7 @@ def terminalGood {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
 /-- Worst-case cumulative error along any root-to-leaf path. Sender nodes
 contribute `0` error; receiver nodes contribute their `error` bound plus the
 sup over children. -/
-def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : ClaimTree spec roles Claim) : ℝ≥0∞ :=
   match tree with
   | .done _ => 0
@@ -264,9 +266,9 @@ def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
 /-- Structural soundness of a claim tree. At sender nodes, bad claims must
 stay bad for all messages. At receiver nodes, bad claims flip to good with
 probability at most `error`. All children must be sound recursively. -/
-def IsSound {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    (sample : (T : Type) → m T) {spec : Spec}
-    {roles : RoleDecoration spec} {Claim : Type}
+def IsSound {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    (sample : (T : Type u) → m T) {spec : Spec}
+    {roles : RoleDecoration spec} {Claim : Type u}
     (tree : ClaimTree spec roles Claim) : Prop :=
   match tree with
   | .done _ => True
@@ -363,22 +365,22 @@ function at each node. This enables round-by-round *knowledge* soundness:
 /-- A recursive claim tree with backward extraction, annotating each node of
 a `Spec` with a knowledge-soundness witness. -/
 inductive KnowledgeClaimTree : (spec : Spec) → (roles : RoleDecoration spec) →
-    (Claim : Type) → Type 1 where
-  | done {Claim : Type} (good : Claim → Prop) :
+    (Claim : Type u) → Type (u + 1) where
+  | done {Claim : Type u} (good : Claim → Prop) :
       KnowledgeClaimTree .done ⟨⟩ Claim
   | sender
-      {Claim : Type} {X : Type} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
+      {Claim : Type u} {X : Type u} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
       (good : Claim → Prop)
-      (NextClaim : X → Type)
+      (NextClaim : X → Type u)
       (next : (x : X) → KnowledgeClaimTree (rest x) (rRest x) (NextClaim x))
       (advance : Claim → (x : X) → NextClaim x)
       (extractMid : (x : X) → NextClaim x → Claim) :
       KnowledgeClaimTree (.node X rest) ⟨.sender, rRest⟩ Claim
   | receiver
-      {Claim : Type} {X : Type} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
+      {Claim : Type u} {X : Type u} {rest : X → Spec} {rRest : ∀ x, RoleDecoration (rest x)}
       (good : Claim → Prop)
       (error : ℝ≥0)
-      (NextClaim : X → Type)
+      (NextClaim : X → Type u)
       (next : (x : X) → KnowledgeClaimTree (rest x) (rRest x) (NextClaim x))
       (advance : Claim → (x : X) → NextClaim x)
       (extractMid : (x : X) → NextClaim x → Claim) :
@@ -387,7 +389,7 @@ inductive KnowledgeClaimTree : (spec : Spec) → (roles : RoleDecoration spec) �
 namespace KnowledgeClaimTree
 
 /-- The root "good" predicate. -/
-def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim) : Claim → Prop :=
   match tree with
   | .done g => g
@@ -395,7 +397,7 @@ def good {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
   | .receiver g _ _ _ _ _ => g
 
 /-- Forget the extraction data to get a plain `ClaimTree`. -/
-def toClaimTree {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def toClaimTree {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim) : ClaimTree spec roles Claim :=
   match tree with
   | .done g => .done g
@@ -405,24 +407,24 @@ def toClaimTree {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
       .receiver g err nc (fun x => (next x).toClaimTree) adv
 
 /-- The claim type at the terminal of a transcript path (via `toClaimTree`). -/
-def Terminal {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
-    (tree : KnowledgeClaimTree spec roles Claim) (tr : Spec.Transcript spec) : Type :=
+def Terminal {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
+    (tree : KnowledgeClaimTree spec roles Claim) (tr : Spec.Transcript spec) : Type u :=
   tree.toClaimTree.Terminal tr
 
 /-- Transport a root claim along a transcript (via `toClaimTree`). -/
-def follow {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def follow {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim)
     (tr : Spec.Transcript spec) (claim : Claim) : tree.Terminal tr :=
   tree.toClaimTree.follow tr claim
 
 /-- The "good" predicate at the terminal claim (via `toClaimTree`). -/
-def terminalGood {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def terminalGood {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim)
     (tr : Spec.Transcript spec) (terminal : tree.Terminal tr) : Prop :=
   tree.toClaimTree.terminalGood tr terminal
 
 /-- Worst-case cumulative error (via `toClaimTree`). -/
-def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim) : ℝ≥0∞ :=
   tree.toClaimTree.maxPathError
 
@@ -430,9 +432,9 @@ def maxPathError {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
 claim is good, then extracting back gives a good parent claim. At receiver
 nodes: forward — a bad parent claim leads to a good child with probability
 at most `error`. -/
-def IsKnowledgeSound {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    (sample : (T : Type) → m T) {spec : Spec}
-    {roles : RoleDecoration spec} {Claim : Type}
+def IsKnowledgeSound {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    (sample : (T : Type u) → m T) {spec : Spec}
+    {roles : RoleDecoration spec} {Claim : Type u}
     (tree : KnowledgeClaimTree spec roles Claim) : Prop :=
   match tree with
   | .done _ => True
@@ -447,9 +449,9 @@ def IsKnowledgeSound {m : Type → Type} [Monad m] [HasEvalSPMF m]
 /-- A knowledge-sound tree yields a sound `ClaimTree`. The backward sender
 condition implies the forward "bad stays bad" condition by contrapositive. -/
 theorem isKnowledgeSound_implies_isSound
-    {m : Type → Type} [Monad m] [HasEvalSPMF m]
-    {sample : (T : Type) → m T}
-    {spec : Spec} {roles : RoleDecoration spec} {Claim : Type}
+    {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
+    {sample : (T : Type u) → m T}
+    {spec : Spec} {roles : RoleDecoration spec} {Claim : Type u}
     {tree : KnowledgeClaimTree spec roles Claim}
     (h : tree.IsKnowledgeSound sample) :
     tree.toClaimTree.IsSound sample := by
