@@ -13,8 +13,6 @@ replicated decorations/refinements, and `Strategy.iterate`. This is the uniform 
 `Spec.chain` (see `ArkLib.Interaction.Basic.Chain`).
 -/
 
-set_option autoImplicit false
-
 universe u v w
 
 namespace Interaction

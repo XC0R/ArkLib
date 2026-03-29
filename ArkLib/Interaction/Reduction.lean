@@ -42,8 +42,6 @@ the underlying function types.
 `Strategy.runWithRoles`), returning the transcript plus both outputs.
 -/
 
-set_option autoImplicit false
-
 namespace Interaction
 
 variable {m : Type → Type}

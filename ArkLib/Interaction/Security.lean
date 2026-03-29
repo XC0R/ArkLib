@@ -35,8 +35,6 @@ The main theorem `ClaimTree.IsSound.bound_terminalProb` bounds the probability
 of reaching a good terminal claim from a bad root.
 -/
 
-set_option autoImplicit false
-
 noncomputable section
 
 open OracleComp

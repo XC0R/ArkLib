@@ -16,8 +16,6 @@ labeled sender or receiver. This replaces a separate two-party interaction induc
 all `Spec` infrastructure (`Transcript`, `append`, etc.).
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

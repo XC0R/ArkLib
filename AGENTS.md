@@ -27,8 +27,9 @@ Start with [`README.md`](README.md) for project overview.
 
 ## Guardrails
 
-- Lean defaults: `autoImplicit = false`; the long-file linter cap is `1500` unless a file opts
-  out locally.
+- `autoImplicit = false` is set globally in `lakefile.toml`; do **not** add
+  `set_option autoImplicit false` in individual files.
+- The long-file linter cap is `1500` unless a file opts out locally.
 - `ArkLib.lean` is generated; do not hand-edit it.
 - Edit source, not derived output such as `.lake/`, `blueprint/web/`, `blueprint/print/`,
   `dependency_graphs/`, or `home_page/docs/`.

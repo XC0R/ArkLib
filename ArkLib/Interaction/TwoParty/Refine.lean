@@ -19,8 +19,6 @@ to `Spec.Decoration.Refine` with fiber `Role.SenderData` is an equivalence; `map
 `append`, `replicate`, and `chain`.
 -/
 
-set_option autoImplicit false
-
 universe u v w w₂
 
 namespace Interaction

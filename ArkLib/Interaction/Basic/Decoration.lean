@@ -15,8 +15,6 @@ Functorial `map` / `map_id` / `map_comp` for both layers are in this file. Compo
 `Spec.append` is in `ArkLib.Interaction.Basic.Append`.
 -/
 
-set_option autoImplicit false
-
 universe u v w w₂
 
 namespace Interaction

@@ -15,8 +15,6 @@ generalizes `Strategy` so continuations live in the monad recorded at each node;
 lifts everything into a single ambient monad.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

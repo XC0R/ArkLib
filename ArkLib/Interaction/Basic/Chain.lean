@@ -13,8 +13,6 @@ by `advance` from the current transcript. Includes `Decoration.chain`, `Refine.c
 `replicate` special case (`replicate_eq_chain`), and `Strategy.chainComp`.
 -/
 
-set_option autoImplicit false
-
 universe u v w
 
 namespace Interaction

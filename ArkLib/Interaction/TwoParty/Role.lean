@@ -11,8 +11,6 @@ Authors: Quang Dao
 package the Σ/Π pattern for strategies vs. environments; `interact` runs one round.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

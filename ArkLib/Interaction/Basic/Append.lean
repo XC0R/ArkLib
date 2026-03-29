@@ -14,8 +14,6 @@ the first. This file defines `Transcript.join` / `split`, `Strategy.comp`, decor
 append, and naturality lemmas used throughout `Replicate` and `Chain`.
 -/
 
-set_option autoImplicit false
-
 universe u v w w₂
 
 namespace Interaction

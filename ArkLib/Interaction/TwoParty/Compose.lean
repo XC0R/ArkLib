@@ -16,8 +16,6 @@ Binary `Spec.append` for role strategies and counterparts; uniform and dependent
 over `replicate` and `chain`.
 -/
 
-set_option autoImplicit false
-
 universe u v
 
 namespace Interaction

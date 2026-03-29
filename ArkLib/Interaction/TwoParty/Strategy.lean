@@ -17,8 +17,6 @@ import ArkLib.Interaction.TwoParty.Decoration
 with per-node `BundledMonad` data from `MonadDecoration`.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

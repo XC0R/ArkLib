@@ -17,8 +17,6 @@ the spec (Hancock–Setzer), avoiding positivity issues for generic `m`.
 composition `Strategy.comp` requires `Spec.append` from `ArkLib.Interaction.Basic.Append`.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

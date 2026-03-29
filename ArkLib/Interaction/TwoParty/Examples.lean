@@ -14,8 +14,6 @@ import ArkLib.Interaction.TwoParty.Strategy
 Small hand-crafted specs show how role-dependent strategy types unfold.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

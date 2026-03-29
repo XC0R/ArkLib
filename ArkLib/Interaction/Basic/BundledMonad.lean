@@ -12,8 +12,6 @@ stored inside inductive types (e.g. per-node monad decorations) where typeclass 
 available. This module is independent of `Interaction.Spec`.
 -/
 
-set_option autoImplicit false
-
 universe u v
 
 /-- Bundled monad: a monad constructor packaged as a structure for use inside `Spec` data. -/

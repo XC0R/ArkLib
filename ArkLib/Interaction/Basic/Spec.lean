@@ -26,8 +26,6 @@ moves are computed. Those concerns are separated into companion modules:
 * McBride (2010); Dagand–McBride (2014), displayed algebras / ornaments
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction

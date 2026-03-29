@@ -51,8 +51,6 @@ type. This faithfully models the verifier gaining oracle access to each prover
 message as it arrives, which is essential for non-public-coin protocols.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 open OracleComp OracleSpec

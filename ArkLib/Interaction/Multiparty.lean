@@ -36,8 +36,6 @@ and `Spec.Counterpart` with zero duplication.
 - `ksSpec` / `ksPartyDeco` — knowledge-soundness interaction example
 -/
 
-set_option autoImplicit false
-
 namespace Interaction
 
 /-- A party decoration assigns a party label to each internal node of an

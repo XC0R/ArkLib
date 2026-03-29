@@ -16,8 +16,6 @@ Involutivity of `Role.swap`, compatibility with `RoleDecoration.map`, and intera
 `RoleDecoration.append`.
 -/
 
-set_option autoImplicit false
-
 universe u
 
 namespace Interaction
