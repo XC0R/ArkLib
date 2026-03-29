@@ -10,7 +10,7 @@ import ArkLib.Interaction.Basic.Append
 
 Non-dependent `n`-fold append of the same spec, with `Transcript.replicateJoin` / `replicateSplit`,
 replicated decorations/refinements, and `Strategy.iterate`. This is the uniform special case of
-`Spec.chain` (see `ArkLib.Interaction.Basic.Chain`).
+`Spec.stateChain` (see `ArkLib.Interaction.Basic.StateChain`).
 -/
 
 universe u v w

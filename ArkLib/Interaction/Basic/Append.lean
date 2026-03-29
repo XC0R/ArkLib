@@ -39,7 +39,7 @@ to a single-argument family on the combined transcript of `s₁.append s₂`.
 
 Crucially, `liftAppend s₁ s₂ F (Transcript.append s₁ s₂ tr₁ tr₂)` reduces
 **definitionally** to `F tr₁ tr₂`, which makes this the right combinator for
-stage-dependent composition (see `Strategy.comp` and `Transcript.chainFamily`). -/
+stage-dependent composition (see `Strategy.comp` and `Transcript.stateChainFamily`). -/
 def Transcript.liftAppend :
     (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
     ((tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
@@ -129,7 +129,7 @@ output and produces a second-phase strategy whose output family is `F tr₁`.
 
 This is the preferred composition form: `liftAppend` ensures the output type
 reduces definitionally when combined with `Transcript.append`, which is essential
-for dependent chain composition (see `Strategy.chainComp`). -/
+for dependent chain composition (see `Strategy.stateChainComp`). -/
 def Strategy.comp {m : Type u → Type u} [Monad m] :
     (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
     {Mid : Transcript s₁ → Type u} →
