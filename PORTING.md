@@ -12,38 +12,45 @@ Reference branch: `quang/iop-refactor` (old Refactor/ approach, archived).
 Interaction/             ← generic, standalone (future VCVio)
   Basic.lean               Spec.{u} (W-type), Transcript, Strategy, Decoration,
                            Decoration.map, Decoration.Refine, BundledMonad,
-                           MonadDecoration, append/replicate/chain, comp
-                           — universe-polymorphic throughout
+                           MonadDecoration,                            append/replicate/Chain (continuation-style),
+                           stateChain (state-indexed), liftAppend,
+                           stateChainLiftJoin, stateChainFamily, role-free
+                           composition — universe-polymorphic throughout
   TwoParty.lean            Role, RoleDecoration (= Decoration on Spec),
                            Strategy.withRoles, Counterpart (with Output param),
                            runWithRoles (returns both outputs),
                            SenderDecoration (= Refine over RoleDecoration),
-                           per-node monad variants, composition combinators
+                           per-node monad variants, role-aware
+                           append/replicate/stateChain combinators
   Multiparty.lean          PartyDecoration, PartyDecoration.toRoles (via
                            Decoration.map), ThreeParty examples
-  Reduction.lean           Prover (monadic, full dependency chain, dependent
-                           WitnessOut), Verifier (= Counterpart with OptionT
-                           output), Reduction, Proof, execute, Verifier.run
-  Security.lean            randomChallenger, completeness (HasEvalSPMF,
-                           statement-indexed), soundness (HasEvalSPMF, Accepts
-                           set), ClaimTree (inductive on Spec + RoleDecoration),
-                           good/Terminal/follow/terminalGood/maxPathError/IsSound,
-                           bound_terminalProb, rbrSoundness (with Accepts),
-                           soundness_of_claimTree
+  Reduction.lean           Prover (monadic setup, plain WitnessIn),
+                           Verifier (= Counterpart with transcript-indexed leaf
+                           output), transcript-indexed StatementOut/WitnessOut,
+                           Reduction, Proof, execute, Verifier.run,
+                           comp, stateChainComp, stateChainCompUniform,
+                           ofChain (stateless chain-based reduction)
+  Security.lean            randomChallenger, completeness / soundness /
+                           knowledgeSoundness (HasEvalSPMF), ClaimTree,
+                           KnowledgeClaimTree, rbrSoundness /
+                           rbrKnowledgeSoundness (currently via random
+                           challenger + transcript predicates)
   Oracle.lean              OracleDecoration (OracleInterface at sender nodes),
                            QueryHandle, toOracleSpec, answerQuery,
                            OracleCounterpart (with Output param, growing oracle
                            access), InteractiveOracleVerifier (= OracleCounterpart
-                           with verify output), OracleCounterpart.mapOutput,
+                           with OptionT verify output at `.done`),
                            OracleVerifier (batch: iov + simulate + reify),
-                           OracleProver (full dependency chain), OracleReduction
+                           OracleProver, OracleReduction
 
 OracleReduction/         ← ArkLib-specific (old core, to be replaced)
   OracleInterface.lean     Stable, reused by Interaction/Oracle.lean
   (TODO) Security/         Completeness, soundness, knowledge soundness, RBR
 
 ProofSystem/             ← concrete protocols on top of the above
-  (TODO) Sumcheck/         Multi-round sumcheck
+  Sumcheck/Interaction/    Interaction-native sumcheck: CompPoly types,
+                           single-round spec/prover/verifier, n-round
+                           stateChain composition, oracle layer (WIP)
   (TODO) FRI, Binius, ...
 ```
 
@@ -70,59 +77,69 @@ roles are a decoration on `Spec`.
 - [x] **Phase 2d: Universe polymorphism** — `Spec.{u}`, `BundledMonad.{u,v}`,
   `Decoration.{u,v}`, `Strategy.{u}`, all combinators universe-polymorphic;
   `TwoParty.lean` / `Reduction.lean` work at `u = 0`
-- [x] **Phase 2e: N-ary composition** — `replicate`, `chain`, `iterate`,
-  `chainComp` for `Spec`, `Decoration`, `Strategy`, `Transcript`; round-trip
-  lemmas (`split_join`, `chainSplit_chainJoin`); role-aware wrappers for
+- [x] **Phase 2e: N-ary composition** — `replicate`, `Chain` (continuation-
+  style), `stateChain` (state-indexed), `iterate`, `stateChainComp`,
+  `Transcript.stateChainJoin` / `stateChainUnjoin`, and `stateChainFamily`
+  for `Spec`, `Decoration`, `Strategy`, `Transcript`; round-trip lemmas
+  (`split_append`, `append_split`, `stateChainSplit_stateChainAppend`,
+  `stateChainUnjoin_join`, `stateChainJoin_unjoin`); role-aware wrappers for
   `RoleDecoration`, `Counterpart`, `Strategy.withRoles`
 - [x] **Phase 2f: Decoration.Refine** — displayed decoration combinator
   (cf. displayed algebras, ornaments). `Refine F spec d` carries `F X l` at
   each node with label `l : L X` from decoration `d`. Composition:
-  `Refine.append`, `.replicate`, `.chain`, `.map`. `SenderDecoration` in
+  `Refine.append`, `.replicate`, `.stateChain`, `.map`. `SenderDecoration` in
   `TwoParty.lean` as a specialization to `RoleDecoration`.
 - [x] **Phase 3: OracleDecoration** — `OracleDecoration` assigns
   `OracleInterface` instances at sender nodes (data, not typeclass).
   `QueryHandle` indexes oracle queries parameterized by a transcript (path-
   dependent oracle access — fundamental to W-type interactions where move types
   depend on prior moves). `toOracleSpec` and `answerQuery` defined by recursion.
-- [x] **Phase 3b: Oracle verifier redesign** — `Verifier` updated with
-  `StmtOut` output type and `verify : StmtIn → Transcript → OptionT m StmtOut`
-  (was `decide : StmtIn → Transcript → m Bool`).
-  `OracleCounterpart` models round-by-round challenger with growing oracle
+- [x] **Phase 3b: Oracle verifier redesign** —
+  `OracleCounterpart` models the round-by-round challenger with growing oracle
   access (`accSpec` starts at `[]ₒ`, grows by `oi.toOC.spec` at sender nodes).
-  `InteractiveOracleVerifier` unifies challenger + verification into one
-  recursive type (= `OracleCounterpart` at internal nodes, verification
-  function at `.done`). `toOracleCounterpart` extracts the challenger.
+  `InteractiveOracleVerifier` is the unified recursive type
+  (= `OracleCounterpart` with `OptionT` verification output at `.done`).
   `OracleVerifier` bundles `iov` + `simulate` + `reify` (both transcript-
-  dependent). `OracleProver`, `OracleReduction`, `OracleProof` defined.
+  dependent). `OracleProver` and `OracleReduction` are defined.
 
 - [x] **Phase 4: Security definitions** — `randomChallenger` (generic sampler
   to `Counterpart ProbComp`), `Reduction.completeness` / `perfectCompleteness`,
-  `soundness` (quantifies over all malicious provers, uses `Accepts` set),
-  `ClaimTree` (inductive on `Spec` + `RoleDecoration`),
-  `good`/`Terminal`/`follow`/`terminalGood`/`maxPathError`/`IsSound`,
-  `bound_terminalProb` (`sorry` proof), `rbrSoundness` (deterministic verify,
-  with `Accepts`), `soundness_of_claimTree` (`sorry` bridge).
-- [x] **Phase 4b: Generalize Counterpart, Reduction, Security** —
+  `soundness`, `knowledgeSoundness`, `ClaimTree` / `KnowledgeClaimTree`
+  (inductive on `Spec` + `RoleDecoration`), `good`/`Terminal`/`follow`/
+  `terminalGood`/`maxPathError`/`IsSound`, `bound_terminalProb`
+  (`sorry` proof), `rbrSoundness` / `rbrKnowledgeSoundness`, and the
+  current bridge theorems (`sorry` where noted).
+- [x] **Phase 4b: Counterpart output + simplified Reduction/Security** —
   `Counterpart` takes explicit `Output : Transcript spec → Type u` parameter
   (`Output ⟨⟩` at `.done`; old no-output = `fun _ => PUnit`).
   `runWithRoles` returns both prover and counterpart outputs.
-  `Counterpart.iterate`/`chainComp` thread state `β` (mirrors strategy pattern).
+  `Counterpart.iterate`/`stateChainComp` thread state `β` (mirrors strategy pattern).
   `OracleCounterpart` takes `Output : OracleSpec → Type` at `.done`;
   `InteractiveOracleVerifier` is now an abbrev to `OracleCounterpart`.
-  `Prover` is monadic (`run` returns `m (Strategy ...)`), statement-indexed
-  with full dependency chain (`Context : Statement → Spec`, `Roles`,
-  `StatementOut`, `WitnessOut : ... → StatementOut → Type`).
-  `Verifier` is an `abbrev` for `Counterpart` with `OptionT m (VerOutput)`.
+  Plain `Reduction` uses monadic prover setup, plain `WitnessIn`, and
+  transcript-indexed `StatementOut` / `WitnessOut` as parallel families
+  (no `WitnessOut` dependency on `StatementOut`).
+  `Verifier` is an `abbrev` for `Counterpart` with caller-chosen leaf output;
+  acceptance semantics live in `StatementOut` / `Accepts`.
   Security uses generic `[HasEvalSPMF m]` instead of `ProbComp`.
+- [x] **Phase 4c: Role-aware sequential composition** —
+  `Strategy.compWithRoles`, `Counterpart.append`, `Reduction.comp`, and the
+  chain builders `Reduction.stateChainComp` / `Reduction.stateChainCompUniform`
+  are implemented on top of `Spec.append` / `Spec.stateChain`.
+  `Reduction.ofChain` provides stateless reduction composition over `Spec.Chain`.
 
 ## In progress
 
-- [ ] **Sequential composition** — `Strategy.comp`, `Counterpart.comp`, and
-  `Reduction.comp` for role-aware specs (infrastructure in place on `Spec`,
-  needs role-aware wrappers and `RoleDecoration.append`)
+- [ ] **Verifier-indexed round-by-round security** — the current claim-tree
+  layer is phrased using `randomChallenger` and transcript-level predicates
+  (`Accepts`, `relOut`); the next cleanup is to tie RBR security directly to
+  the actual `Verifier` object and its outputs
 
 ## Planned
-- [ ] **Phase 5: Sumcheck migration** — express sumcheck in new types
+- [ ] **Phase 5: Sumcheck migration** — interaction-native sumcheck started:
+  `CompPoly` types (`CDegreeLE`, `CMvDegreeLE`), single-round spec/prover/verifier,
+  `n`-round `stateChain` composition, oracle layer stub. Remaining: fill `sorry`
+  obligations, connect to old `Sumcheck.Spec` proofs, oracle verifier body
 - [ ] **Phase 6: Protocol migration** — FRI, Binius, Whir, Stir, Components,
   CommitmentScheme
 - [ ] **Fiat-Shamir** — abstract FS transform on Spec + RoleDecoration
@@ -138,10 +155,10 @@ roles are a decoration on `Spec`.
   structure where move types depend on prior moves. This differs fundamentally
   from the old flat `ProtocolSpec n` approach.
 
-- **Execution of OracleReduction**: `OracleReduction.execute` needs
-  `simulateQ` to resolve transcript-dependent oracle queries. The type
-  involves `OracleComp (oSpec + od.toOracleSpec tr)` where `tr` is the
-  transcript — requires careful monad plumbing. Currently `sorry`.
+- **Execution of OracleReduction**: `OracleReduction.execute` has not yet been
+  reintroduced. It will need `simulateQ` to resolve transcript-dependent oracle
+  queries, with types involving `OracleComp (oSpec + od.toOracleSpec tr)` for
+  the executed transcript `tr`.
 
 - **Growing oracle access**: Both `OracleCounterpart` and
   `InteractiveOracleVerifier` use an `accSpec` parameter that grows at each
@@ -155,10 +172,16 @@ roles are a decoration on `Spec`.
   the oracle spec depends on the transcript (path through the tree). Both
   `simulate` and `reify` must take a `Transcript` argument.
 
-- **Dependent vs non-dependent output** (RESOLVED): `Prover` now uses
-  dependent output `(fun tr => (sOut : StatementOut s tr) × WitnessOut s tr sOut)`.
-  `Verifier` output is `OptionT m (VerOutput s tr)`. `Counterpart` takes
-  explicit `Output : Transcript spec → Type u` parameter.
+- **Witness typing** (RESOLVED): `WitnessIn` is now a plain type, not
+  dependent on the input statement. `WitnessOut` remains parallel to
+  `StatementOut` (both indexed by `(s, tr)`), so prover input/output are plain
+  products and statement/witness compatibility is expressed in security
+  relations rather than in the types.
+
+- **Verifier-indexed RBR semantics**: `ClaimTree` / `rbrSoundness` currently
+  talk about transcript predicates and `randomChallenger`, not the full
+  statement-indexed `Verifier` object. This is the main remaining design gap in
+  `Security.lean`.
 
 - **Where Interaction goes long-term**: planned to move to VCVio once stable.
   Keep it import-free from ArkLib (except `Oracle.lean` which bridges VCVio).
