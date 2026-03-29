@@ -1,6 +1,7 @@
 /-
 Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Quang Dao
 -/
 import ArkLib.Interaction.Basic.Spec
 import ArkLib.Interaction.TwoParty.Role
@@ -31,8 +32,8 @@ private def exRoles : RoleDecoration (exSpec T U) :=
 example : Spec.Strategy.withRoles m (exSpec T U) (exRoles T U) (fun _ => α)
     = ((_ : T) × m ((_ : U) → m α)) := rfl
 
-example : Spec.Counterpart m (exSpec T U) (exRoles T U)
-    = ((_ : T) → m ((_ : U) × PUnit)) := rfl
+example : Spec.Counterpart m (exSpec T U) (exRoles T U) (fun _ => α)
+    = ((_ : T) → m ((_ : U) × α)) := rfl
 
 end Examples
 end Interaction
