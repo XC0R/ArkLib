@@ -432,6 +432,24 @@ lemma run_liftComp_eq {ι' : Type w} {spec : OracleSpec ι} {superSpec : OracleS
     OptionT.run (liftComp oa superSpec) = ((oa.run).liftComp superSpec) := by
   rfl
 
+set_option maxHeartbeats 200000 in
+-- Bound this normalization lemma to avoid long elaboration loops on nested lifts.
+lemma run_liftM_run {α} {ι₁ ι₂ : Type} {spec₁ : OracleSpec ι₁}
+    {spec₂ : OracleSpec ι₂} [MonadLift (OracleQuery spec₁) (OracleQuery spec₂)]
+    (x : OptionT (OracleComp spec₁) α) :
+    (liftM x.run : OptionT (OracleComp spec₂) (Option α)).run =
+      some <$> (simulateQ (fun t => liftM (query t)) x.run) := by
+  change
+    (liftM (monadLift x.run : OptionT (OracleComp spec₁) (Option α)) :
+      OptionT (OracleComp spec₂) (Option α)).run = _
+  rw [OracleComp.liftM_OptionT_eq]
+  change
+    simulateQ (fun t => liftM (query t))
+      ((monadLift x.run : OptionT (OracleComp spec₁) (Option α)).run) = _
+  rw [OptionT.run_monadLift (m := OracleComp spec₁) (n := OracleComp spec₁) (x := x.run)]
+  erw [simulateQ_map]
+  rw [monadLift_eq_self]
+
 /-- OptionT failure of the spec-lifted computation equals run failure + none mass of the original:
   `Pr[⊥ | liftComp oa superSpec] = Pr[⊥ | oa.run] + Pr[= none | oa.run]`.
   Cf. `OptionT.probFailure_liftM`: that lemma is for lifting a plain `m α` into `OptionT m α`

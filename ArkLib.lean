@@ -139,6 +139,10 @@ import ArkLib.ProofSystem.Binius.BinaryBasefold.Soundness.QueryPhasePrelims
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Soundness.QueryPhaseSoundness
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Spec
 import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps
+import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps.Commit
+import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps.FinalSumcheck
+import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps.Fold
+import ArkLib.ProofSystem.Binius.BinaryBasefold.Steps.Relay
 import ArkLib.ProofSystem.Binius.FRIBinius.CoreInteractionPhase
 import ArkLib.ProofSystem.Binius.FRIBinius.General
 import ArkLib.ProofSystem.Binius.FRIBinius.Prelude
