@@ -80,6 +80,20 @@ def Transcript.append :
   | .node _ rest, s₂, ⟨x, tail₁⟩, tr₂ =>
       ⟨x, Transcript.append (rest x) (fun p => s₂ ⟨x, p⟩) tail₁ tr₂⟩
 
+/-- `liftAppend` on an appended transcript reduces to the original two-argument
+family. -/
+@[simp]
+theorem Transcript.liftAppend_append :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    Transcript.liftAppend s₁ s₂ F (Transcript.append s₁ s₂ tr₁ tr₂) = F tr₁ tr₂
+  | .done, _, _, _, _ => rfl
+  | .node _ rest, s₂, F, ⟨x, tail₁⟩, tr₂ => by
+      simpa [Transcript.liftAppend, Transcript.append] using
+        Transcript.liftAppend_append (rest x) (fun p => s₂ ⟨x, p⟩)
+          (fun tr₁ tr₂ => F ⟨x, tr₁⟩ tr₂) tail₁ tr₂
+
 /-- Decompose a transcript of `s₁.append s₂` into the first-phase prefix and the
 second-phase continuation. Inverse of `Transcript.append`. -/
 def Transcript.split :
@@ -110,6 +124,184 @@ theorem Transcript.append_split :
   | .done, _, _ => rfl
   | .node _ rest, s₂, ⟨x, tail⟩ => by
       simp only [split, Transcript.append]; rw [append_split]
+
+/-- `liftAppend` can be reconstructed from the transcript pieces returned by
+`Transcript.split`. -/
+theorem Transcript.liftAppend_split :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    let ⟨tr₁, tr₂⟩ := Transcript.split s₁ s₂ tr
+    Transcript.liftAppend s₁ s₂ F tr = F tr₁ tr₂
+  | .done, _, _, _ => rfl
+  | .node _ rest, s₂, F, ⟨x, tail⟩ => by
+      simpa [Transcript.split, Transcript.liftAppend] using
+        Transcript.liftAppend_split (rest x) (fun p => s₂ ⟨x, p⟩)
+          (fun tr₁ tr₂ => F ⟨x, tr₁⟩ tr₂) tail
+
+/-- Reinterpret a `liftAppend` value against the transcript pair recovered by `split`.
+Defined by structural recursion mirroring `liftAppend`/`split`, so no explicit `cast`
+appears in the definition. -/
+def Transcript.unliftAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    Transcript.liftAppend s₁ s₂ F tr →
+    let ⟨tr₁, tr₂⟩ := Transcript.split s₁ s₂ tr
+    F tr₁ tr₂
+  | .done, _, _, _, x => x
+  | .node _ rest, s₂, F, ⟨xm, tail⟩, val =>
+      unliftAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail val
+
+/-- Transport a value of `F tr₁ tr₂` to `liftAppend s₁ s₂ F (append s₁ s₂ tr₁ tr₂)`.
+Defined by structural recursion mirroring `liftAppend`/`append`, so no explicit `cast`
+appears. This is the identity function in disguise — at each constructor step,
+`liftAppend s₁ s₂ F (append s₁ s₂ tr₁ tr₂)` reduces to `F tr₁ tr₂`. -/
+def Transcript.packAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    F tr₁ tr₂ → liftAppend s₁ s₂ F (append s₁ s₂ tr₁ tr₂)
+  | .done, _, _, ⟨⟩, _, x => x
+  | .node _ rest, s₂, F, ⟨xm, tail₁⟩, tr₂, x =>
+      packAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
+
+/-- Transport a `liftAppend` value back to the pair-indexed family.
+Inverse of `packAppend`. -/
+def Transcript.unpackAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    liftAppend s₁ s₂ F (append s₁ s₂ tr₁ tr₂) → F tr₁ tr₂
+  | .done, _, _, ⟨⟩, _, x => x
+  | .node _ rest, s₂, F, ⟨xm, tail₁⟩, tr₂, x =>
+      unpackAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
+
+@[simp]
+theorem Transcript.unpackAppend_packAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    (x : F tr₁ tr₂) →
+    unpackAppend s₁ s₂ F tr₁ tr₂ (packAppend s₁ s₂ F tr₁ tr₂ x) = x
+  | .done, _, _, ⟨⟩, _, _ => rfl
+  | .node _ rest, s₂, F, ⟨xm, tail₁⟩, tr₂, x =>
+      unpackAppend_packAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
+
+@[simp]
+theorem Transcript.packAppend_unpackAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    (x : liftAppend s₁ s₂ F (append s₁ s₂ tr₁ tr₂)) →
+    packAppend s₁ s₂ F tr₁ tr₂ (unpackAppend s₁ s₂ F tr₁ tr₂ x) = x
+  | .done, _, _, ⟨⟩, _, _ => rfl
+  | .node _ rest, s₂, F, ⟨xm, tail₁⟩, tr₂, x =>
+      packAppend_unpackAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
+
+/-- When `tr = append tr₁ tr₂`, the round-trip (`packAppend` then `unliftAppend`)
+recovers the original pair-indexed relation value. -/
+theorem Transcript.rel_unliftAppend_append :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F G : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (R : ∀ (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)),
+      F tr₁ tr₂ → G tr₁ tr₂ → Prop) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    (x : F tr₁ tr₂) → (y : G tr₁ tr₂) →
+    let tr := Transcript.append s₁ s₂ tr₁ tr₂
+    R (Transcript.split s₁ s₂ tr).1 (Transcript.split s₁ s₂ tr).2
+      (Transcript.unliftAppend s₁ s₂ F tr
+        (Transcript.packAppend s₁ s₂ F tr₁ tr₂ x))
+      (Transcript.unliftAppend s₁ s₂ G tr
+        (Transcript.packAppend s₁ s₂ G tr₁ tr₂ y))
+    = R tr₁ tr₂ x y
+  | .done, _, _, _, _, ⟨⟩, _, _, _ => rfl
+  | .node _ rest, s₂, F, G, R, ⟨xm, tail₁⟩, tr₂, x, y => by
+      change _ = R ⟨xm, tail₁⟩ tr₂ x y
+      simpa [Transcript.append, Transcript.split, Transcript.unliftAppend,
+          Transcript.liftAppend, Transcript.packAppend] using
+        rel_unliftAppend_append (rest xm) (fun p => s₂ ⟨xm, p⟩)
+          (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) (fun tr₁ tr₂ => G ⟨xm, tr₁⟩ tr₂)
+          (fun tr₁ tr₂ => R ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x y
+
+/-- Lift a binary relation on pair-indexed type families to the fused transcript
+of `s₁.append s₂`. Reduces definitionally when the transcript is
+`Transcript.append s₁ s₂ tr₁ tr₂`, making it the right combinator for stating
+composition theorems without visible casts. -/
+def Transcript.liftAppendRel :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (G : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (R : ∀ (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)),
+      F tr₁ tr₂ → G tr₁ tr₂ → Prop) →
+    (tr : Transcript (s₁.append s₂)) →
+    Transcript.liftAppend s₁ s₂ F tr →
+    Transcript.liftAppend s₁ s₂ G tr → Prop
+  | .done, _, _, _, R, tr, x, y => R ⟨⟩ tr x y
+  | .node _ rest, s₂, F, G, R, ⟨xm, tail⟩, x, y =>
+      liftAppendRel (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) (fun tr₁ tr₂ => G ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => R ⟨xm, tr₁⟩ tr₂) tail x y
+
+/-- `liftAppendRel` is equivalent to applying `R` at the transcript pair
+recovered by `split`, via `unliftAppend`. -/
+theorem Transcript.liftAppendRel_iff :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (G : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (R : ∀ (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)),
+      F tr₁ tr₂ → G tr₁ tr₂ → Prop) →
+    (tr : Transcript (s₁.append s₂)) →
+    (x : Transcript.liftAppend s₁ s₂ F tr) →
+    (y : Transcript.liftAppend s₁ s₂ G tr) →
+    Transcript.liftAppendRel s₁ s₂ F G R tr x y ↔
+      R (Transcript.split s₁ s₂ tr).1 (Transcript.split s₁ s₂ tr).2
+        (Transcript.unliftAppend s₁ s₂ F tr x)
+        (Transcript.unliftAppend s₁ s₂ G tr y)
+  | .done, _, _, _, _, _, _, _ => Iff.rfl
+  | .node _ rest, s₂, F, G, R, ⟨xm, tail⟩, x, y =>
+      liftAppendRel_iff (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) (fun tr₁ tr₂ => G ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => R ⟨xm, tr₁⟩ tr₂) tail x y
+
+/-- Lift a unary predicate on a pair-indexed type family to the fused transcript
+of `s₁.append s₂`. Reduces definitionally when the transcript is
+`Transcript.append s₁ s₂ tr₁ tr₂`. -/
+def Transcript.liftAppendPred :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (P : ∀ (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)),
+      F tr₁ tr₂ → Prop) →
+    (tr : Transcript (s₁.append s₂)) →
+    Transcript.liftAppend s₁ s₂ F tr → Prop
+  | .done, _, _, P, tr, x => P ⟨⟩ tr x
+  | .node _ rest, s₂, F, P, ⟨xm, tail⟩, x =>
+      liftAppendPred (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => P ⟨xm, tr₁⟩ tr₂) tail x
+
+/-- `liftAppendPred` is equivalent to applying `P` at the transcript pair
+recovered by `split`, via `unliftAppend`. -/
+theorem Transcript.liftAppendPred_iff :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (P : ∀ (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)),
+      F tr₁ tr₂ → Prop) →
+    (tr : Transcript (s₁.append s₂)) →
+    (x : Transcript.liftAppend s₁ s₂ F tr) →
+    Transcript.liftAppendPred s₁ s₂ F P tr x ↔
+      P (Transcript.split s₁ s₂ tr).1 (Transcript.split s₁ s₂ tr).2
+        (Transcript.unliftAppend s₁ s₂ F tr x)
+  | .done, _, _, _, _, _ => Iff.rfl
+  | .node _ rest, s₂, F, P, ⟨xm, tail⟩, x =>
+      liftAppendPred_iff (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => P ⟨xm, tr₁⟩ tr₂) tail x
 
 theorem append_done (s₂ : Transcript Spec.done → Spec) :
     Spec.done.append s₂ = s₂ ⟨⟩ := rfl

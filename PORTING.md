@@ -27,11 +27,15 @@ Interaction/             ← generic, standalone (future VCVio)
   Reduction.lean           Prover (monadic setup, plain WitnessIn),
                            Verifier (= Counterpart with transcript-indexed leaf
                            output), transcript-indexed StatementOut/WitnessOut,
-                           Reduction, Proof, execute, Verifier.run,
-                           comp, stateChainComp, stateChainCompUniform,
-                           ofChain (stateless chain-based reduction)
-  Security.lean            randomChallenger, completeness / soundness /
-                           knowledgeSoundness (HasEvalSPMF), ClaimTree,
+                           Reduction, Reduction.Continuation, Proof, execute,
+                           Verifier.run, comp, stateChainComp,
+                           stateChainCompUniform, ofChain (stateless
+                           chain-based reduction)
+  Security.lean            randomChallenger, completeness /
+                           perfectCompleteness / soundness /
+                           knowledgeSoundness (HasEvalSPMF),
+                           completeness/soundness composition for `comp`,
+                           `Extractor.Straightline`, ClaimTree,
                            KnowledgeClaimTree, rbrSoundness /
                            rbrKnowledgeSoundness (currently via random
                            challenger + transcript predicates)
@@ -127,13 +131,24 @@ roles are a decoration on `Spec`.
   chain builders `Reduction.stateChainComp` / `Reduction.stateChainCompUniform`
   are implemented on top of `Spec.append` / `Spec.stateChain`.
   `Reduction.ofChain` provides stateless reduction composition over `Spec.Chain`.
+- [x] **Phase 4d: Security composition + extractor cleanup** —
+  `Reduction.comp` now factors through transcript-indexed
+  `Reduction.Continuation`, with `reduction1` / `reduction2` naming throughout.
+  `Reduction.completeness_comp`, `Reduction.perfectCompleteness_comp`, and
+  `Reduction.soundness_comp` are proved against that interface.
+  Security relations now take statement output before witness output, and
+  `knowledgeSoundness` uses a dedicated `Extractor.Straightline` instead of an
+  ad-hoc function type. `knowledgeSoundness_implies_soundness` is available
+  when accepted terminal statements admit a canonical transcript-indexed
+  `WitnessOut`.
 
 ## In progress
 
-- [ ] **Verifier-indexed round-by-round security** — the current claim-tree
-  layer is phrased using `randomChallenger` and transcript-level predicates
-  (`Accepts`, `relOut`); the next cleanup is to tie RBR security directly to
-  the actual `Verifier` object and its outputs
+- [ ] **Verifier-indexed round-by-round security** — after landing the
+  composition theorems and straightline-extractor cleanup, the main remaining
+  `Security.lean` task is still to rephrase the claim-tree layer in terms of
+  the actual `Verifier` object and its outputs instead of
+  `randomChallenger`-level transcript predicates (`Accepts`, `relOut`)
 
 ## Planned
 - [ ] **Phase 5: Sumcheck migration** — interaction-native sumcheck started:
@@ -177,6 +192,18 @@ roles are a decoration on `Spec`.
   `StatementOut` (both indexed by `(s, tr)`), so prover input/output are plain
   products and statement/witness compatibility is expressed in security
   relations rather than in the types.
+
+- **Sequential security composition** (RESOLVED): `Reduction.comp` now consumes
+  the second stage as a transcript-indexed `Reduction.Continuation`, so the
+  completeness / perfect-completeness / soundness composition theorems can
+  quantify directly over first-phase transcripts without encoding the second
+  reduction awkwardly inside the theorem statement.
+
+- **Knowledge soundness implies soundness** (PARTIALLY RESOLVED): the bridge
+  theorem is now proved, but it needs an explicit transcript-indexed
+  `acceptWitness` selector. Without that extra datum, the current API does not
+  provide a way to reconstruct a `WitnessOut` merely from acceptance of a
+  terminal `StatementOut`.
 
 - **Verifier-indexed RBR semantics**: `ClaimTree` / `rbrSoundness` currently
   talk about transcript predicates and `randomChallenger`, not the full

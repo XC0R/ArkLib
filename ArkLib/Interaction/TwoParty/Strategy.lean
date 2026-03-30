@@ -58,6 +58,41 @@ def Strategy.mapOutputWithRoles {m : Type u → Type u} [Functor m] :
   | .node _ _, ⟨.receiver, _⟩, _, _, f, respond =>
       fun x => (mapOutputWithRoles (fun p => f ⟨x, p⟩) ·) <$> respond x
 
+/-- Pointwise identity on outputs is the identity on role-dependent strategies. -/
+@[simp]
+theorem Strategy.mapOutputWithRoles_id {m : Type u → Type u} [Functor m] [LawfulFunctor m]
+    {spec : Spec} {roles : RoleDecoration spec} {A : Transcript spec → Type u}
+    (σ : Strategy.withRoles m spec roles A) :
+    Strategy.mapOutputWithRoles (fun _ x => x) σ = σ := by
+  match spec, roles with
+  | .done, roles =>
+      cases roles
+      rfl
+  | .node _ rest, ⟨.sender, rRest⟩ =>
+      rcases σ with ⟨x, cont⟩
+      simp only [Strategy.mapOutputWithRoles]
+      congr 1
+      have hid :
+          (mapOutputWithRoles (fun (p : Transcript (rest x)) (y : A ⟨x, p⟩) => y) :
+              Strategy.withRoles m (rest x) (rRest x) (fun p => A ⟨x, p⟩) →
+                Strategy.withRoles m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) =
+            id := by
+        funext s
+        exact @mapOutputWithRoles_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) s
+      rw [hid]
+      exact LawfulFunctor.id_map cont
+  | .node _ rest, ⟨.receiver, rRest⟩ =>
+      funext x
+      have hid :
+          (mapOutputWithRoles (fun (p : Transcript (rest x)) (y : A ⟨x, p⟩) => y) :
+              Strategy.withRoles m (rest x) (rRest x) (fun p => A ⟨x, p⟩) →
+                Strategy.withRoles m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) =
+            id := by
+        funext s
+        exact @mapOutputWithRoles_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) s
+      simp only [Strategy.mapOutputWithRoles, hid]
+      exact LawfulFunctor.id_map (σ x)
+
 /-- Functorial output map for counterparts. -/
 def Counterpart.mapOutput {m : Type u → Type u} [Functor m] :
     {spec : Spec.{u}} → {roles : RoleDecoration spec} →
@@ -68,6 +103,37 @@ def Counterpart.mapOutput {m : Type u → Type u} [Functor m] :
       fun x => mapOutput (fun p => f ⟨x, p⟩) (observe x)
   | .node _ _, ⟨.receiver, _⟩, _, _, f, sample =>
       (fun ⟨x, c⟩ => ⟨x, mapOutput (fun p => f ⟨x, p⟩) c⟩) <$> sample
+
+/-- Pointwise identity on outputs is the identity on counterparts. -/
+@[simp]
+theorem Counterpart.mapOutput_id {m : Type u → Type u} [Functor m] [LawfulFunctor m]
+    {spec : Spec} {roles : RoleDecoration spec} {A : Transcript spec → Type u}
+    (c : Counterpart m spec roles A) :
+    Counterpart.mapOutput (fun _ x => x) c = c := by
+  match spec, roles with
+  | .done, roles =>
+      cases roles
+      rfl
+  | .node _ rest, ⟨.sender, rRest⟩ =>
+      funext x
+      exact @Counterpart.mapOutput_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) (c x)
+  | .node X rest, ⟨.receiver, rRest⟩ =>
+      let F : ((x : X) × Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) →
+          ((x : X) × Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) :=
+        fun xc => ⟨xc.1,
+          Counterpart.mapOutput
+            (fun (p : Transcript (rest xc.1)) (y : A ⟨xc.1, p⟩) => y) xc.2⟩
+      have hpair :
+          F = id := by
+        funext xc
+        cases xc with
+        | mk x c' =>
+            simp only [F, Counterpart.mapOutput_id]
+            rfl
+      rw [Counterpart.mapOutput]
+      change F <$> c = c
+      rw [hpair]
+      exact LawfulFunctor.id_map c
 
 /-- Execute `withRoles` against a `Counterpart`, producing transcript, prover output,
 and counterpart output. -/
@@ -88,6 +154,71 @@ def Strategy.runWithRoles {m : Type u → Type u} [Monad m] :
       let next ← respond x
       let ⟨tail, outP, outC⟩ ← runWithRoles (rest x) (dRest x) next dualRest
       return ⟨⟨x, tail⟩, outP, outC⟩
+
+/-- Running `runWithRoles` after mapping both participant outputs is the same as
+running first and mapping the final triple. -/
+theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
+    {m : Type u → Type u} [Monad m] [LawfulMonad m]
+    {spec : Spec} {roles : RoleDecoration spec}
+    {OutputP OutputP' OutputC OutputC' : Transcript spec → Type u}
+    (fP : ∀ tr, OutputP tr → OutputP' tr)
+    (fC : ∀ tr, OutputC tr → OutputC' tr)
+    (strat : Strategy.withRoles m spec roles OutputP)
+    (cpt : Counterpart m spec roles OutputC) :
+    Strategy.runWithRoles spec roles (Strategy.mapOutputWithRoles fP strat)
+      (Counterpart.mapOutput fC cpt) =
+      (fun z => ⟨z.1, fP z.1 z.2.1, fC z.1 z.2.2⟩) <$>
+        Strategy.runWithRoles spec roles strat cpt := by
+  let rec go
+      (spec : Spec) (roles : RoleDecoration spec)
+      {OutputP OutputP' OutputC OutputC' : Transcript spec → Type u}
+      (fP : ∀ tr, OutputP tr → OutputP' tr)
+      (fC : ∀ tr, OutputC tr → OutputC' tr)
+      (strat : Strategy.withRoles m spec roles OutputP)
+      (cpt : Counterpart m spec roles OutputC) :
+      Strategy.runWithRoles spec roles (Strategy.mapOutputWithRoles fP strat)
+        (Counterpart.mapOutput fC cpt) =
+        (fun z => ⟨z.1, fP z.1 z.2.1, fC z.1 z.2.2⟩) <$>
+          Strategy.runWithRoles spec roles strat cpt := by
+    match spec, roles with
+    | .done, roles =>
+        cases roles
+        simp [Strategy.mapOutputWithRoles, Counterpart.mapOutput, Strategy.runWithRoles.eq_1]
+    | .node _ rest, ⟨.sender, rRest⟩ =>
+        cases strat with
+        | mk x cont =>
+            simp only [mapOutputWithRoles, Counterpart.mapOutput]
+            rw [Strategy.runWithRoles.eq_2, Strategy.runWithRoles.eq_2]
+            simp only [bind_pure_comp, bind_map_left, map_bind, Functor.map_map]
+            refine congrArg (fun k => cont >>= k) ?_
+            funext next
+            let addPrefix :
+                ((tr : Transcript (rest x)) × (fun tr => OutputP' ⟨x, tr⟩) tr ×
+                  (fun tr => OutputC' ⟨x, tr⟩) tr) →
+                ((tr : Transcript (Spec.node _ rest)) × OutputP' tr × OutputC' tr) :=
+              fun a => ⟨⟨x, a.1⟩, a.2.1, a.2.2⟩
+            simpa [bind_assoc, addPrefix] using
+              congrArg (fun z => addPrefix <$> z)
+                (go (rest x) (rRest x) (fun tr => fP ⟨x, tr⟩) (fun tr => fC ⟨x, tr⟩)
+                  next (cpt x))
+    | .node _ rest, ⟨.receiver, rRest⟩ =>
+        simp only [mapOutputWithRoles, Counterpart.mapOutput]
+        rw [Strategy.runWithRoles.eq_3, Strategy.runWithRoles.eq_3]
+        simp only [bind_pure_comp, bind_map_left, map_bind, Functor.map_map]
+        refine congrArg (fun k => cpt >>= k) ?_
+        funext xc
+        refine congrArg (fun k => strat xc.1 >>= k) ?_
+        funext next
+        let addPrefix :
+            ((tr : Transcript (rest xc.1)) × (fun tr => OutputP' ⟨xc.1, tr⟩) tr ×
+              (fun tr => OutputC' ⟨xc.1, tr⟩) tr) →
+            ((tr : Transcript (Spec.node _ rest)) × OutputP' tr × OutputC' tr) :=
+          fun a => ⟨⟨xc.1, a.1⟩, a.2.1, a.2.2⟩
+        simpa [bind_assoc, addPrefix] using
+          congrArg (fun z => addPrefix <$> z)
+            (go (rest xc.1) (rRest xc.1) (fun tr => fP ⟨xc.1, tr⟩) (fun tr => fC ⟨xc.1, tr⟩)
+              next xc.2)
+  exact go spec roles fP fC strat cpt
 
 /-- `withRoles` using the monad attached at each node (from `MonadDecoration`). -/
 def Strategy.withRolesAndMonads :
