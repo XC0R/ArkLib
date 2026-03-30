@@ -262,10 +262,12 @@ abbrev OracleProver {ι : Type} (oSpec : OracleSpec ι)
     (WitnessIn : Type)
     (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
-    (WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) :=
+    (StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) :=
   Prover (OracleComp oSpec)
     (StatementIn × (∀ i, OStmtIn i)) WitnessIn
-    (fun ⟨s, _⟩ => Context s) (fun ⟨s, _⟩ => Roles s) (fun ⟨s, _⟩ tr => WitnessOut s tr)
+    (fun ⟨s, _⟩ => Context s) (fun ⟨s, _⟩ => Roles s)
+    (fun ⟨s, _⟩ tr => StatementOut s tr)
+    (fun ⟨s, _⟩ tr => WitnessOut s tr)
 
 /-- Oracle reduction: pairs an oracle prover with a verifier that uses per-node
 monads (`Id` at sender, `OracleComp` at receiver) via `Counterpart.withMonads`.
@@ -282,7 +284,7 @@ structure OracleReduction {ι : Type} (oSpec : OracleSpec ι)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
     (OD : (s : StatementIn) → OracleDecoration (Context s) (Roles s))
     (StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) where
-  prover : OracleProver oSpec StatementIn OStmtIn WitnessIn Context Roles WitnessOut
+  prover : OracleProver oSpec StatementIn OStmtIn WitnessIn Context Roles StatementOut WitnessOut
   verifier : (s : StatementIn) →
     Spec.Counterpart.withMonads (Context s) (Roles s)
       (toMonadDecoration oSpec OStmtIn (Context s) (Roles s) (OD s) (ιₐ := PEmpty) []ₒ)
@@ -365,9 +367,10 @@ def OracleReduction.comp {ι : Type} {oSpec : OracleSpec ι}
     (r₁ : OracleReduction oSpec StatementIn OStmtIn WitnessIn
       ctx₁ roles₁ OD₁ StmtMid WitMid)
     (prover₂ : (s : StatementIn × (∀ i, OStmtIn i)) →
-      (tr₁ : Spec.Transcript (ctx₁ s.1)) → WitMid s.1 tr₁ →
+      (tr₁ : Spec.Transcript (ctx₁ s.1)) → StmtMid s.1 tr₁ → WitMid s.1 tr₁ →
         OracleComp oSpec (Spec.Strategy.withRoles (OracleComp oSpec)
-          (ctx₂ s.1 tr₁) (roles₂ s.1 tr₁) (WitOut₂ s.1 tr₁)))
+          (ctx₂ s.1 tr₁) (roles₂ s.1 tr₁)
+          (fun tr₂ => HonestProverOutput (StmtOut₂ s.1 tr₁ tr₂) (WitOut₂ s.1 tr₁ tr₂))))
     (verifier₂ : (s : StatementIn) → (tr₁ : Spec.Transcript (ctx₁ s)) →
       StmtMid s tr₁ →
         Spec.Counterpart.withMonads (ctx₂ s tr₁) (roles₂ s tr₁)
@@ -382,8 +385,14 @@ def OracleReduction.comp {ι : Type} {oSpec : OracleSpec ι}
       (fun s => Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut₂ s)) where
   prover sWithOracles w := do
     let strat₁ ← r₁.prover sWithOracles w
-    Spec.Strategy.compWithRoles strat₁
-      (fun tr₁ wMid => prover₂ sWithOracles tr₁ wMid)
+    let strat ← Spec.Strategy.compWithRoles strat₁
+      (fun tr₁ midOut => prover₂ sWithOracles tr₁ midOut.stmt midOut.wit)
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr out =>
+        Spec.Transcript.liftAppendProd
+          (ctx₁ sWithOracles.1) (ctx₂ sWithOracles.1)
+          (StmtOut₂ sWithOracles.1) (WitOut₂ sWithOracles.1) tr out)
+      strat
   verifier s := by
     rw [toMonadDecoration_append]
     exact Spec.Counterpart.withMonads.append (r₁.verifier s)
@@ -433,6 +442,9 @@ def OracleReduction.stateChainComp {ι : Type} {oSpec : OracleSpec ι}
     (proverStep : (i : Nat) → (st : Stage i) → ProverState i st →
       OracleComp oSpec (Spec.Strategy.withRoles (OracleComp oSpec) (spec i st) (roles i st)
         (fun tr => ProverState (i + 1) (advance i st tr))))
+    (stmtResult : (s : StatementIn) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage s))) →
+      Spec.Transcript.stateChainFamily VerifierState n 0 (initStage s) tr)
     (verifierInit : (s : StatementIn) → VerifierState 0 (initStage s))
     (verifierStep : (i : Nat) → (st : Stage i) → VerifierState i st →
       Spec.Counterpart.withMonads (spec i st) (roles i st)
@@ -447,7 +459,9 @@ def OracleReduction.stateChainComp {ι : Type} {oSpec : OracleSpec ι}
       (fun s => Spec.Transcript.stateChainFamily ProverState n 0 (initStage s)) where
   prover sWithOracles w := do
     let a ← proverInit sWithOracles w
-    Spec.Strategy.stateChainCompWithRoles proverStep n 0 (initStage sWithOracles.1) a
+    let strat ← Spec.Strategy.stateChainCompWithRoles proverStep n 0 (initStage sWithOracles.1) a
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr pOut => ⟨stmtResult sWithOracles.1 tr, pOut⟩) strat
   verifier s := by
     rw [toMonadDecoration_chain]
     exact Spec.Counterpart.withMonads.stateChainComp verifierStep n 0 (initStage s) (verifierInit s)

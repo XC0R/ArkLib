@@ -40,6 +40,7 @@ After round `i`, the target is updated to `p_i(r_i)`. The public *stage state*
 - `advance`: updates the stage state after a round (`target ↦ poly.eval(challenge)`).
 - `roundCheck`: the per-round sum check (computable `Bool`).
 - `RoundCheckProp`: propositional version of `roundCheck`.
+- `fullSum`: the full sum `∑_{x ∈ D^n} poly(x)` that sum-check verifies.
 -/
 
 namespace Sumcheck
@@ -98,6 +99,12 @@ sum to the target. -/
 def RoundCheckProp {m_dom : ℕ} (D : Fin m_dom → R) (target : RoundClaim R)
     (poly : CDegreeLE R deg) : Prop :=
   ((Finset.univ : Finset (Fin m_dom)).sum fun j => CPolynomial.eval (D j) poly.1) = target
+
+/-- The full sum `∑_{z ∈ D^n} poly(D ∘ z)` of a multivariate polynomial over the product domain.
+This is the claimed quantity in sum-check: the protocol verifies `fullSum D poly = target`. -/
+def fullSum {n : ℕ} {m_dom : ℕ} (D : Fin m_dom → R) (poly : CMvDegreeLE R n deg) : R :=
+  (Finset.univ : Finset (Fin n → Fin m_dom)).sum fun z =>
+    CMvPolynomial.eval (D ∘ z) poly.1
 
 /-! ## Uniform-round helpers for `Spec.stateChain` -/
 

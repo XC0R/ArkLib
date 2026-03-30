@@ -20,7 +20,7 @@ semantics, except `randomChallenger` which explicitly uses `ProbComp`.
 - **Completeness**: honest execution on valid input yields valid output with
   high probability.
 - **Soundness**: any prover on invalid input has low acceptance probability.
-  Uses an `Accepts` set to specify which verifier outputs are considered valid.
+  Uses an output language `langOut` to specify which verifier outputs are considered valid.
 - **Knowledge soundness**: like soundness, but an extractor must recover a
   valid input witness from any accepting execution.
 - **Claim tree**: recursive soundness witness for round-by-round analysis.
@@ -63,8 +63,9 @@ def randomChallenger (sample : (T : Type) → ProbComp T) :
 
 /-- A reduction satisfies **completeness** with error `ε` if for all valid
 inputs, honest execution produces a valid output with probability at least
-`1 - ε`. The `relOut` predicate on the full output (prover + verifier)
-specifies what counts as a successful execution. -/
+`1 - ε`. The honest prover and verifier must agree on the output statement,
+and the verifier statement together with the honest prover's witness output
+must satisfy `relOut`. -/
 def Reduction.completeness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
     {StatementIn WitnessIn : Type u}
@@ -77,7 +78,8 @@ def Reduction.completeness
       StatementOut s tr → WitnessOut s tr → Prop)
     (ε : ℝ≥0∞) : Prop :=
   ∀ (s : StatementIn) (w : WitnessIn), (s, w) ∈ relIn →
-    1 - ε ≤ Pr[fun z => relOut s z.1 z.2.2 z.2.1 | reduction.execute s w]
+    1 - ε ≤ Pr[fun z => z.2.1.stmt = z.2.2 ∧ relOut s z.1 z.2.2 z.2.1.wit |
+      reduction.execute s w]
 
 /-- Perfect completeness: completeness with error `0`. -/
 def Reduction.perfectCompleteness
@@ -110,7 +112,7 @@ def Reduction.Continuation.completeness
     (ε : ℝ≥0∞) : Prop :=
   ∀ (shared : SharedIn) (stmt : StatementIn shared) (wit : WitnessIn shared),
     relIn shared stmt wit →
-      1 - ε ≤ Pr[fun z => relOut shared z.1 z.2.2 z.2.1 |
+      1 - ε ≤ Pr[fun z => z.2.1.stmt = z.2.2 ∧ relOut shared z.1 z.2.2 z.2.1.wit |
         reduction.execute shared stmt wit]
 
 /-- Perfect completeness for a continuation reduction: completeness with error `0`. -/
@@ -168,61 +170,129 @@ theorem Reduction.completeness_comp
           (relOut s) tr sOut wOut)
       (ε₁ + ε₂) := by
   intro s w hIn
-  let mx : m ((tr₁ : Spec.Transcript (ctx₁ s)) × WitMid s tr₁ × StmtMid s tr₁) :=
+  let mx : m ((tr₁ : Spec.Transcript (ctx₁ s)) ×
+      HonestProverOutput (StmtMid s tr₁) (WitMid s tr₁) × StmtMid s tr₁) :=
     reduction1.execute s w
   let my :
-      ((tr₁ : Spec.Transcript (ctx₁ s)) × WitMid s tr₁ × StmtMid s tr₁) →
+      ((tr₁ : Spec.Transcript (ctx₁ s)) ×
+        HonestProverOutput (StmtMid s tr₁) (WitMid s tr₁) × StmtMid s tr₁) →
       m ((tr : Spec.Transcript ((ctx₁ s).append (ctx₂ s))) ×
-          Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr ×
+          HonestProverOutput
+            (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr)
+            (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr) ×
           Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr) :=
     fun z₁ => do
-      let packOut :
-          ((tr₂ : Spec.Transcript (ctx₂ s z₁.1)) × WitOut s z₁.1 tr₂ × StmtOut s z₁.1 tr₂) →
-            ((tr : Spec.Transcript ((ctx₁ s).append (ctx₂ s))) ×
-              Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr ×
-              Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr) :=
-        fun z₂ => ⟨Spec.Transcript.append (ctx₁ s) (ctx₂ s) z₁.1 z₂.1,
-          Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) z₁.1 z₂.1 z₂.2.1,
-          Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) z₁.1 z₂.1 z₂.2.2⟩
-      packOut <$> reduction2.execute ⟨s, z₁.1⟩ z₁.2.2 z₁.2.1
-  let good₁ : ((tr₁ : Spec.Transcript (ctx₁ s)) × WitMid s tr₁ × StmtMid s tr₁) → Prop :=
-    fun z₁ => relMid s z₁.1 z₁.2.2 z₁.2.1
+      let strat₂ ← reduction2.prover ⟨s, z₁.1⟩ z₁.2.1.stmt z₁.2.1.wit
+      let ⟨tr₂, out, sOut⟩ ←
+        Spec.Strategy.runWithRoles (ctx₂ s z₁.1) (roles₂ s z₁.1) strat₂
+          (reduction2.verifier ⟨s, z₁.1⟩ z₁.2.2)
+      pure ⟨Spec.Transcript.append (ctx₁ s) (ctx₂ s) z₁.1 tr₂,
+        ⟨Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) z₁.1 tr₂ out.stmt,
+          Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) z₁.1 tr₂ out.wit⟩,
+        Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) z₁.1 tr₂ sOut⟩
+  let good₁ :
+      ((tr₁ : Spec.Transcript (ctx₁ s)) ×
+        HonestProverOutput (StmtMid s tr₁) (WitMid s tr₁) × StmtMid s tr₁) → Prop :=
+    fun z₁ => z₁.2.1.stmt = z₁.2.2 ∧ relMid s z₁.1 z₁.2.2 z₁.2.1.wit
   let goodOut :
       ((tr : Spec.Transcript ((ctx₁ s).append (ctx₂ s))) ×
-          Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr ×
+          HonestProverOutput
+            (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr)
+            (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr) ×
           Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr) → Prop :=
     fun z =>
-      let splitTr := Spec.Transcript.split (ctx₁ s) (ctx₂ s) z.1
-      let sOut := Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) z.1 z.2.2
-      let wOut := Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (WitOut s) z.1 z.2.1
-      relOut s splitTr.1 splitTr.2 sOut wOut
+      z.2.1.stmt = z.2.2 ∧
+        Spec.Transcript.liftAppendRel (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s)
+          (relOut s) z.1 z.2.2 z.2.1.wit
   have h₁_success : 1 - ε₁ ≤ Pr[good₁ | mx] := by
     simpa [mx, good₁, Reduction.completeness] using h₁ s w hIn
   have h₂_success :
       ∀ z₁ ∈ support mx, good₁ z₁ → 1 - ε₂ ≤ Pr[goodOut | my z₁] := by
     intro z₁ _ hz₁
-    rcases z₁ with ⟨tr₁, wMid, sMid⟩
+    rcases z₁ with ⟨tr₁, ⟨sMidP, wMid⟩, sMidV⟩
+    rcases hz₁ with ⟨hEqMid, hRelMid⟩
+    change sMidP = sMidV at hEqMid
+    change relMid s tr₁ sMidV wMid at hRelMid
+    subst sMidV
     let packOut :
-        ((tr₂ : Spec.Transcript (ctx₂ s tr₁)) × WitOut s tr₁ tr₂ × StmtOut s tr₁ tr₂) →
+        ((tr₂ : Spec.Transcript (ctx₂ s tr₁)) ×
+          HonestProverOutput (StmtOut s tr₁ tr₂) (WitOut s tr₁ tr₂) × StmtOut s tr₁ tr₂) →
           ((tr : Spec.Transcript ((ctx₁ s).append (ctx₂ s))) ×
-            Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr ×
+            HonestProverOutput
+              (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr)
+              (Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr) ×
             Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr) :=
       fun z => ⟨Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ z.1,
-        Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ z.1 z.2.1,
+        ⟨Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ z.1 z.2.1.stmt,
+          Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ z.1 z.2.1.wit⟩,
         Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ z.1 z.2.2⟩
     have hpack :
-        goodOut ∘ packOut = fun z => relOut s tr₁ z.1 z.2.2 z.2.1 := by
+        goodOut ∘ packOut =
+          fun z => z.2.1.stmt = z.2.2 ∧ relOut s tr₁ z.1 z.2.2 z.2.1.wit := by
       funext z
-      rcases z with ⟨tr₂, wOut, sOut⟩
-      let tr := Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂
-      simpa [goodOut, packOut, tr] using
-        (Spec.Transcript.rel_unliftAppend_append
-          (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s) tr₁ tr₂ sOut wOut)
+      rcases z with ⟨tr₂, ⟨sOutP, wOut⟩, sOutV⟩
+      refine propext ?_
+      constructor
+      · intro hz
+        refine ⟨?_, ?_⟩
+        · have hEq := congrArg
+            (Spec.Transcript.unpackAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ tr₂) hz.1
+          simpa [packOut, HonestProverOutput.stmt] using hEq
+        · have hRel := (Spec.Transcript.liftAppendRel_iff
+            (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s)
+            (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+            (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ tr₂ sOutV)
+            (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ tr₂ wOut)).1 hz.2
+          have hRelEq :
+              relOut s
+                (Spec.Transcript.split (ctx₁ s) (ctx₂ s)
+                  (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)).1
+                (Spec.Transcript.split (ctx₁ s) (ctx₂ s)
+                  (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)).2
+                (Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (StmtOut s)
+                  (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+                  (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ tr₂ sOutV))
+                (Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (WitOut s)
+                  (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+                  (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ tr₂ wOut)) =
+              relOut s tr₁ tr₂ sOutV wOut := by
+            simpa using
+              (Spec.Transcript.rel_unliftAppend_append
+                (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s) tr₁ tr₂ sOutV wOut)
+          rw [hRelEq] at hRel
+          exact hRel
+      · rintro ⟨hEq, hRel⟩
+        change sOutP = sOutV at hEq
+        change relOut s tr₁ tr₂ sOutV wOut at hRel
+        refine ⟨by simp [packOut, hEq], ?_⟩
+        exact (Spec.Transcript.liftAppendRel_iff
+          (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s)
+          (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+          (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ tr₂ sOutV)
+          (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ tr₂ wOut)).2 (by
+            have hRelEq :
+                relOut s
+                  (Spec.Transcript.split (ctx₁ s) (ctx₂ s)
+                    (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)).1
+                  (Spec.Transcript.split (ctx₁ s) (ctx₂ s)
+                    (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)).2
+                  (Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (StmtOut s)
+                    (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+                    (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ tr₂ sOutV))
+                  (Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (WitOut s)
+                    (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)
+                    (Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (WitOut s) tr₁ tr₂ wOut)) =
+                relOut s tr₁ tr₂ sOutV wOut := by
+              simpa using
+                (Spec.Transcript.rel_unliftAppend_append
+                  (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s) tr₁ tr₂ sOutV wOut)
+            rw [hRelEq]
+            exact hRel)
     have hmy :
-        my ⟨tr₁, wMid, sMid⟩ =
-          packOut <$> reduction2.execute ⟨s, tr₁⟩ sMid wMid := by
-      simp [my, packOut]
-    simpa [hmy, hpack, probEvent_map] using h₂ ⟨s, tr₁⟩ sMid wMid hz₁
+        my ⟨tr₁, ⟨sMidP, wMid⟩, sMidP⟩ =
+          packOut <$> reduction2.execute ⟨s, tr₁⟩ sMidP wMid := by
+      simp [my, packOut, Reduction.Continuation.execute]
+    simpa [hmy, hpack, probEvent_map] using h₂ ⟨s, tr₁⟩ sMidP wMid hRelMid
   have hmul :
       (1 - ε₁) * (1 - ε₂) ≤ Pr[goodOut | mx >>= my] := by
     exact mul_le_probEvent_bind (mx := mx) (my := my) (p := good₁) (q := goodOut)
@@ -266,13 +336,6 @@ theorem Reduction.completeness_comp
   have hexec :
       (Reduction.comp reduction1 reduction2).execute s w = mx >>= my := by
     simpa [mx, my] using Reduction.execute_comp reduction1 reduction2 s w
-  have hconv : goodOut = fun z =>
-      Spec.Transcript.liftAppendRel (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s)
-        (relOut s) z.1 z.2.2 z.2.1 :=
-    funext fun z => propext
-      (Spec.Transcript.liftAppendRel_iff (ctx₁ s) (ctx₂ s) (StmtOut s) (WitOut s) (relOut s)
-        z.1 z.2.2 z.2.1).symm
-  rw [hconv] at hbind
   simpa [Reduction.completeness, hexec] using hbind
 
 /-- Perfect completeness composes. -/
@@ -316,8 +379,8 @@ theorem Reduction.perfectCompleteness_comp
 
 /-- A verifier satisfies **soundness** with error `ε` if for all malicious
 provers and invalid inputs, the probability that the verifier produces an
-accepted output is at most `ε`. The `Accepts` set specifies which verifier
-outputs are considered acceptance.
+output in `langOut` is at most `ε`. The output language `langOut` specifies
+which verifier outputs are considered acceptance.
 
 Soundness is a property of the verifier alone — no honest prover appears.
 The prover can use any output type and any strategy. -/
@@ -329,19 +392,20 @@ def soundness
     {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (verifier : Verifier m StatementIn Context Roles StatementOut)
     (langIn : Set StatementIn)
-    (Accepts : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
+    (langOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
       Set (StatementOut s tr))
     (ε : ℝ≥0∞) : Prop :=
   ∀ {OutputP : (s : StatementIn) → Spec.Transcript (Context s) → Type u},
   ∀ (prover : (s : StatementIn) → Spec.Strategy.withRoles m (Context s) (Roles s) (OutputP s)),
   ∀ (s : StatementIn), s ∉ langIn →
-    Pr[fun z => z.2.2 ∈ Accepts s z.1
+    Pr[fun z => z.2.2 ∈ langOut s z.1
       | Verifier.run verifier s (prover s)] ≤ ε
 
 /-- Soundness composes: if the first verifier only reaches the middle language
 with probability at most `ε₁` on invalid inputs, and outside that language the
-second-stage verifier accepts with probability at most `ε₂`, then the composed
-verifier accepts with probability at most `ε₁ + ε₂`. -/
+second-stage verifier reaches the output language with probability at most `ε₂`,
+then the composed verifier reaches the output language with probability at most
+`ε₁ + ε₂`. -/
 theorem Reduction.soundness_comp
     {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
     {StatementIn WitnessIn : Type u}
@@ -356,7 +420,7 @@ theorem Reduction.soundness_comp
     {langIn : Set StatementIn}
     {langMid : ∀ (s : StatementIn) (tr₁ : Spec.Transcript (ctx₁ s)),
       Set (StmtMid s tr₁)}
-    {AcceptsOut : ∀ (s : StatementIn) (tr₁ : Spec.Transcript (ctx₁ s))
+    {langOut : ∀ (s : StatementIn) (tr₁ : Spec.Transcript (ctx₁ s))
       (tr₂ : Spec.Transcript (ctx₂ s tr₁)), Set (StmtOut s tr₁ tr₂)}
     (reduction1 : Reduction m StatementIn WitnessIn ctx₁ roles₁ StmtMid WitMid)
     (reduction2 : Reduction.Continuation m
@@ -371,11 +435,11 @@ theorem Reduction.soundness_comp
     (h₁ : soundness reduction1.verifier langIn langMid ε₁)
     (h₂ : ∀ (s : StatementIn) (tr₁ : Spec.Transcript (ctx₁ s)),
       soundness (reduction2.verifier ⟨s, tr₁⟩) (langMid s tr₁)
-        (fun _ tr₂ => AcceptsOut s tr₁ tr₂) ε₂) :
+        (fun _ tr₂ => langOut s tr₁ tr₂) ε₂) :
     soundness (Reduction.comp reduction1 reduction2).verifier langIn
       (fun s tr =>
         {sOut | Spec.Transcript.liftAppendPred (ctx₁ s) (ctx₂ s) (StmtOut s)
-          (fun tr₁ tr₂ sOut => sOut ∈ AcceptsOut s tr₁ tr₂) tr sOut})
+          (fun tr₁ tr₂ sOut => sOut ∈ langOut s tr₁ tr₂) tr sOut})
       (ε₁ + ε₂) := by
   intro OutputP prover s hs
   let prefixProver : (s : StatementIn) →
@@ -416,17 +480,17 @@ theorem Reduction.soundness_comp
           (fun tr₂ => OutputP s (Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂)) ×
         StmtMid s tr₁) → Prop :=
     fun z₁ => z₁.2.2 ∉ langMid s z₁.1
-  let accepts :
+  let inLangOut :
       ((tr : Spec.Transcript ((ctx₁ s).append (ctx₂ s))) ×
         OutputP s tr × Spec.Transcript.liftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr) → Prop :=
     fun z =>
       let splitTr := Spec.Transcript.split (ctx₁ s) (ctx₂ s) z.1
       let sOut := Spec.Transcript.unliftAppend (ctx₁ s) (ctx₂ s) (StmtOut s) z.1 z.2.2
-      sOut ∈ AcceptsOut s splitTr.1 splitTr.2
+      sOut ∈ langOut s splitTr.1 splitTr.2
   have h₁_bad : Pr[fun z₁ => ¬ bad₁ z₁ | mx] ≤ ε₁ := by
     simpa [mx, bad₁, prefixProver, soundness] using h₁ prefixProver s hs
   have h₂_bad :
-      ∀ z₁ ∈ support mx, bad₁ z₁ → Pr[fun z => ¬¬ accepts z | my z₁] ≤ ε₂ := by
+      ∀ z₁ ∈ support mx, bad₁ z₁ → Pr[fun z => ¬¬ inLangOut z | my z₁] ≤ ε₂ := by
     intro z₁ _ hz₁
     rcases z₁ with ⟨tr₁, strat₂, sMid⟩
     let prover₂ : (sMid' : StmtMid s tr₁) →
@@ -443,14 +507,14 @@ theorem Reduction.soundness_comp
         z₂.2.1,
         Spec.Transcript.packAppend (ctx₁ s) (ctx₂ s) (StmtOut s) tr₁ z₂.1 z₂.2.2⟩
     have hpack :
-        accepts ∘ packOut = fun z => z.2.2 ∈ AcceptsOut s tr₁ z.1 := by
+        inLangOut ∘ packOut = fun z => z.2.2 ∈ langOut s tr₁ z.1 := by
       funext z
       rcases z with ⟨tr₂, outP, sOut⟩
       let tr := Spec.Transcript.append (ctx₁ s) (ctx₂ s) tr₁ tr₂
-      simpa [accepts, packOut, tr] using
+      simpa [inLangOut, packOut, tr] using
         (Spec.Transcript.rel_unliftAppend_append
           (ctx₁ s) (ctx₂ s) (StmtOut s) (fun _ _ => PUnit)
-          (fun tr₁ tr₂ sOut _ => sOut ∈ AcceptsOut s tr₁ tr₂)
+          (fun tr₁ tr₂ sOut _ => sOut ∈ langOut s tr₁ tr₂)
           tr₁ tr₂ sOut PUnit.unit)
     have hmy :
         my ⟨tr₁, strat₂, sMid⟩ =
@@ -459,10 +523,10 @@ theorem Reduction.soundness_comp
       simp [my, packOut]
     simpa [bad₁, hmy, hpack, prover₂, probEvent_map] using
       h₂ s tr₁ prover₂ sMid hz₁
-  have hbind : Pr[accepts | mx >>= my] ≤ ε₁ + ε₂ := by
+  have hbind : Pr[inLangOut | mx >>= my] ≤ ε₁ + ε₂ := by
     simpa using
       (probEvent_bind_le_add (mx := mx) (my := my)
-        (p := bad₁) (q := fun z => ¬ accepts z) h₁_bad h₂_bad)
+        (p := bad₁) (q := fun z => ¬ inLangOut z) h₁_bad h₂_bad)
   have hrun :
       Verifier.run ((Reduction.comp reduction1 reduction2).verifier) s (prover s) = mx >>= my := by
     let mappedStep :
@@ -525,12 +589,12 @@ theorem Reduction.soundness_comp
           Spec.Strategy.compWithRolesFlat_splitPrefixWithRoles] using hrun'
       _ = mx >>= my := by
         refine congrArg (fun k => mx >>= k) hmap
-  have hconv : accepts = fun z =>
+  have hconv : inLangOut = fun z =>
       Spec.Transcript.liftAppendPred (ctx₁ s) (ctx₂ s) (StmtOut s)
-        (fun tr₁ tr₂ sOut => sOut ∈ AcceptsOut s tr₁ tr₂) z.1 z.2.2 :=
+        (fun tr₁ tr₂ sOut => sOut ∈ langOut s tr₁ tr₂) z.1 z.2.2 :=
     funext fun z => propext
       (Spec.Transcript.liftAppendPred_iff (ctx₁ s) (ctx₂ s) (StmtOut s)
-        (fun tr₁ tr₂ sOut => sOut ∈ AcceptsOut s tr₁ tr₂) z.1 z.2.2).symm
+        (fun tr₁ tr₂ sOut => sOut ∈ langOut s tr₁ tr₂) z.1 z.2.2).symm
   rw [hconv] at hbind
   simpa [soundness, hrun] using hbind
 
@@ -589,7 +653,7 @@ verifier is also sound, provided accepted verifier outputs admit a witness
 selected from the transcript alone.
 
 The weaker hypothesis
-`∀ s tr sOut, sOut ∈ Accepts s tr → ∃ wOut, (sOut, wOut) ∈ relOut s tr`
+`∀ s tr sOut, sOut ∈ langOut s tr → ∃ wOut, (sOut, wOut) ∈ relOut s tr`
 is not sufficient in this API: a malicious prover's terminal output can depend
 only on the transcript, whereas `StatementOut s tr` need not be reconstructible
 from the transcript alone. -/
@@ -607,13 +671,13 @@ theorem knowledgeSoundness_implies_soundness
     (hKS : knowledgeSoundness verifier relIn relOut ε)
     (langIn : Set StatementIn)
     (hLang : ∀ s, s ∉ langIn → ∀ w, (s, w) ∉ relIn)
-    (Accepts : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
+    (langOut : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
       Set (StatementOut s tr))
     (acceptWitness : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
       WitnessOut s tr)
-    (hAccepts : ∀ s tr sOut,
-      sOut ∈ Accepts s tr → (sOut, acceptWitness s tr) ∈ relOut s tr) :
-    soundness verifier langIn Accepts ε := by
+    (hLangOut : ∀ s tr sOut,
+      sOut ∈ langOut s tr → (sOut, acceptWitness s tr) ∈ relOut s tr) :
+    soundness verifier langIn langOut ε := by
   rcases hKS with ⟨extractor, hKS⟩
   intro OutputP prover s hs
   let proverKS : (s : StatementIn) →
@@ -635,11 +699,11 @@ theorem knowledgeSoundness_implies_soundness
   have hKS' : Pr[badFromAccept | Verifier.run verifier s (prover s)] ≤ ε := by
     simpa [badFromAccept, hrun, probEvent_map] using hKS proverKS s
   have hmono :
-      Pr[fun z => z.2.2 ∈ Accepts s z.1 | Verifier.run verifier s (prover s)] ≤
+      Pr[fun z => z.2.2 ∈ langOut s z.1 | Verifier.run verifier s (prover s)] ≤
         Pr[badFromAccept | Verifier.run verifier s (prover s)] := by
     apply probEvent_mono
     intro z _ hz
-    exact ⟨hAccepts s z.1 z.2.2 hz, hLang s hs (extractor s z.1 z.2.2 (acceptWitness s z.1))⟩
+    exact ⟨hLangOut s z.1 z.2.2 hz, hLang s hs (extractor s z.1 z.2.2 (acceptWitness s z.1))⟩
   exact le_trans hmono hKS'
 
 /-! ## Claim tree
@@ -789,13 +853,14 @@ such that:
    and flip to good with probability at most `error` at receiver nodes.
 2. The root claim is bad for all invalid statements.
 3. The worst-case cumulative error is at most `ε`.
-4. Acceptance implies terminal goodness (bridges the tree to the verifier). -/
+4. Membership in the output language implies terminal goodness (bridges the tree
+   to the verifier). -/
 def rbrSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
     {StatementIn : Type}
     (sample : (T : Type) → ProbComp T)
     (langIn : Set StatementIn)
-    (Accepts : (s : StatementIn) → Spec.Transcript pSpec → Prop)
+    (langOut : (s : StatementIn) → Spec.Transcript pSpec → Prop)
     (ε : ℝ≥0∞) : Prop :=
   ∃ (Claim : StatementIn → Type)
     (tree : (s : StatementIn) → ClaimTree pSpec roles (Claim s))
@@ -803,7 +868,7 @@ def rbrSoundness
   (∀ s, (tree s).IsSound sample) ∧
   (∀ s, s ∉ langIn → ¬ (tree s).good (root s)) ∧
   (∀ s, (tree s).maxPathError ≤ ε) ∧
-  (∀ s tr, Accepts s tr →
+  (∀ s tr, langOut s tr →
     (tree s).terminalGood tr ((tree s).follow tr (root s)))
 
 /-- Round-by-round soundness implies overall soundness: if `rbrSoundness` holds
@@ -814,13 +879,13 @@ theorem soundness_of_rbrSoundness
     {StatementIn : Type}
     {sample : (T : Type) → ProbComp T}
     {langIn : Set StatementIn}
-    {Accepts : (s : StatementIn) → Spec.Transcript pSpec → Prop}
+    {langOut : (s : StatementIn) → Spec.Transcript pSpec → Prop}
     {ε : ℝ≥0∞}
-    (h : rbrSoundness (roles := roles) sample langIn Accepts ε) :
+    (h : rbrSoundness (roles := roles) sample langIn langOut ε) :
     ∀ {OutputP : Spec.Transcript pSpec → Type}
       (prover : Spec.Strategy.withRoles ProbComp pSpec roles OutputP),
     ∀ s, s ∉ langIn →
-      Pr[fun z => Accepts s z.1
+      Pr[fun z => langOut s z.1
         | Spec.Strategy.runWithRoles pSpec roles prover
             (randomChallenger sample pSpec roles)] ≤ ε := by
   sorry
@@ -992,10 +1057,10 @@ theorem rbrKnowledgeSoundness_implies_rbrSoundness
     (h : rbrKnowledgeSoundness (roles := roles) sample relIn relOut ε)
     (langIn : Set StatementIn)
     (hLang : ∀ s, s ∉ langIn → ∀ w, (s, w) ∉ relIn)
-    (Accepts : (s : StatementIn) → Spec.Transcript pSpec → Prop)
-    (hAccepts : ∀ s tr, Accepts s tr → ∃ pOut, pOut ∈ relOut s tr)
+    (langOut : (s : StatementIn) → Spec.Transcript pSpec → Prop)
+    (hLangOut : ∀ s tr, langOut s tr → ∃ pOut, pOut ∈ relOut s tr)
     {εMax : ℝ≥0∞} (hε : ∀ s, ε s ≤ εMax) :
-    rbrSoundness (roles := roles) sample langIn Accepts εMax := by
+    rbrSoundness (roles := roles) sample langIn langOut εMax := by
   sorry
 
 /-- Round-by-round knowledge soundness implies plain knowledge soundness

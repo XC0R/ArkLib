@@ -204,6 +204,75 @@ theorem Transcript.packAppend_unpackAppend :
       packAppend_unpackAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
         (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
 
+/-- Split a fused `liftAppend` value whose payload is a product into the product of
+the separately lifted payloads. -/
+def Transcript.liftAppendProd :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (A B : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    liftAppend s₁ s₂ (fun tr₁ tr₂ => A tr₁ tr₂ × B tr₁ tr₂) tr →
+      liftAppend s₁ s₂ A tr × liftAppend s₁ s₂ B tr
+  | .done, _, _, _, _, x => x
+  | .node _ rest, s₂, A, B, ⟨xm, tail⟩, x =>
+      liftAppendProd (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => A ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => B ⟨xm, tr₁⟩ tr₂) tail x
+
+/-- Inverse of `liftAppendProd`, fusing separately lifted payloads into a lifted
+product payload. -/
+def Transcript.liftAppendProdMk :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (A B : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    liftAppend s₁ s₂ A tr × liftAppend s₁ s₂ B tr →
+      liftAppend s₁ s₂ (fun tr₁ tr₂ => A tr₁ tr₂ × B tr₁ tr₂) tr
+  | .done, _, _, _, _, x => x
+  | .node _ rest, s₂, A, B, ⟨xm, tail⟩, x =>
+      liftAppendProdMk (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => A ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => B ⟨xm, tr₁⟩ tr₂) tail x
+
+@[simp]
+theorem Transcript.liftAppendProdMk_liftAppendProd :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (A B : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    (x : liftAppend s₁ s₂ (fun tr₁ tr₂ => A tr₁ tr₂ × B tr₁ tr₂) tr) →
+    liftAppendProdMk s₁ s₂ A B tr (liftAppendProd s₁ s₂ A B tr x) = x
+  | .done, _, _, _, _, _ => rfl
+  | .node _ rest, s₂, A, B, ⟨xm, tail⟩, x =>
+      liftAppendProdMk_liftAppendProd (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => A ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => B ⟨xm, tr₁⟩ tr₂) tail x
+
+@[simp]
+theorem Transcript.liftAppendProd_liftAppendProdMk :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (A B : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    (x : liftAppend s₁ s₂ A tr × liftAppend s₁ s₂ B tr) →
+    liftAppendProd s₁ s₂ A B tr (liftAppendProdMk s₁ s₂ A B tr x) = x
+  | .done, _, _, _, _, _ => rfl
+  | .node _ rest, s₂, A, B, ⟨xm, tail⟩, x =>
+      liftAppendProd_liftAppendProdMk (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => A ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => B ⟨xm, tr₁⟩ tr₂) tail x
+
+@[simp]
+theorem Transcript.liftAppendProd_packAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (A B : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    (x : A tr₁ tr₂ × B tr₁ tr₂) →
+    liftAppendProd s₁ s₂ A B (append s₁ s₂ tr₁ tr₂)
+      (packAppend s₁ s₂ (fun tr₁ tr₂ => A tr₁ tr₂ × B tr₁ tr₂) tr₁ tr₂ x) =
+        (packAppend s₁ s₂ A tr₁ tr₂ x.1, packAppend s₁ s₂ B tr₁ tr₂ x.2)
+  | .done, _, _, _, ⟨⟩, _, _ => rfl
+  | .node _ rest, s₂, A, B, ⟨xm, tail₁⟩, tr₂, x =>
+      liftAppendProd_packAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tr₁ tr₂ => A ⟨xm, tr₁⟩ tr₂)
+        (fun tr₁ tr₂ => B ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
+
 /-- When `tr = append tr₁ tr₂`, the round-trip (`packAppend` then `unliftAppend`)
 recovers the original pair-indexed relation value. -/
 theorem Transcript.rel_unliftAppend_append :

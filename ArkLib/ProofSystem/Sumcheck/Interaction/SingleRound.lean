@@ -100,7 +100,9 @@ def roundReduction (m : Type → Type) [Monad m]
       (fun _ _ => WitOut) where
   prover target witIn := do
     let poly ← proverSend target witIn
-    pure (honestProverStep m poly (proverNext witIn))
+    pure <| honestProverStep m poly
+      (fun sentPoly chal =>
+        ⟨some (CPolynomial.eval chal sentPoly.1), proverNext witIn sentPoly chal⟩)
   verifier target := verifierStep m D sampleChallenge target
 
 end
