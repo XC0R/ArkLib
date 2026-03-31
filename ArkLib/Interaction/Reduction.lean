@@ -41,7 +41,7 @@ the underlying function types.
 `Strategy.runWithRoles`), returning the transcript plus both outputs.
 -/
 
-universe u v
+universe u v w
 
 namespace Interaction
 
@@ -70,7 +70,7 @@ end HonestProverOutput
 role-dependent strategy whose output is
 `HonestProverOutput (StatementOut s tr) (WitnessOut s tr)`. -/
 abbrev Prover (m : Type u → Type u)
-    (StatementIn WitnessIn : Type u)
+    (StatementIn : Type v) (WitnessIn : Type w)
     (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
     (StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) :=
@@ -82,7 +82,7 @@ abbrev Prover (m : Type u → Type u)
 `StatementOut s tr` at `.done`. No `OptionT` wrapping — the caller chooses
 whether `StatementOut` includes `Option` for accept/reject semantics. -/
 abbrev Verifier (m : Type u → Type u)
-    (StatementIn : Type u)
+    (StatementIn : Type v)
     (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
     (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) :=
@@ -91,7 +91,7 @@ abbrev Verifier (m : Type u → Type u)
 
 /-- A reduction pairs a prover with a verifier for the same protocol. -/
 structure Reduction (m : Type u → Type u)
-    (StatementIn WitnessIn : Type u)
+    (StatementIn : Type v) (WitnessIn : Type w)
     (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
     (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u)
@@ -105,7 +105,7 @@ are not fixed here — they are determined by the choice of `StatementOut`
 (e.g., `Bool`, `Option _`) and the security definitions. Its honest prover
 output is `HonestProverOutput StatementOut PUnit`. -/
 abbrev Proof (m : Type u → Type u)
-    (StatementIn WitnessIn : Type u)
+    (StatementIn : Type v) (WitnessIn : Type w)
     (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
     (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) :=
@@ -118,7 +118,7 @@ counterpart (via `Strategy.runWithRoles`). Returns the transcript, the
  prover's output (`HonestProverOutput StatementOut WitnessOut`), and the verifier's output
  (`StatementOut`). -/
 def Reduction.execute {m : Type u → Type u} [Monad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -136,10 +136,10 @@ private local state. This is the right shape for transcript-indexed second-stage
 composition, where both parties agree on the transcript but only each side knows
 its own carried state. -/
 structure Reduction.Continuation (m : Type u → Type u)
-    (SharedIn : Type u)
+    (SharedIn : Type v)
     (Context : SharedIn → Spec)
     (Roles : (shared : SharedIn) → RoleDecoration (Context shared))
-    (StatementIn WitnessIn : (shared : SharedIn) → Type u)
+    (StatementIn WitnessIn : (shared : SharedIn) → Type w)
     (StatementOut WitnessOut :
       (shared : SharedIn) → Spec.Transcript (Context shared) → Type u) where
   prover : (shared : SharedIn) → StatementIn shared → WitnessIn shared →
@@ -151,10 +151,10 @@ structure Reduction.Continuation (m : Type u → Type u)
 /-- Execute a continuation reduction on a shared input together with the verifier
 and prover local states. -/
 def Reduction.Continuation.execute {m : Type u → Type u} [Monad m]
-    {SharedIn : Type u}
+    {SharedIn : Type v}
     {Context : SharedIn → Spec}
     {Roles : (shared : SharedIn) → RoleDecoration (Context shared)}
-    {StatementIn WitnessIn : (shared : SharedIn) → Type u}
+    {StatementIn WitnessIn : (shared : SharedIn) → Type w}
     {StatementOut WitnessOut : (shared : SharedIn) → Spec.Transcript (Context shared) → Type u}
     (reduction : Reduction.Continuation m SharedIn Context Roles
       StatementIn WitnessIn StatementOut WitnessOut)
@@ -169,7 +169,7 @@ def Reduction.Continuation.execute {m : Type u → Type u} [Monad m]
 /-- Run a prover strategy against a verifier. Convenience wrapper around
 `Spec.Strategy.runWithRoles` that applies the statement-indexed verifier. -/
 def Verifier.run {m : Type u → Type u} [Monad m]
-    {StatementIn : Type u}
+    {StatementIn : Type v}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -188,7 +188,7 @@ The first reduction runs over `ctx₁`, producing intermediate outputs `StmtMid`
 first transcript. The composed output types are factored two-argument families,
 lifted through `Transcript.liftAppend`. -/
 def Reduction.comp {m : Type u → Type u} [Monad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
     {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type u}
@@ -227,7 +227,7 @@ def Reduction.comp {m : Type u → Type u} [Monad m]
 prefix reduction and then the suffix interaction induced by its outputs. -/
 theorem Reduction.execute_comp
     {m : Type u → Type u} [Monad m] [LawfulMonad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
     {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type u}
@@ -370,7 +370,7 @@ The prover and verifier each carry evolving state through the state chain:
 Both output types are computed as `Transcript.stateChainFamily` of the respective
 state families. -/
 def Reduction.stateChainComp {m : Type u → Type u} [Monad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Stage : Nat → Type u}
     {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
@@ -404,7 +404,7 @@ def Reduction.stateChainComp {m : Type u → Type u} [Monad m]
 /-- Uniform `Reduction.stateChainComp` with fixed prover state `α` and verifier
 state `β` at every stage. -/
 def Reduction.stateChainCompUniform {m : Type u → Type u} [Monad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Stage : Nat → Type u}
     {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
@@ -513,7 +513,7 @@ round index family. Per-round steps produce `PUnit` — no state flows
 between rounds. The final `StatementOut` and `WitnessOut` are computed
 from the full transcript via `stmtResult` and `witResult`. -/
 def Reduction.ofChain {m : Type u → Type u} [Monad m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {n : Nat}
     {c : StatementIn → Spec.Chain.{u} n}
     {rolesAt : {k : Nat} → (rem : Spec.Chain.{u} (k + 1)) → RoleDecoration rem.1}

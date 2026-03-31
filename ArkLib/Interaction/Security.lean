@@ -40,7 +40,7 @@ noncomputable section
 open OracleComp
 open scoped NNReal ENNReal
 
-universe u
+universe u v w
 
 namespace Interaction
 
@@ -68,7 +68,7 @@ and the verifier statement together with the honest prover's witness output
 must satisfy `relOut`. -/
 def Reduction.completeness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -84,7 +84,7 @@ def Reduction.completeness
 /-- Perfect completeness: completeness with error `0`. -/
 def Reduction.perfectCompleteness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -99,10 +99,10 @@ valid shared input together with valid prover/verifier local state, honest
 execution succeeds with probability at least `1 - ε`. -/
 def Reduction.Continuation.completeness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {SharedIn : Type u}
+    {SharedIn : Type v}
     {Context : SharedIn → Spec}
     {Roles : (shared : SharedIn) → RoleDecoration (Context shared)}
-    {StatementIn WitnessIn : (shared : SharedIn) → Type u}
+    {StatementIn WitnessIn : (shared : SharedIn) → Type w}
     {StatementOut WitnessOut : (shared : SharedIn) → Spec.Transcript (Context shared) → Type u}
     (reduction : Reduction.Continuation m SharedIn Context Roles
       StatementIn WitnessIn StatementOut WitnessOut)
@@ -118,10 +118,10 @@ def Reduction.Continuation.completeness
 /-- Perfect completeness for a continuation reduction: completeness with error `0`. -/
 def Reduction.Continuation.perfectCompleteness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {SharedIn : Type u}
+    {SharedIn : Type v}
     {Context : SharedIn → Spec}
     {Roles : (shared : SharedIn) → RoleDecoration (Context shared)}
-    {StatementIn WitnessIn : (shared : SharedIn) → Type u}
+    {StatementIn WitnessIn : (shared : SharedIn) → Type w}
     {StatementOut WitnessOut : (shared : SharedIn) → Spec.Transcript (Context shared) → Type u}
     (reduction : Reduction.Continuation m SharedIn Context Roles
       StatementIn WitnessIn StatementOut WitnessOut)
@@ -135,7 +135,7 @@ the second stage is complete up to `ε₂` whenever the first stage succeeds, th
 the composed reduction is complete up to `ε₁ + ε₂`. -/
 theorem Reduction.completeness_comp
     {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
     {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type u}
@@ -341,7 +341,7 @@ theorem Reduction.completeness_comp
 /-- Perfect completeness composes. -/
 theorem Reduction.perfectCompleteness_comp
     {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
     {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type u}
@@ -386,7 +386,7 @@ Soundness is a property of the verifier alone — no honest prover appears.
 The prover can use any output type and any strategy. -/
 def soundness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {StatementIn : Type u}
+    {StatementIn : Type v}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -408,7 +408,7 @@ then the composed verifier reaches the output language with probability at most
 `ε₁ + ε₂`. -/
 theorem Reduction.soundness_comp
     {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
     {StmtMid WitMid : (s : StatementIn) → Spec.Transcript (ctx₁ s) → Type u}
@@ -606,14 +606,14 @@ namespace Extractor
 public transcript together with both terminal outputs and reconstructs an input
 witness. -/
 structure Straightline
-    (StatementIn WitnessIn : Type u)
+    (StatementIn : Type v) (WitnessIn : Type w)
     (Context : StatementIn → Spec)
     (StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) where
   toFun : ∀ (s : StatementIn) (tr : Spec.Transcript (Context s)),
     StatementOut s tr → WitnessOut s tr → WitnessIn
 
 instance
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u} :
     CoeFun (Straightline StatementIn WitnessIn Context StatementOut WitnessOut)
@@ -630,7 +630,7 @@ the output is in `relOut` but the extracted input witness is not in `relIn` is
 at most `ε`. -/
 def knowledgeSoundness
     {m : Type u → Type u} [Monad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -659,7 +659,7 @@ only on the transcript, whereas `StatementOut s tr` need not be reconstructible
 from the transcript alone. -/
 theorem knowledgeSoundness_implies_soundness
     {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
-    {StatementIn WitnessIn : Type u}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
@@ -857,7 +857,7 @@ such that:
    to the verifier). -/
 def rbrSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
-    {StatementIn : Type}
+    {StatementIn : Type v}
     (sample : (T : Type) → ProbComp T)
     (langIn : Set StatementIn)
     (langOut : (s : StatementIn) → Spec.Transcript pSpec → Prop)
@@ -876,7 +876,7 @@ with error `ε`, then for any prover and any invalid statement, the probability
 of acceptance is at most `ε`. Uses `bound_terminalProb` internally. -/
 theorem soundness_of_rbrSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
-    {StatementIn : Type}
+    {StatementIn : Type v}
     {sample : (T : Type) → ProbComp T}
     {langIn : Set StatementIn}
     {langOut : (s : StatementIn) → Spec.Transcript pSpec → Prop}
@@ -1027,8 +1027,8 @@ such that:
 4. Terminal boundary: valid output in `relOut` implies terminal goodness. -/
 def rbrKnowledgeSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
-    {StatementIn WitnessIn : Type}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript pSpec → Type}
+    {StatementIn : Type v} {WitnessIn : Type w}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript pSpec → Type u}
     (sample : (T : Type) → ProbComp T)
     (relIn : Set (StatementIn × WitnessIn))
     (relOut : ∀ (s : StatementIn) (tr : Spec.Transcript pSpec),
@@ -1047,8 +1047,8 @@ def rbrKnowledgeSoundness
 /-- Round-by-round knowledge soundness implies round-by-round soundness. -/
 theorem rbrKnowledgeSoundness_implies_rbrSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
-    {StatementIn WitnessIn : Type}
-    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript pSpec → Type}
+    {StatementIn : Type v} {WitnessIn : Type w}
+    {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript pSpec → Type u}
     {sample : (T : Type) → ProbComp T}
     {relIn : Set (StatementIn × WitnessIn)}
     {relOut : ∀ (s : StatementIn) (tr : Spec.Transcript pSpec),
@@ -1067,7 +1067,7 @@ theorem rbrKnowledgeSoundness_implies_rbrSoundness
 (for a fixed protocol spec). -/
 theorem rbrKnowledgeSoundness_implies_knowledgeSoundness
     {pSpec : Spec} {roles : RoleDecoration pSpec}
-    {StatementIn WitnessIn : Type}
+    {StatementIn : Type v} {WitnessIn : Type w}
     {StatementOut WitnessOut : (s : StatementIn) → Spec.Transcript pSpec → Type}
     {sample : (T : Type) → ProbComp T}
     {relIn : Set (StatementIn × WitnessIn)}

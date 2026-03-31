@@ -204,6 +204,58 @@ theorem Transcript.packAppend_unpackAppend :
       packAppend_unpackAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
         (fun tr₁ tr₂ => F ⟨xm, tr₁⟩ tr₂) tail₁ tr₂ x
 
+/-- Collapse a `liftAppend` family indexed by `append tr₁ tr₂` back to the
+fused transcript index. Defined by structural recursion, so no explicit `cast`
+appears. -/
+def Transcript.collapseAppend :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : Transcript (s₁.append s₂) → Type u) →
+    (tr : Transcript (s₁.append s₂)) →
+    Transcript.liftAppend s₁ s₂
+      (fun tr₁ tr₂ => F (Transcript.append s₁ s₂ tr₁ tr₂)) tr →
+      F tr
+  | .done, _, _, _, x => x
+  | .node _ rest, s₂, F, ⟨xm, tail⟩, x =>
+      collapseAppend (rest xm) (fun p => s₂ ⟨xm, p⟩)
+        (fun tail => F ⟨xm, tail⟩) tail x
+
+@[simp]
+theorem Transcript.collapseAppend_append :
+    (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
+    (F : Transcript (s₁.append s₂) → Type u) →
+    (tr₁ : Transcript s₁) → (tr₂ : Transcript (s₂ tr₁)) →
+    (x : Transcript.liftAppend s₁ s₂
+      (fun tr₁ tr₂ => F (Transcript.append s₁ s₂ tr₁ tr₂))
+      (Transcript.append s₁ s₂ tr₁ tr₂)) →
+    collapseAppend s₁ s₂ F (Transcript.append s₁ s₂ tr₁ tr₂) x =
+      cast (Transcript.liftAppend_append s₁ s₂
+        (fun tr₁ tr₂ => F (Transcript.append s₁ s₂ tr₁ tr₂))
+        tr₁ tr₂) x
+  | .done, _, _, ⟨⟩, _, _ => rfl
+  | .node _ rest, s₂, F, ⟨xm, tail₁⟩, tr₂, x => by
+      simpa [Transcript.collapseAppend, Transcript.append] using
+        collapseAppend_append (rest xm) (fun p => s₂ ⟨xm, p⟩)
+          (fun tail => F ⟨xm, tail⟩) tail₁ tr₂ x
+
+/-- Lift a family indexed by a split append transcript into a family indexed by
+the fused append transcript. -/
+abbrev Transcript.liftAppendFamily
+    (s₁ : Spec) (s₂ : Transcript s₁ → Spec)
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) :
+    Transcript (s₁.append s₂) → Type u :=
+  fun tr =>
+    let split := Transcript.split s₁ s₂ tr
+    F split.1 split.2
+
+@[simp]
+theorem Transcript.liftAppendFamily_append
+    (s₁ : Spec) (s₂ : Transcript s₁ → Spec)
+    (F : (tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u)
+    (tr₁ : Transcript s₁) (tr₂ : Transcript (s₂ tr₁)) :
+    Transcript.liftAppendFamily s₁ s₂ F (Transcript.append s₁ s₂ tr₁ tr₂) = F tr₁ tr₂ := by
+  simpa [Transcript.liftAppendFamily] using
+    congrArg (fun p => F p.1 p.2) (Transcript.split_append s₁ s₂ tr₁ tr₂)
+
 /-- Split a fused `liftAppend` value whose payload is a product into the product of
 the separately lifted payloads. -/
 def Transcript.liftAppendProd :
