@@ -6,6 +6,29 @@ Branch: `quang/core-rebuild`, based on `quang/bump-comppoly`.
 
 Reference branch: `quang/iop-refactor` (old Refactor/ approach, archived).
 
+## Current snapshot
+
+As of commit `5be189b3`, the interaction-native oracle layer is the active
+design:
+
+- `Interaction/Oracle` is split into `Core.lean`, `Composition.lean`,
+  `Continuation.lean`, and `StateChain.lean`, with `Oracle.lean` as the public
+  entrypoint.
+- `InteractiveOracleVerifier` no longer bakes in `OptionT`; plain verifier
+  output is separate from output-oracle access semantics.
+- `OracleReduction` and `OracleReduction.Continuation` now use
+  transcript-dependent output oracle families, on par with `OracleVerifier`.
+- `OracleReduction.run` / `execute` are derived defs rather than stored fields.
+- Reification is now optional and lives in `Interaction/OracleReification.lean`.
+- Oracle-local files are currently `sorry`-free:
+  `Interaction/Oracle/`, `Interaction/OracleReification.lean`,
+  `Interaction/OracleSecurity.lean`.
+- Verified builds currently include:
+  - `lake build ArkLib.Interaction.Oracle`
+  - `lake build ArkLib.Interaction.OracleReification`
+  - `lake build ArkLib.Interaction.OracleSecurity`
+  - `lake build ArkLib.ProofSystem.Sumcheck.Interaction.Oracle`
+
 ## Architecture
 
 ```
@@ -39,13 +62,20 @@ Interaction/             ← generic, standalone (future VCVio)
                            KnowledgeClaimTree, rbrSoundness /
                            rbrKnowledgeSoundness (currently via random
                            challenger + transcript predicates)
-  Oracle.lean              OracleDecoration (OracleInterface at sender nodes),
-                           QueryHandle, toOracleSpec, answerQuery,
-                           OracleCounterpart (with Output param, growing oracle
-                           access), InteractiveOracleVerifier (= OracleCounterpart
-                           with OptionT verify output at `.done`),
-                           OracleVerifier (batch: iov + simulate + reify),
-                           OracleProver, OracleReduction
+  Oracle/
+    Core.lean              OracleDecoration, QueryHandle, toOracleSpec,
+                           answerQuery, oracle routing lemmas,
+                           OracleCounterpart, InteractiveOracleVerifier,
+                           OracleVerifier, OracleProver, OracleReduction
+    Composition.lean       shared oracle composition entrypoint
+    Continuation.lean      `toMonadDecoration_append`, continuation semantics,
+                           binary oracle composition, simulator routing
+    StateChain.lean        oracle state-chain verifier/composition
+    Oracle.lean            public re-export entrypoint
+  OracleReification.lean   optional reification layer over oracle-only output
+                           access semantics
+  OracleSecurity.lean      completeness / soundness / knowledge-soundness
+                           layer specialized to oracle reductions
 
 OracleReduction/         ← ArkLib-specific (old core, to be replaced)
   OracleInterface.lean     Stable, reused by Interaction/Oracle.lean
@@ -101,10 +131,23 @@ roles are a decoration on `Spec`.
 - [x] **Phase 3b: Oracle verifier redesign** —
   `OracleCounterpart` models the round-by-round challenger with growing oracle
   access (`accSpec` starts at `[]ₒ`, grows by `oi.toOC.spec` at sender nodes).
-  `InteractiveOracleVerifier` is the unified recursive type
-  (= `OracleCounterpart` with `OptionT` verification output at `.done`).
-  `OracleVerifier` bundles `iov` + `simulate` + `reify` (both transcript-
-  dependent). `OracleProver` and `OracleReduction` are defined.
+  `InteractiveOracleVerifier` is the unified recursive type with plain leaf
+  verifier output (no baked-in `OptionT`). `OracleVerifier` bundles `iov` +
+  transcript-dependent `simulate`; reification moved out to the optional
+  `OracleReification` layer. `OracleProver` and `OracleReduction` are defined.
+
+- [x] **Phase 3c: Oracle reduction cutover** —
+  `OracleReduction` and `OracleReduction.Continuation` now use
+  transcript-dependent output oracle families, matching the dependency level of
+  `OracleVerifier`. `run` / `execute` are derived defs. Binary composition,
+  continuation retargeting, simulator composition, and state-chain verifier
+  composition all build on the new interface.
+
+- [x] **Phase 3d: Oracle module cleanup** —
+  the old monolithic `Interaction/Oracle.lean` has been split into focused
+  submodules (`Core`, `Composition`, `Continuation`, `StateChain`) and the
+  public entrypoint is now a lightweight re-export file. Oracle-local files are
+  currently `sorry`-free.
 
 - [x] **Phase 4: Security definitions** — `randomChallenger` (generic sampler
   to `Counterpart ProbComp`), `Reduction.completeness` / `perfectCompleteness`,
@@ -144,11 +187,30 @@ roles are a decoration on `Spec`.
 
 ## In progress
 
+- [ ] **Oracle execution-side composition** — simulator-side composition is in
+  good shape, but the oracle analog of `Reduction.execute_comp` is still not
+  proved. The clean next step is a direct `OracleReduction.execute_comp`
+  theorem, likely built from the new prover-side runner lemma
+  `runWithOracleCounterpart_mapOutputWithRoles_mapOutput`, rather than from a
+  more general append-runner theorem.
 - [ ] **Verifier-indexed round-by-round security** — after landing the
   composition theorems and straightline-extractor cleanup, the main remaining
   `Security.lean` task is still to rephrase the claim-tree layer in terms of
   the actual `Verifier` object and its outputs instead of
   `randomChallenger`-level transcript predicates (`Accepts`, `relOut`)
+
+## Immediate deferred todos
+
+- [ ] Prove oracle execution composition directly:
+  `OracleReduction.execute_comp` or an equally clean theorem at the
+  `runWithOracleCounterpart` level.
+- [ ] Rebuild oracle security composition statements on top of that execution
+  theorem, rather than relying mainly on simulator-side composition.
+- [ ] Unify binary composition and `StateChain` execution under one execution
+  principle once the direct execution theorem exists.
+- [ ] Revisit a more generic verifier-monad programming interface later
+  (`MonadQuery`-style / query-capable monads lowering to `OracleComp`), but not
+  during the current porting cutover.
 
 ## Planned
 - [ ] **Phase 5: Sumcheck migration** — interaction-native sumcheck started:
@@ -170,10 +232,10 @@ roles are a decoration on `Spec`.
   structure where move types depend on prior moves. This differs fundamentally
   from the old flat `ProtocolSpec n` approach.
 
-- **Execution of OracleReduction**: `OracleReduction.execute` has not yet been
-  reintroduced. It will need `simulateQ` to resolve transcript-dependent oracle
-  queries, with types involving `OracleComp (oSpec + od.toOracleSpec tr)` for
-  the executed transcript `tr`.
+- **Execution of OracleReduction** (PARTIALLY RESOLVED): `OracleReduction.run`
+  and `OracleReduction.execute` are reintroduced and build on
+  `runWithOracleCounterpart`. The remaining execution-side gap is composition:
+  the oracle analog of `Reduction.execute_comp` is still deferred.
 
 - **Growing oracle access**: Both `OracleCounterpart` and
   `InteractiveOracleVerifier` use an `accSpec` parameter that grows at each
@@ -182,10 +244,11 @@ roles are a decoration on `Spec`.
   `accSpec₀ = []ₒ`, then `accSpecᵢ₊₁ = accSpecᵢ + oiᵢ.toOC.spec`.
   The `OracleVerifier.iov` field starts with `accSpec = []ₒ`.
 
-- **`simulate` and `reify` are transcript-dependent**: Unlike the flat
+- **`simulate` is transcript-dependent; `reify` is optional**: Unlike the flat
   `ProtocolSpec n` model where message types are static, in the W-type model
-  the oracle spec depends on the transcript (path through the tree). Both
-  `simulate` and `reify` must take a `Transcript` argument.
+  the oracle spec depends on the transcript (path through the tree).
+  `simulate` is therefore transcript-dependent. Concrete reification is no
+  longer part of the core oracle API; it lives in `OracleReification.lean`.
 
 - **Witness typing** (RESOLVED): `WitnessIn` is now a plain type, not
   dependent on the input statement. `WitnessOut` remains parallel to
@@ -209,6 +272,11 @@ roles are a decoration on `Spec`.
   talk about transcript predicates and `randomChallenger`, not the full
   statement-indexed `Verifier` object. This is the main remaining design gap in
   `Security.lean`.
+
+- **Generic verifier monads** (DEFERRED): a later cleanup may let verifier code
+  be written in any query-capable monad that lowers coherently to `OracleComp`,
+  but the semantic core is intentionally still phrased in `OracleComp` during
+  the current cutover.
 
 - **Where Interaction goes long-term**: planned to move to VCVio once stable.
   Keep it import-free from ArkLib (except `Oracle.lean` which bridges VCVio).
