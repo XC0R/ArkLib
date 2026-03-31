@@ -119,19 +119,63 @@ This is defined to be the full transcript for the first half if `k ≥ m`. -/
 def fst (T : (pSpec₁ ++ₚ pSpec₂).Transcript k) : pSpec₁.Transcript ⟨min k m, by omega⟩ :=
   if hk : k ≤ m then
     fun i => by
-    dsimp [take]; have := T ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩; simp at this; sorry
-    -- dcast (by sorry) (T ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩)
+      have h :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩ =
+            Fin.take (min k.val m) (Nat.min_le_right k.val m) pSpec₁.Type i := by
+        rw [Fin.take_apply, Fin.take_apply]
+        convert
+          Fin.append_left' pSpec₁.Type pSpec₂.Type
+            (Fin.castLE (Nat.min_le_right k.val m) i) using 1
+      have hT :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩ := by
+        simpa [ProtocolSpec.append, Fin.vappend_eq_append] using
+          T ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩
+      exact cast h hT
   else
-    fun i => sorry
-    -- dcast (by sorry) (T ⟨i, by omega⟩)
+    fun i => by
+      have h :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩ =
+            Fin.take (min k.val m) (Nat.min_le_right k.val m) pSpec₁.Type i := by
+        rw [Fin.take_apply, Fin.take_apply]
+        convert
+          Fin.append_left' pSpec₁.Type pSpec₂.Type
+            (Fin.castLE (Nat.min_le_right k.val m) i) using 1
+      have hT :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩ := by
+        simpa [ProtocolSpec.append, Fin.vappend_eq_append] using
+          T ⟨i, lt_of_lt_of_le i.isLt (inf_le_left)⟩
+      exact cast h hT
 
 /-- The second half of a partial transcript for a concatenated protocol. -/
 def snd (T : (pSpec₁ ++ₚ pSpec₂).Transcript k) : pSpec₂.Transcript ⟨k - m, by omega⟩ :=
   if hk : k ≤ m then
     fun i => Fin.elim0 (by simpa [hk] using i)
   else
-    fun i => sorry
-    -- dcast (by sorry) (T ⟨m + i, by simp_all; dsimp at i; have := i.isLt; omega⟩)
+    fun i => by
+      have hkgt : m < k.val := Nat.lt_of_not_ge hk
+      have hle : m ≤ k.val := Nat.le_of_lt hkgt
+      have himk : m + i.val < k.val := by
+        have him : m + i.val < m + (k.val - m) := Nat.add_lt_add_left i.isLt m
+        simpa [Nat.add_sub_of_le hle] using him
+      have hk' : k.val - m ≤ n := by
+        omega
+      have h :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨m + i, himk⟩ =
+            Fin.take (k.val - m) hk' pSpec₂.Type i := by
+        rw [Fin.take_apply, Fin.take_apply]
+        convert
+          Fin.append_right pSpec₁.Type pSpec₂.Type (Fin.castLE (by omega) i) using 1
+      have hT :
+          Fin.take k.val k.is_le (Fin.append pSpec₁.Type pSpec₂.Type)
+              ⟨m + i, himk⟩ := by
+        simpa [ProtocolSpec.append, Fin.vappend_eq_append] using
+          T ⟨m + i, himk⟩
+      exact cast h hT
 
 end Transcript
 
@@ -186,7 +230,8 @@ theorem rtake_append_right (T : FullTranscript pSpec₁) (T' : FullTranscript pS
   simp [rtake, Fin.rtake, append, Fin.cast, FullTranscript.cast, Transcript.cast]
   have : ⟨m + n - n + i.val, by omega⟩ = Fin.natAdd m i := by ext; simp
   rw! (castMode := .all) [this, Fin.happend_right]
-  sorry
+  rw [eqRec_eq_cast]
+  simp
 
 /-- The first half of a transcript for a concatenated protocol -/
 def fst (T : FullTranscript (pSpec₁ ++ₚ pSpec₂)) : FullTranscript pSpec₁ :=
@@ -469,8 +514,20 @@ def seqComposeChallengeEquiv {m : ℕ} {n : Fin m → ℕ} (pSpec : ∀ i, Proto
   toFun := fun ⟨i, j⟩ => sigmaChallengeIdxToSeqCompose i j
   invFun := seqComposeChallengeIdxToSigma
   left_inv := by
-    intro ⟨_, _⟩; simp [seqComposeChallengeIdxToSigma, sigmaChallengeIdxToSeqCompose]
-    sorry
+    intro ⟨i, j⟩
+    simp [seqComposeChallengeIdxToSigma, sigmaChallengeIdxToSeqCompose]
+    have hpair := Fin.splitSum_embedSum i j.1
+    have hfst : (i.embedSum j.1).splitSum.fst = i := (Sigma.mk.inj hpair).1
+    have hsnd : (i.embedSum j.1).splitSum.snd ≍ j.1 := (Sigma.mk.inj hpair).2
+    have hpred_aux {a b : Fin m} (h : a = b) :
+        HEq (fun x : Fin (n a) => (pSpec a).dir x = Direction.V_to_P)
+          (fun x : Fin (n b) => (pSpec b).dir x = Direction.V_to_P) := by
+      cases h
+      rfl
+    convert hsnd using 1
+    exact
+      Subtype.heq_iff_coe_heq (congrArg (fun x => Fin (n x)) hfst)
+        (hpred_aux hfst)
   right_inv := by intro; simp [seqComposeChallengeIdxToSigma, sigmaChallengeIdxToSeqCompose]
 
 def sigmaMessageIdxToSeqCompose {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
@@ -493,8 +550,20 @@ def seqComposeMessageEquiv {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, Protoco
   toFun := fun ⟨i, msgIdx⟩ => sigmaMessageIdxToSeqCompose i msgIdx
   invFun := seqComposeMessageIdxToSigma
   left_inv := by
-    intro ⟨i, ⟨j, h⟩⟩ ; simp [seqComposeMessageIdxToSigma, sigmaMessageIdxToSeqCompose]
-    sorry
+    intro ⟨i, j⟩
+    simp [seqComposeMessageIdxToSigma, sigmaMessageIdxToSeqCompose]
+    have hpair := Fin.splitSum_embedSum i j.1
+    have hfst : (i.embedSum j.1).splitSum.fst = i := (Sigma.mk.inj hpair).1
+    have hsnd : (i.embedSum j.1).splitSum.snd ≍ j.1 := (Sigma.mk.inj hpair).2
+    have hpred_aux {a b : Fin m} (h : a = b) :
+        HEq (fun x : Fin (n a) => (pSpec a).dir x = Direction.P_to_V)
+          (fun x : Fin (n b) => (pSpec b).dir x = Direction.P_to_V) := by
+      cases h
+      rfl
+    convert hsnd using 1
+    exact
+      Subtype.heq_iff_coe_heq (congrArg (fun x => Fin (n x)) hfst)
+        (hpred_aux hfst)
   right_inv := by intro; simp [seqComposeMessageIdxToSigma, sigmaMessageIdxToSeqCompose]
 
 instance {m : ℕ} {n : Fin m → ℕ} {pSpec : ∀ i, ProtocolSpec (n i)}
