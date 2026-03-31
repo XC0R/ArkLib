@@ -284,6 +284,89 @@ theorem toMonadDecoration_append
       exact toMonadDecoration_append (rest x) (fun p => spec₂ ⟨x, p⟩)
         (rRest x) (fun p => roles₂ ⟨x, p⟩) (odFn x) (fun p => od₂ ⟨x, p⟩) _
 
+private theorem runWithOracleCounterpart_mapOutputWithRoles_mapOutput
+    {ι : Type} {oSpec : OracleSpec ι}
+    {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
+    (inputImpl : QueryImpl [OStmtIn]ₒ Id)
+    (spec : Spec) (roles : RoleDecoration spec) (od : OracleDecoration spec roles)
+    {ιₐ : Type} (accSpec : OracleSpec ιₐ) (accImpl : QueryImpl accSpec Id)
+    {OutputP OutputP' OutputC : Spec.Transcript spec → Type}
+    (fP : ∀ tr, OutputP tr → OutputP' tr)
+    (strat : Spec.Strategy.withRoles (OracleComp oSpec) spec roles OutputP)
+    (cpt : Spec.Counterpart.withMonads spec roles
+      (toMonadDecoration oSpec OStmtIn spec roles od accSpec) OutputC) :
+    runWithOracleCounterpart inputImpl spec roles od accSpec accImpl
+      (Spec.Strategy.mapOutputWithRoles fP strat) cpt =
+      (fun z => ⟨z.1, fP z.1 z.2.1, z.2.2⟩) <$>
+        runWithOracleCounterpart inputImpl spec roles od accSpec accImpl strat cpt := by
+  let rec go
+      (spec : Spec) (roles : RoleDecoration spec) (od : OracleDecoration spec roles)
+      {ιₐ : Type} (accSpec : OracleSpec ιₐ) (accImpl : QueryImpl accSpec Id)
+      {OutputP OutputP' OutputC : Spec.Transcript spec → Type}
+      (fP : ∀ tr, OutputP tr → OutputP' tr)
+      (strat : Spec.Strategy.withRoles (OracleComp oSpec) spec roles OutputP)
+      (cpt : Spec.Counterpart.withMonads spec roles
+        (toMonadDecoration oSpec OStmtIn spec roles od accSpec) OutputC) :
+      runWithOracleCounterpart inputImpl spec roles od accSpec accImpl
+        (Spec.Strategy.mapOutputWithRoles fP strat) cpt =
+        (fun z => ⟨z.1, fP z.1 z.2.1, z.2.2⟩) <$>
+          runWithOracleCounterpart inputImpl spec roles od accSpec accImpl strat cpt := by
+    match spec, roles, od with
+    | .done, roles, od =>
+        cases roles
+        cases od
+        simp [runWithOracleCounterpart, Spec.Strategy.mapOutputWithRoles]
+    | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩ =>
+        cases strat with
+        | mk x cont =>
+            simp only [Spec.Strategy.mapOutputWithRoles]
+            simp only [runWithOracleCounterpart, bind_pure_comp, bind_map_left, map_bind,
+              Functor.map_map]
+            refine congrArg (fun k => cont >>= k) ?_
+            funext next
+            let addPrefix :
+                ((tr : Spec.Transcript (rest x)) ×
+                  (fun tr => OutputP' ⟨x, tr⟩) tr ×
+                  (fun tr => OutputC ⟨x, tr⟩) tr) →
+                ((tr : Spec.Transcript (Spec.node _ rest)) × OutputP' tr × OutputC tr) :=
+              fun a => ⟨⟨x, a.1⟩, a.2.1, a.2.2⟩
+            simpa [bind_assoc, addPrefix] using
+              congrArg (fun z => addPrefix <$> z)
+                (go (rest x) (rRest x) (odRest x)
+                  (accSpec + @OracleInterface.spec _ oi)
+                  (QueryImpl.add accImpl (fun q => (oi.toOC.impl q).run x))
+                  (fun tr => fP ⟨x, tr⟩)
+                  next
+                  (cpt x))
+    | .node _ rest, ⟨.receiver, rRest⟩, odFn =>
+        rw [runWithOracleCounterpart.eq_3, runWithOracleCounterpart.eq_3]
+        simp only [Spec.Strategy.mapOutputWithRoles, bind_pure_comp, bind_map_left,
+          map_bind, Functor.map_map]
+        let routeImpl :
+            QueryImpl ((oSpec + [OStmtIn]ₒ) + accSpec) (OracleComp oSpec) :=
+          fun
+          | .inl (.inl q) => liftM (query (spec := oSpec) q)
+          | .inl (.inr q) => liftM (inputImpl q)
+          | .inr q => liftM (accImpl q)
+        refine congrArg (fun k => simulateQ routeImpl cpt >>= k) ?_
+        funext xc
+        refine congrArg (fun k => strat xc.1 >>= k) ?_
+        funext next
+        let addPrefix :
+            ((tr : Spec.Transcript (rest xc.1)) ×
+              (fun tr => OutputP' ⟨xc.1, tr⟩) tr ×
+              (fun tr => OutputC ⟨xc.1, tr⟩) tr) →
+            ((tr : Spec.Transcript (Spec.node _ rest)) × OutputP' tr × OutputC tr) :=
+          fun a => ⟨⟨xc.1, a.1⟩, a.2.1, a.2.2⟩
+        simpa [bind_assoc, addPrefix] using
+          congrArg (fun z => addPrefix <$> z)
+            (go (rest xc.1) (rRest xc.1) (odFn xc.1)
+              accSpec accImpl
+              (fun tr => fP ⟨xc.1, tr⟩)
+              next
+              xc.2)
+  exact go spec roles od accSpec accImpl fP strat cpt
+
 /-! ## Oracle reduction composition -/
 
 namespace OracleReduction
