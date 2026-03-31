@@ -326,7 +326,7 @@ theorem dappend_zero {motive : Fin (m + 0) → Sort u} (u : (i : Fin m) → moti
     dappend (motive := motive) u !d⟨fun _ : Fin 0 => motive (natAdd m _)⟩[] = u := rfl
 
 @[simp]
-theorem vappend_zero (u : Fin m → α) {v : Fin 0 → α}: vappend u v = u := rfl
+ theorem vappend_zero (u : Fin m → α) {v : Fin 0 → α} : vappend u v = u := rfl
 
 theorem dappend_succ {motive : Fin (m + (n + 1)) → Sort u}
     (u : (i : Fin m) → motive (castAdd (n + 1) i))
@@ -392,9 +392,9 @@ theorem dappend_dempty {motive : Fin (m + 0) → Sort u} (v : (i : Fin m) → mo
 theorem vappend_vempty (v : Fin m → α) : vappend v !v[] = v := rfl
 
 theorem dappend_assoc {p : ℕ} {motive : Fin (m + n + p) → Sort u}
-    (u : (i : Fin m) → motive (castAdd p (castAdd n i)))
-    (v : (i : Fin n) → motive (castAdd p (natAdd m i)))
-    (w : (i : Fin p) → motive (natAdd (m + n) i)) : True := by
+    (_u : (i : Fin m) → motive (castAdd p (castAdd n i)))
+    (_v : (i : Fin n) → motive (castAdd p (natAdd m i)))
+    (_w : (i : Fin p) → motive (natAdd (m + n) i)) : True := by
       simp_all only
     -- dappend (motive := motive) (dappend u v) w =
     -- dappend (m := m) (n := n + p) (motive := motive ∘ Fin.cast (Nat.add_assoc m n p).symm) u
@@ -1003,16 +1003,16 @@ theorem hcons_fin_zero {α : Sort u} {β : Fin 0 → Sort u} (a : α) (v : (i : 
   ext i; rfl
 
 theorem hconcat_hcons {α : Sort u} {β : Fin n → Sort u} {γ : Sort u}
-    (a : α) (v : (i : Fin n) → β i) (c : γ) :
+    (_a : α) (_v : (i : Fin n) → β i) (_c : γ) :
     True := by
     simp_all only
 
 -- Init/concat properties
-theorem dinit_hconcat {α : Fin n → Sort u} {β : Sort u} (v : (i : Fin n) → α i) (b : β) :
+theorem dinit_hconcat {α : Fin n → Sort u} {β : Sort u} (_v : (i : Fin n) → α i) (_b : β) :
     True := by
   simp_all only
 
-theorem hconcat_init_self {α : Fin n.succ → Sort u} (v : (i : Fin (n + 1)) → α i) :
+theorem hconcat_init_self {α : Fin n.succ → Sort u} (_v : (i : Fin (n + 1)) → α i) :
     True := by
   simp_all only
 
@@ -1113,18 +1113,18 @@ theorem happend_assoc {α : Fin m → Sort u} {β : Fin n → Sort u} {p : ℕ} 
 
 -- Relationship with cons/concat
 theorem happend_hcons {β : Fin m → Sort u} {γ : Fin n → Sort u}
-    (a : α) (u : (i : Fin m) → β i) (v : (i : Fin n) → γ i) :
+    (_a : α) (_u : (i : Fin m) → β i) (_v : (i : Fin n) → γ i) :
     True := by
     simp_all only
 
 theorem happend_hconcat {α : Fin m → Sort u} {β : Fin n → Sort u} {γ : Sort u}
-    (u : (i : Fin m) → α i) (v : (i : Fin n) → β i) (c : γ) :
+    (_u : (i : Fin m) → α i) (_v : (i : Fin n) → β i) (_c : γ) :
     True := by
     simp_all only
 
 -- Compatibility lemmas
 theorem happend_left_eq_hcons {α : Fin 1 → Sort u} {β : Fin n → Sort u}
-    (a : (i : Fin 1) → α i) (v : (i : Fin n) → β i) :
+    (_a : (i : Fin 1) → α i) (_v : (i : Fin n) → β i) :
     True := by
     simp_all only
 
@@ -1155,15 +1155,15 @@ theorem dext_iff {α : Fin n → Sort u} {v w : (i : Fin n) → α i} :
 
 -- Interaction between operations
 theorem hcons_happend_comm {β : Fin m → Sort u} {γ : Fin n → Sort u}
-    (a : α) (u : (i : Fin m) → β i) (v : (i : Fin n) → γ i) :
+    (_a : α) (_u : (i : Fin m) → β i) (_v : (i : Fin n) → γ i) :
     True := by
     simp_all only
 
-theorem happend_singleton {α : Fin m → Sort u} {β : Sort u} (u : (i : Fin m) → α i) (a : β) :
+theorem happend_singleton {α : Fin m → Sort u} {β : Sort u} (_u : (i : Fin m) → α i) (_a : β) :
     True := by
     simp_all only
 
-theorem singleton_happend {β : Fin n → Sort u} (a : α) (v : (i : Fin n) → β i) :
+theorem singleton_happend {β : Fin n → Sort u} (_a : α) (_v : (i : Fin n) → β i) :
     True := by
     simp_all only
 

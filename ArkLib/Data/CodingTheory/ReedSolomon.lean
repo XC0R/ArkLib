@@ -263,7 +263,7 @@ lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F]
     rw [Fintype.card_eq_zero_iff] at hcard
     have hn : n = 0 := by omega
     subst n
-    simp [ReedSolomon.code, dim]
+    simp only [dim, ModuleCode, ReedSolomon.code, Submodule.finrank_eq_zero]
     have h : F⦃< 0⦄[X] = ⊥ := by
       ext x
       simp [degreeLT]
@@ -324,22 +324,23 @@ lemma dim_eq_card_of_lt {ι : Type*} [Fintype ι] {F : Type*} [Field F]
   rw [h_code]
   have h_range : S.map f = LinearMap.range (f.domRestrict S) := by
     ext; simp [Submodule.mem_map];
-  simp?
+  simp only [ModuleCode]
   apply le_antisymm
   · refine le_trans (Submodule.finrank_le _) ?_
     simp
   · have h_sub : ReedSolomon.code α (Fintype.card ι)
       ≤ ReedSolomon.code α n := by
       intro x hx
-      simp [ReedSolomon.code] at hx
+      simp only [ReedSolomon.code, Submodule.mem_map] at hx
       rcases hx with ⟨y, hy⟩
-      simp [ReedSolomon.code]
-      exists y
-      apply And.intro
-      · simp [Polynomial.degreeLT] at *
-        intro i hi
-        exact (hy.1 i (by omega))
-      · tauto
+      change x ∈ (Polynomial.degreeLT F n).map (ReedSolomon.evalOnPoints α)
+      refine ⟨y, ?_, hy.2⟩
+      have hy_deg : degree y < Fintype.card ι := by
+        simpa only [Polynomial.mem_degreeLT] using hy.1
+      have h' : (Fintype.card ι : WithBot ℕ) < n := by
+        exact_mod_cast h
+      have hy_deg' : degree y < n := lt_trans hy_deg h'
+      exact (Polynomial.mem_degreeLT).2 hy_deg'
     have h_sub := Submodule.finrank_mono h_sub
     have dim_eq := dim_eq_deg_of_le'
       (n := Fintype.card ι)
@@ -450,7 +451,7 @@ theorem minDist [Field F] [DecidableEq F] (inj : Function.Injective α) [NeZero 
   case p₁ =>
     have distUB := singletonBound (LC := ReedSolomon.code ⟨α, inj⟩ n)
     rw [dim_eq_deg_of_le inj h] at distUB
-    simp at distUB
+    simp only [length_eq_domain_card', Fintype.card_fin] at distUB
     zify [dist_le_length] at distUB
     omega
   case p₂ =>

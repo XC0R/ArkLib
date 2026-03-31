@@ -156,11 +156,12 @@ theorem induction_append_right {m n : ℕ} {motive : Fin (m + n + 1) → Sort*} 
         (fun i x => succ (i.natAdd m) x) i := by
   induction i using Fin.induction with
   | zero =>
-    simp [castAdd, castLE, last, natAdd]
+    simp only [natAdd, coe_ofNat_eq_mod, Nat.zero_mod, Nat.add_zero, Nat.add_eq, castAdd,
+      castLE, cast_mk, val_castSucc, last, induction_zero]
     rw [induction_append_left (i := ⟨m, by omega⟩)]
     rfl
   | succ i ih =>
-    simp [← ih]
+    simp only [Nat.add_eq, induction_succ, ← ih]
     have : natAdd m i.succ = (natAdd m i).succ := rfl
     rw! (castMode := .all) [this, induction_succ]
     rfl
