@@ -88,7 +88,7 @@ lemma support_polynomialOfCoeffs : (polynomialOfCoeffs coeffs).support =
 @[simp]
 lemma eval_polynomialsOfCoeffs [NeZero deg] {α : F} :
     (polynomialOfCoeffs coeffs).eval α = ∑ x ∈ {i | coeffs i ≠ 0}, coeffs x * α ^ x.1 := by
-  simp [eval_eq_sum, sum_def, coeff_polynomialOfCoeffs_eq_coeffs', Fin.liftF]
+  simp [eval_eq_sum, sum_def, Fin.liftF]
 
 @[simp]
 lemma isRoot_polynomialsOfCoeffs {x : F} :

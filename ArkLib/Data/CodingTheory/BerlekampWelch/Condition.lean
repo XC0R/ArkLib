@@ -200,7 +200,10 @@ lemma solutionToE_eq_polynomialOfCoeffs
 lemma eval_solutionToE {x : F} :
     eval x (solutionToE e k v) = x ^ e + ∑ y : Fin e, v ⟨y, by omega⟩ * x ^ y.1 := by
   suffices ∑ y ∈ Finset.range e, liftF v y * x ^ y = _ by
-    simp [solutionToE, Polynomial.eval_eq_sum, Polynomial.sum_def]
+    simp only [solutionToE, ne_eq, eval_eq_sum, sum_def, support_ofFinsupp, coeff_ofFinsupp,
+      Finsupp.coe_mk, ite_mul, one_mul, zero_mul, Finset.mem_filter, Finset.mem_range,
+      lt_self_iff_false, false_and, not_false_eq_true, Finset.sum_insert, ↓reduceIte,
+      add_right_inj]
     rw [Finset.sum_ite_of_false, Finset.sum_ite_of_true, Finset.sum_filter_of_ne]
     all_goals aesop
   rw [Finset.sum_bij (i := fun x h ↦ ⟨x, Finset.mem_range.1 h⟩)
@@ -214,7 +217,7 @@ lemma coeff_solutionToE :
 @[simp]
 lemma natDegree_solutionToE :
     (solutionToE e k v).natDegree = e := by
-  simp [solutionToE, Polynomial.natDegree, Polynomial.degree]
+  simp only [natDegree, degree, solutionToE, ne_eq, support_ofFinsupp, Finset.max_insert]
   rw [sup_eq_left.2 ] <;> try simp
   omega
 
@@ -248,7 +251,7 @@ lemma solutionToQ_coeff :
 @[simp]
 lemma natDegree_solutionToQ :
     (solutionToQ e k v).natDegree ≤ e + k - 1 := by
-  simp [solutionToQ, Polynomial.natDegree, Polynomial.degree]
+  simp only [natDegree, degree, solutionToQ, ne_eq, support_ofFinsupp]
   rw [WithBot.unbotD_le_iff] <;>
   aesop (add safe (by omega))
 
@@ -261,9 +264,11 @@ private lemma eval_solutionToQ_aux {i : Fin ((solutionToQ e k v).natDegree + 1)}
 lemma eval_solutionToQ_cast {x : F} (h : e = 0) :
     eval x (solutionToQ e k v) = ∑ i ∈ Finset.range k, liftF v i * x ^ i := by
   subst h
-  simp [solutionToQ]
-  rw [eval_eq_sum, sum_def]; simp
-  rw [Finset.sum_filter]; simp
+  simp only [solutionToQ, Nat.mul_zero, zero_add, ne_eq]
+  rw [eval_eq_sum, sum_def]
+  simp only [support_ofFinsupp, coeff_ofFinsupp, Finsupp.coe_mk, ite_mul, zero_mul]
+  rw [Finset.sum_filter]
+  simp only [ite_not]
   exact Finset.sum_congr rfl (by aesop)
 
 @[simp]
@@ -275,12 +280,18 @@ lemma eval_solutionToQ {x : F} :
   · rw [Polynomial.eval_eq_sum_range'
           (n := (e + 1) + k)
           (Nat.lt_of_le_of_lt natDegree_solutionToQ (by omega))]
-    refine Finset.sum_congr rfl fun x hx ↦ by simp at *; rw [liftF_eq_of_lt (by omega)]; omega
+    refine Finset.sum_congr rfl fun x hx ↦ by
+      simp only [Finset.mem_range, solutionToQ_coeff, ite_mul, zero_mul, ite_eq_left_iff, not_lt,
+        zero_eq_mul, pow_eq_zero_iff', ne_eq] at *
+      rw [liftF_eq_of_lt (by omega)]
+      omega
 
 @[simp]
 lemma eval_solutionToQ_zero {x : F} {v} : eval x (solutionToQ 0 k v) =
     ∑ a ∈ Finset.range k, liftF v a * x ^ a := by
-  simp [eval_eq_sum, sum_def, solutionToQ, Finset.sum_filter]
+  simp only [solutionToQ, Nat.mul_zero, zero_add, ne_eq, eval_eq_sum, sum_def,
+    support_ofFinsupp, coeff_ofFinsupp, Finsupp.coe_mk, ite_mul, zero_mul, Finset.sum_filter,
+    ite_not]
   refine Finset.sum_congr rfl (by aesop)
 
 @[simp]
@@ -322,31 +333,34 @@ private lemma solution_to_BerlekampWelch_condition {e k : ℕ}
   {v : Fin (2 * e + k) → F}
   (h_sol : IsBerlekampWelchSolution e k ωs f v) :
   BerlekampWelchCondition e k ωs f (solutionToE e k v) (solutionToQ e k v) := by
-  constructor <;> try simp
-  intros i
-  apply congrFun (a := i) at h_sol
-  simp [liftF, mulVec_BerlekampWelchMatrix_eq] at h_sol ⊢
-  apply_fun (-1 * ·) using (by simp [Function.Injective]); simp only [neg_one_mul]
-  rw [
-    ←neg_mul, mul_add, ←Rhs.eq_def, ←h_sol,
-    Finset.sum_dite_of_true (by simp; omega), Finset.sum_ite
-  ]
-  generalize_proofs p₁ p₂
-  set sum₁ := -∑ x, v ⟨e + x.1, p₁ x⟩ * ωs i ^ x.1 with eq₁
-  set sum₂ := ∑ x with x.1 < e, v x * (f i * ωs i ^ x.1) with eq₂
-  set sum₃ := ∑ x with ¬x.1 < e, -(v x * ωs i ^ (x - e)) with eq₃
-  set sum₄ := -f i * ∑ y, v ⟨y.1, p₂ y⟩ * ωs i ^ y.1 with eq₄
-  suffices sum₂ = -sum₄ ∧ sum₁ = sum₃ by rw [this.1, this.2]; ring
-  refine ⟨?p₃, ?p₄⟩
-  · simp [eq₂, eq₄]
-    rw [Finset.mul_sum]
-    apply Finset.sum_bij' (i := fun a ha ↦ ⟨a.1, by simp at ha; omega⟩)
-                          (j := fun a _ ↦ ⟨a.1, by omega⟩) <;> try simp <;> (intros; ring)
-  · simp [eq₁, eq₃]
-    apply Finset.sum_bij' (i := fun ⟨a, ha₁⟩ _ ↦ ⟨a + e, by simp at ha₁; omega⟩)
-                          (j := fun ⟨a, _⟩ ha₂ ↦ ⟨a - e, by simp at ha₂ ⊢; omega⟩) <;> try simp
-    case p₄.right_neg => aesop
-    case h => intros; left; ring_nf
+  constructor
+  · intros i
+    apply congrFun (a := i) at h_sol
+    simp [liftF, mulVec_BerlekampWelchMatrix_eq] at h_sol ⊢
+    apply_fun (-1 * ·) using (by simp [Function.Injective]); simp only [neg_one_mul]
+    rw [
+      ←neg_mul, mul_add, ←Rhs.eq_def, ←h_sol,
+      Finset.sum_dite_of_true (by simp; omega), Finset.sum_ite
+    ]
+    generalize_proofs p₁ p₂
+    set sum₁ := -∑ x, v ⟨e + x.1, p₁ x⟩ * ωs i ^ x.1 with eq₁
+    set sum₂ := ∑ x with x.1 < e, v x * (f i * ωs i ^ x.1) with eq₂
+    set sum₃ := ∑ x with ¬x.1 < e, -(v x * ωs i ^ (x - e)) with eq₃
+    set sum₄ := -f i * ∑ y, v ⟨y.1, p₂ y⟩ * ωs i ^ y.1 with eq₄
+    suffices sum₂ = -sum₄ ∧ sum₁ = sum₃ by rw [this.1, this.2]; ring
+    refine ⟨?p₃, ?p₄⟩
+    · simp [eq₂, eq₄]
+      rw [Finset.mul_sum]
+      apply Finset.sum_bij' (i := fun a ha ↦ ⟨a.1, by simp at ha; omega⟩)
+                            (j := fun a _ ↦ ⟨a.1, by omega⟩) <;> try simp <;> (intros; ring)
+    · simp [eq₁, eq₃]
+      apply Finset.sum_bij' (i := fun ⟨a, ha₁⟩ _ ↦ ⟨a + e, by simp at ha₁; omega⟩)
+                            (j := fun ⟨a, _⟩ ha₂ ↦ ⟨a - e, by simp at ha₂ ⊢; omega⟩) <;> try simp
+      case p₄.right_neg => aesop
+      case h => intros; left; ring_nf
+  · simp only [natDegree_solutionToE]
+  · simp only [coeff_solutionToE, ↓reduceIte]
+  · simp only [natDegree_solutionToQ]
 
 theorem BerlekampWelchCondition_iff_Solution {e k : ℕ} [NeZero n]
     {ωs f : Fin n → F} {v : Fin (2 * e + k) → F} :
@@ -389,7 +403,7 @@ lemma BerlekampWelch_Q_ne_zero {e k : ℕ}
   have h_cond := h_bw.cond
   let S : Finset (Fin n) := {i | ¬f i = 0}
   by replace h_dist : e < S.card := by simpa [hammingDist]
-     simp [contr] at h_cond
+     simp only [contr, eval_zero, zero_eq_mul] at h_cond
      have h_card := Polynomial.card_le_degree_of_subset_roots
        (Z := Finset.image ωs S) (p := E)
        (fun _ hx ↦ by
@@ -426,7 +440,7 @@ lemma E_and_Q_unique
   classical
   let R := E * Q' - E' * Q
   have hr_deg : R.natDegree ≤ 2 * e + k - 1 := by
-    simp [R]
+    simp only [R]
     apply Nat.le_trans (natDegree_add_le _ _)
     simp [
       natDegree_mul
@@ -441,11 +455,11 @@ lemma E_and_Q_unique
   by_cases hr : R = 0
   · rw [←add_zero (E' * Q), ←hr]; ring
   · let roots := Multiset.ofList <| (List.finRange n).map ωs
-    have hsub : (⟨roots, by simp [roots]; rw [List.nodup_map_iff h_inj]
+    have hsub : (⟨roots, by simp only [Multiset.coe_nodup, roots]; rw [List.nodup_map_iff h_inj]
                             exact List.nodup_finRange _⟩ : Finset F).val ⊆ R.roots := fun _ _ ↦ by
       aesop (add safe cases BerlekampWelchCondition) (add safe (by ring))
     have hcard := card_le_degree_of_subset_roots hsub
-    simp at *
+    simp only [Order.lt_add_one_iff, ne_eq, Finset.card_mk] at *
     cases k <;> cases e <;> aesop (add safe (by omega))
 
 end

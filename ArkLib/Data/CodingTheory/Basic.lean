@@ -173,7 +173,9 @@ theorem dist_subsingleton {C : Set (n → R)} [Subsingleton C] : ‖C‖₀ = 0 
   simp only [Code.dist]
   have {d : ℕ} : (∃ u ∈ C, ∃ v ∈ C, u ≠ v ∧ hammingDist u v ≤ d) = False := by
     have h := @Subsingleton.allEq C _
-    simp_all; intro a ha b hb hab
+    simp_all only [Set.subsingleton_coe, Subtype.forall, Subtype.mk.injEq, ne_eq, eq_iff_iff,
+      iff_false, not_exists, not_and, not_le]
+    intro a ha b hb hab
     have hEq : a = b := h a ha b hb
     simp_all
   have : {d | ∃ u ∈ C, ∃ v ∈ C, u ≠ v ∧ hammingDist u v ≤ d} = (∅ : Set ℕ) := by
@@ -185,11 +187,11 @@ theorem dist_subsingleton {C : Set (n → R)} [Subsingleton C] : ‖C‖₀ = 0 
 theorem dist_le_card (C : Set (n → R)) : dist C ≤ Fintype.card n := by
   by_cases h : Subsingleton C
   · simp
-  · simp at h
+  · simp only [Set.subsingleton_coe, Set.not_subsingleton_iff] at h
     unfold Set.Nontrivial at h
     obtain ⟨u, hu, v, hv, huv⟩ := h
     refine Nat.sInf_le ?_
-    simp?
+    simp only [ne_eq, Set.mem_setOf_eq]
     refine ⟨u, And.intro hu ⟨v, And.intro hv ⟨huv, hammingDist_le_card_fintype⟩⟩⟩
 
 lemma dist_eq_minDist {ι : Type*} [Fintype ι] {F : Type*} [DecidableEq F] (C : Set (ι → F)) :
@@ -423,10 +425,11 @@ theorem closeToWord_iff_exists_possibleDisagreeCols
     exact Nat.le_trans h_card_diff_le_card_D hD_card_le_e
 
 theorem closeToWord_iff_exists_agreementCols
-    {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} [DecidableEq F] (u v : ι → F) (e : ℕ) :
+    {ι : Type*} [Fintype ι] {F : Type*} [DecidableEq F] (u v : ι → F) (e : ℕ) :
     Δ₀(u, v) ≤ e ↔ ∃ (S : Finset ι),
       Fintype.card ι - e ≤ S.card ∧ (∀ (colIdx : ι), (colIdx ∈ S → u colIdx = v colIdx)
         ∧ (u colIdx ≠ v colIdx → colIdx ∉ S)) := by
+  classical
   rw [closeToWord_iff_exists_possibleDisagreeCols]
   constructor
   · -- Direction 1: (∃ D, D.card ≤ e ∧ ∀ colIdx ∉ D, u colIdx = v colIdx) → ∃ S, ...
@@ -514,7 +517,7 @@ theorem eq_of_lt_dist {C : Set (n → R)} {u v : n → R} (hu : u ∈ C) (hv : v
   by_contra hNe
   push_neg at hNe
   revert huv
-  simp?
+  simp only [ne_eq, imp_false, not_lt]
   refine Nat.sInf_le ?_
   simp only [Set.mem_setOf_eq]
   refine ⟨u, And.intro hu ⟨v, And.intro hv ⟨hNe, le_rfl⟩⟩⟩
@@ -643,18 +646,19 @@ theorem dist'_empty : ‖(∅ : Set (n → R))‖₀' = ⊤ := by
 
 @[simp]
 theorem codeDist'_subsingleton [Subsingleton C] : ‖C‖₀' = ⊤ := by
-  simp [dist']
+  simp only [dist', ne_eq]
   apply Finset.min_eq_top.mpr
-  simp [Finset.filter_eq_empty_iff]
+  simp only [Finset.image_eq_empty, Finset.filter_eq_empty_iff, Finset.mem_univ,
+    Decidable.not_not, forall_const, Prod.forall, Subtype.forall, Subtype.mk.injEq]
   have h := @Subsingleton.elim C _
-  simp_all
+  simp_all only [Set.subsingleton_coe, Subtype.forall, Subtype.mk.injEq]
   exact h
 
 theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
   by_cases h : Subsingleton C
   · simp
   · -- Extract two distinct codewords u,v ∈ C
-    simp at h
+    simp only [Set.subsingleton_coe, Set.not_subsingleton_iff] at h
     unfold Set.Nontrivial at h
     obtain ⟨u, hu, v, hv, huv⟩ := h
     -- The filtered pair set is nonempty
@@ -1384,10 +1388,13 @@ lemma finite_relHammingDistRange [Nonempty ι] : (relHammingDistRange ι).Finite
         ⟩⟩
       ⟩
 
+omit [Fintype ι] in
 /-- The set of pairs of distinct elements from a finite set is finite.
 -/
 @[simp]
-lemma finite_offDiag [Finite F] : C.offDiag.Finite := Set.Finite.offDiag (Set.toFinite _)
+lemma finite_offDiag [Finite ι] [Finite F] : C.offDiag.Finite := by
+  letI := Fintype.ofFinite ι
+  exact Set.Finite.offDiag (Set.toFinite C)
 
 section
 
@@ -1479,15 +1486,18 @@ def relDistFromCode' {ι : Type*} [Fintype ι] [Nonempty ι] {F : Type*} [Decida
 This is a different statement of the generic definition `δᵣ(w,C)`. -/
 notation "δᵣ'(" w ", " C ")" => relDistFromCode' w C
 
-lemma relDistFromCode'_eq_relDistFromCode {ι : Type*} [Fintype ι] [Nonempty ι] [DecidableEq ι]
+lemma relDistFromCode'_eq_relDistFromCode {ι : Type*} [Fintype ι] [Nonempty ι]
     {F : Type*} [DecidableEq F]
     (w : ι → F) (C : Set (ι → F)) [Fintype C] [Nonempty C] :
     (δᵣ(w, C)) = δᵣ'(w, C) := by
+  classical
   -- 1. Identify the set of distances V
   let V : Finset ℚ≥0 := Finset.univ.image (fun (c : C) => relHammingDist w c)
   conv_rhs => rw [ENNReal.coe_NNRat_coe_NNReal]
   have h_C_ne_empty : C ≠ ∅ := by
-    (expose_names; exact Set.nonempty_iff_ne_empty'.mp inst_5)
+    intro h_empty
+    let c : C := Classical.choice (inferInstance : Nonempty C)
+    simpa [h_empty] using c.property
   have h_dist_w_C_ne_top: Δ₀(w, C) ≠ ⊤ := by
     by_contra dist_w_C_eq_top
     rw [distFromCode_eq_top_iff_empty (n := ι) (u := w) (C := C)] at dist_w_C_eq_top
@@ -1803,7 +1813,7 @@ theorem projection_injective
   intro proj_agree
   by_contra hne
   have hdiff : hammingDist u v ≥ ‖C‖₀ := by
-    simp [Code.dist]
+    simp only [Code.dist, ne_eq, ge_iff_le]
     refine Nat.sInf_le ?_
     refine Set.mem_setOf.mpr ?_
     use u
@@ -1811,7 +1821,7 @@ theorem projection_injective
     use v
   let D := {i : n | u i ≠ v i}
   have hD : card D = hammingDist u v := by
-    simp
+    simp only [ne_eq, card_ofFinset]
     exact rfl
   have hagree : ∀ i ∈ S, u i = v i := by
     intros i hi
@@ -1836,7 +1846,7 @@ theorem projection_injective
     solve_by_elim
   have hcard_compl : @card diff (ofFinite diff) = ‖C‖₀ - 1 := by
     unfold diff
-    simp at *
+    simp only [ge_iff_le, card_coe, ne_eq, card_ofFinset, Set.coe_setOf, card_subtype_compl] at *
     rw[hS]
     have stronger : ‖C‖₀ ≤ card n := by
       apply Code.dist_le_card
@@ -1860,7 +1870,7 @@ theorem singleton_bound (C : Set (n → R)) :
         omega
       obtain ⟨t, ht⟩ := instexists.1 some
       exists t
-      simp?
+      simp only [card_coe]
       exact And.right ht
     obtain ⟨S, hS⟩ := ax_proj
     -- project C by only looking at indices in S
@@ -1886,7 +1896,7 @@ theorem singleton_bound (C : Set (n → R)) :
       exact huniv
     apply le_trans (b := @card Cproj (ofFinite Cproj)) <;>
       assumption
-  · simp at non_triv
+  · simp only [ge_iff_le, not_le, Nat.lt_one_iff] at non_triv
     rw[non_triv]
     simp only [zero_tsub, tsub_zero]
     let card_fun := @card_fun n R (Classical.typeDecidableEq n) _ (ofFinite R)
@@ -2245,9 +2255,9 @@ lemma poly_eq_zero_of_dist_lt {n k : ℕ} {F : Type*} [DecidableEq F] [CommRing 
   · simp [hk] at h_deg
   · have h_n_k_1 : n - k + 1 = n - (k - 1) := by omega
     rw [h_n_k_1] at h_dist
-    simp [hammingDist] at *
+    simp only [hammingDist, Function.comp_apply, Pi.zero_apply, ne_eq] at *
     rw [←Finset.compl_filter, Finset.card_compl] at h_dist
-    simp at h_dist
+    simp only [card_fin] at h_dist
     have hk : 1 ≤ k := by omega
     rw [←Finset.card_image_of_injective _ h_inj
     ] at h_dist

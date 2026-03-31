@@ -111,7 +111,9 @@ example : (![0, 1, 2] : Fin 3 → ℕ)⟦:0⟧ = ![] := by
   ext i; exact Fin.elim0 i
 
 example : (![0, 1, 2] : Fin 3 → ℕ)⟦3:⟧ = ![] := by
-  ext i; simp at i; exact Fin.elim0 i
+  ext i
+  simp only [Nat.succ_eq_add_one, Nat.reduceAdd] at i
+  exact Fin.elim0 i
 
 -- Show that the notation works in contexts where omega can prove bounds
 variable (w : Fin 20 → ℕ)
