@@ -581,7 +581,7 @@ lemma ps_resultant_ne_zero_of_is_rel_prime {F : Type} [Field F]
       · have hQ0 : Q = 0 := by
           simp [hm0, hQ_ofFn, Polynomial.ofFn]
         rw [hQ0, hm0]
-        simp?
+        simp only [mul_zero, natDegree_zero, add_zero, gt_iff_lt]
         simpa [hm0] using hnmpos
       · have hmpos : 1 ≤ m := Nat.succ_le_iff.2 (Nat.pos_of_ne_zero hm0)
         have hQnat : Q.natDegree < m := by

@@ -336,7 +336,8 @@ private lemma solution_to_BerlekampWelch_condition {e k : ℕ}
   constructor
   · intros i
     apply congrFun (a := i) at h_sol
-    simp [liftF, mulVec_BerlekampWelchMatrix_eq] at h_sol ⊢
+    simp only [mulVec_BerlekampWelchMatrix_eq, mul_ite, mul_neg, eval_solutionToQ, liftF, dite_mul,
+      zero_mul, eval_solutionToE] at h_sol ⊢
     apply_fun (-1 * ·) using (by simp [Function.Injective]); simp only [neg_one_mul]
     rw [
       ←neg_mul, mul_add, ←Rhs.eq_def, ←h_sol,
@@ -349,15 +350,45 @@ private lemma solution_to_BerlekampWelch_condition {e k : ℕ}
     set sum₄ := -f i * ∑ y, v ⟨y.1, p₂ y⟩ * ωs i ^ y.1 with eq₄
     suffices sum₂ = -sum₄ ∧ sum₁ = sum₃ by rw [this.1, this.2]; ring
     refine ⟨?p₃, ?p₄⟩
-    · simp [eq₂, eq₄]
+    · simp only [eq₂, eq₄, neg_mul, neg_neg]
       rw [Finset.mul_sum]
-      apply Finset.sum_bij' (i := fun a ha ↦ ⟨a.1, by simp at ha; omega⟩)
-                            (j := fun a _ ↦ ⟨a.1, by omega⟩) <;> try simp <;> (intros; ring)
-    · simp [eq₁, eq₃]
-      apply Finset.sum_bij' (i := fun ⟨a, ha₁⟩ _ ↦ ⟨a + e, by simp at ha₁; omega⟩)
-                            (j := fun ⟨a, _⟩ ha₂ ↦ ⟨a - e, by simp at ha₂ ⊢; omega⟩) <;> try simp
-      case p₄.right_neg => aesop
-      case h => intros; left; ring_nf
+      refine Finset.sum_bij'
+        (i := fun a ha ↦ ⟨a.1, by simp at ha; omega⟩)
+        (j := fun a _ ↦ ⟨a.1, by omega⟩) ?_ ?_ ?_ ?_ ?_
+      · intro a ha
+        simp only [Finset.mem_univ]
+      · intro a ha
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        exact a.2
+      · intro a ha
+        apply Fin.ext
+        rfl
+      · intro a ha
+        apply Fin.ext
+        rfl
+      · intros
+        ring
+    · simp only [eq₁, Finset.univ_eq_attach, eq₃, not_lt, Finset.sum_neg_distrib, neg_inj]
+      refine Finset.sum_bij'
+        (i := fun ⟨a, ha₁⟩ _ ↦ ⟨a + e, by simp at ha₁; omega⟩)
+        (j := fun ⟨a, _⟩ ha₂ ↦ ⟨a - e, by
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha₂
+          simp only [Finset.mem_range]
+          omega⟩) ?_ ?_ ?_ ?_ ?_
+      · intro a ha
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+        omega
+      · intro a ha
+        simp only [Finset.mem_attach]
+      · intro a ha
+        apply Subtype.ext
+        simp
+      · intro a ha
+        apply Fin.ext
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha
+        exact Nat.sub_add_cancel ha
+      · intros
+        simp [Nat.add_comm]
   · simp only [natDegree_solutionToE]
   · simp only [coeff_solutionToE, ↓reduceIte]
   · simp only [natDegree_solutionToQ]

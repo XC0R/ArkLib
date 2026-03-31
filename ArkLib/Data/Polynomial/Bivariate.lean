@@ -324,7 +324,7 @@ private theorem coeff_mul_natDegree_eq
       Finset.Nat.sum_antidiagonal_eq_sum_range_succ_mk]
   rw [h_coeff, natDeg_sum_eq_of_unique]
   use mmf
-  simp?
+  simp only [Finset.mem_range, Order.lt_add_one_iff, le_add_iff_nonneg_right, zero_le]
   · rw [Nat.add_sub_cancel_left,
       Polynomial.natDegree_mul']
     aesop

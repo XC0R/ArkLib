@@ -185,7 +185,9 @@ end
 variable {m : ℕ} (k : ℕ) {δ : ℚ} {x₀ : F} {u₀ u₁ : Fin n → F} {Q : F[Z][X][Y]} {ωs : Fin n ↪ F}
          [Finite F]
 
-noncomputable instance {α : Type} (s : Set α) [inst : Finite s] : Fintype s :=
+noncomputable section
+
+local instance {α : Type} (s : Set α) [inst : Finite s] : Fintype s :=
   Fintype.ofFinite _
 
 /-- The set `S` (equation 5.2 of [BCIKS20]). -/
@@ -254,6 +256,8 @@ lemma matching_set_is_a_sub_of_coeffs_of_close_proximity
     (h_gs : ModifiedGuruswami m n k ωs Q u₀ u₁) :
     matching_set k ωs δ u₀ u₁ h_gs ⊆ coeffs_of_close_proximity k ωs δ u₀ u₁ :=
   (exists_a_set_and_a_matching_polynomial k h_gs (δ := δ)).choose_spec.choose
+
+end
 
 end BCIKS20ProximityGapSection5
 

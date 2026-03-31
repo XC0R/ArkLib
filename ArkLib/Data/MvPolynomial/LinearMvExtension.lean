@@ -44,7 +44,10 @@ def linearMvExtension :
       simp [Polynomial.sum_add_index]
     map_smul' := by
       rintro c p
-      simp [Polynomial.sum_smul_index]
+      simp only [SetLike.val_smul, RingHom.id_apply]
+      rw [Polynomial.sum_smul_index (hf := by
+        intro i
+        simp)]
       simp_rw [← smul_eq_mul, ← smul_monomial]
       unfold Polynomial.sum
       simp_rw [← Finset.smul_sum]
@@ -104,22 +107,34 @@ lemma powContraction_is_right_inverse_to_linearMvExtension
   have h_comp : powContraction (linearMvExtension p) =
       ∑ i ∈ Finset.range (2 ^ m), p.val.coeff i • Polynomial.X ^ i := by
     unfold powContraction linearMvExtension
-    simp +decide [Polynomial.sum_over_range', powAlgHom]
-    simp +decide [Polynomial.sum_over_range', aeval_def]
-    rw [Polynomial.sum_over_range']
-    all_goals norm_num [Polynomial.smul_eq_C_mul]
-    refine Finset.sum_congr rfl ?_
-    intro i hi
-    · simp +decide [← pow_mul]
-      have h_sum : ∑ x : Fin m, 2 ^ (x : ℕ) * (bitExpo i) x = i := by
-        convert binary_repr_sum m i (Finset.mem_range.mp hi) using 1
-        rw [Finset.sum_range]
-        unfold bitExpo; aesop
-      rw [Finset.prod_pow_eq_pow_sum, h_sum]
-    · have h_deg : Polynomial.degree (p : Polynomial F) < 2 ^ m :=
+    simp +decide only [LinearMap.coe_mk, AddHom.coe_mk, AlgHom.toLinearMap_apply, powAlgHom]
+    rw [MvPolynomial.aeval_def]
+    have h_sum_range :
+        (p : Polynomial F).sum (fun i a => MvPolynomial.monomial (bitExpo (m := m) i) a) =
+          ∑ i ∈ Finset.range (2 ^ m),
+            MvPolynomial.monomial (bitExpo (m := m) i) ((p : Polynomial F).coeff i) := by
+      rw [Polynomial.sum_over_range'
+        (p := (p : Polynomial F))
+        (f := fun i a => MvPolynomial.monomial (bitExpo (m := m) i) a)
+        (h := by
+          intro n
+          simp)
+        (n := 2 ^ m)]
+      have h_deg : Polynomial.degree (p : Polynomial F) < 2 ^ m :=
         Polynomial.mem_degreeLT.mp p.2
       contrapose! h_deg
       rw [Polynomial.degree_eq_natDegree] <;> norm_cast; aesop
+    rw [h_sum_range, MvPolynomial.eval₂_sum]
+    refine Finset.sum_congr rfl ?_
+    intro i hi
+    simp +decide only [Polynomial.algebraMap_eq, eval₂_monomial, Finsupp.prod_pow]
+    have h_sum : ∑ x : Fin m, 2 ^ (x : ℕ) * (bitExpo i) x = i := by
+      convert binary_repr_sum m i (Finset.mem_range.mp hi) using 1
+      rw [Finset.sum_range]
+      unfold bitExpo; aesop
+    simp_rw [← pow_mul]
+    rw [Finset.prod_pow_eq_pow_sum, h_sum]
+    simp [Polynomial.smul_eq_C_mul]
   convert h_comp using 1
   convert Polynomial.as_sum_range' p.val (2 ^ m) _ using 1
   · simp +decide [Polynomial.smul_eq_C_mul, ← Polynomial.C_mul_X_pow_eq_monomial]

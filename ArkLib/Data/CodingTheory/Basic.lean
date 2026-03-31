@@ -534,8 +534,8 @@ theorem distFromCode_eq_top_iff_empty (u : n → R) (C : Set (n → R)) : Δ₀(
     intro v hv
     apply sInf_eq_top.mp at h
     revert h
-    simp?
-    refine ⟨Fintype.card n, v, And.intro hv ⟨?_, ?_⟩⟩
+    simp only [Set.mem_setOf_eq, forall_exists_index, and_imp, imp_false, not_forall]
+    refine ⟨Fintype.card n, v, hv, ?_, ?_⟩
     · norm_num; exact hammingDist_le_card_fintype
     · norm_num
   · intro h; subst h; simp

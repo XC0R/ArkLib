@@ -240,7 +240,7 @@ lemma weight_ξ_bound (x₀ : F) {D : ℕ} (hD : D ≥ Bivariate.totalDegree H) 
 of Appendix A.4 of [BCIKS20]. -/
 lemma β_regular (R : F[X][X][Y])
     (H : F[X][Y]) [H_irreducible : Fact (Irreducible H)]
-                {D : ℕ} (hD : D ≥ Bivariate.totalDegree H) :
+    {D : ℕ} (hD : D ≥ Bivariate.totalDegree H) :
     ∀ t : ℕ, ∃ β : 𝒪 H, weight_Λ_over_𝒪 β ≤ (2 * t + 1) * Bivariate.natDegreeY R * D :=
   sorry
 

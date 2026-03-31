@@ -79,7 +79,11 @@ clean.
 
 ### Unused Section Variables
 
-- Prefer `omit [Inst] in` rather than reshaping the entire file.
+- First prefer removing an unused instance or hypothesis binder outright when it is truly
+  declaration-local, for example by shrinking a nearby `variable` block or dropping the binder from
+  the declaration.
+- Prefer `omit [Inst] in` when removing the binder would require noisier section reshaping or when
+  several nearby declarations still share the same surrounding variables.
 - Wrapper order matters:
   1. `open ... in`, `open scoped ... in`, `omit ... in`
   2. docstring
