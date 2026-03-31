@@ -202,7 +202,7 @@ theorem drop_drop {m m' : ℕ} (h : m ≤ n - m') (h' : m' ≤ n) (v : (i : Fin 
         letI := drop (m + m') (Nat.add_le_of_le_sub h' h) v (i.cast (by omega))
         dcast (by simp [Fin.cast, add_assoc]) this) := by
   ext i
-  simp only [Fin.cast, coe_addNat, addNat_mk, cast_mk, drop_apply]
+  simp only [Fin.cast, val_addNat, addNat_mk, cast_mk, drop_apply]
   rw! [add_assoc]; simp
 
 /-- `drop` is unchanged after `update` for indices before the drop point. -/
@@ -210,7 +210,7 @@ theorem drop_drop {m m' : ℕ} (h : m ≤ n - m') (h' : m' ≤ n) (v : (i : Fin 
 theorem drop_update_of_lt (m : ℕ) (h : m ≤ n) (v : (i : Fin n) → α i) (i : Fin n)
     (hi : i < m) (x : α i) : drop m h (update v i x) = drop m h v := by
   ext j
-  simp only [Fin.cast, coe_addNat, drop_apply, update, dite_eq_right_iff]
+  simp only [Fin.cast, val_addNat, drop_apply, update, dite_eq_right_iff]
   intro h'
   subst h'
   simp_all only [add_lt_iff_neg_right, not_lt_zero']
@@ -317,7 +317,7 @@ the tuple. -/
 theorem drop_eq_rtake (m : ℕ) (h : m ≤ n) (v : (i : Fin n) → α i) :
     drop m h v = fun i => dcast (by simp [Fin.cast]; omega) (rtake (n - m) (by omega) v i) := by
   ext i
-  simp only [Fin.cast, coe_addNat, drop, dcast, cast, coe_natAdd, rtake]
+  simp only [Fin.cast, val_addNat, drop, dcast, cast, val_natAdd, rtake]
   have : n - (n - m) + i.val = i.val + m := by omega
   rw! [this]
   rfl

@@ -244,13 +244,10 @@ theorem prob_split_uniform_sampling_of_equiv_prod {α γ δ : Type}
     -- Decidability for the predicates
     [DecidablePred P]
     [DecidablePred (fun xy : γ × δ => P (e.symm xy))] :
-
     -- LHS: Probability over the combined space
     Pr_{ let r ← $ᵖ α }[ P r ] =
-
     -- RHS: Probability over the sequential, split spaces
     Pr_{ let x ← $ᵖ γ; let y ← $ᵖ δ }[ P (e.symm (x, y)) ] := by
-
   -- 1. Unroll the LHS (a single `let`) using `prStx_unfold_final`
   -- LHS = ∑' r, Pr[r] * (if P r then 1 else 0)
   rw [prob_tsum_form_singleton]
@@ -261,7 +258,6 @@ theorem prob_split_uniform_sampling_of_equiv_prod {α γ δ : Type}
   conv_rhs =>
     apply prob_tsum_form_split_first (D := $ᵖ γ) (D_rest := D_rest)
   simp_rw [D_rest]
-
   simp only [PMF.uniformOfFintype_apply, mul_ite, mul_one, mul_zero]
   simp_rw [prob_tsum_form_singleton]
   -- ⊢ (∑' (x : α), ... = ∑' (x : γ), (↑(Fintype.card γ))⁻¹ * ∑' (x_1 : δ), ...
@@ -283,7 +279,6 @@ theorem prob_split_uniform_sampling_of_equiv_prod {α γ δ : Type}
     )]
   -- ⊢ (∑ b : α, .. = ..) = (∑ b : γ × δ, ..)
   have hcard_of_equiv: (Fintype.card α) = (Fintype.card (γ × δ)) := Fintype.card_congr e
-
   rw [Finset.sum_equiv (s := Finset.univ (α := α)) (t := Finset.univ (α := γ × δ))
     (f := fun x => if P x then (↑(Fintype.card α))⁻¹ else 0)
     (g := fun x => (↑(Fintype.card γ))⁻¹ * (($ᵖ δ) x.2 * if P (e.symm x) then 1 else 0))
@@ -309,7 +304,6 @@ theorem prob_split_last_uniform_sampling_of_finFun {ϑ : ℕ} {F : Type} [Fintyp
     Pr_{ let r ← $ᵖ (Fin (ϑ + 1) → F) }[ P (r (Fin.last ϑ)) (fun i ↦ r i.castSucc) ] =
     Pr_{ let r_last ← $ᵖ F; let r_init ← $ᵖ (Fin ϑ → F) }[ P r_last r_init ] := by
   rw [prob_tsum_form_doubleton]
-
   let e : (Fin (ϑ + 1) → F) ≃ F × (Fin ϑ → F) := equivFinFunSplitLast
   conv_lhs =>
     rw [prob_split_uniform_sampling_of_equiv_prod (e := e)]
@@ -332,7 +326,6 @@ theorem prob_marginalization_first_of_prod {α β : Type} [Fintype α] [Fintype 
     [Nonempty α] [Nonempty β] (P : α → Prop) [DecidablePred P] :
   Pr_{let r ← $ᵖ (α × β) }[ P r.1 ] = Pr_{ let x ← $ᵖ α }[ P x ] := by
   rw [prob_split_uniform_sampling_of_prod]
-
   let D_rest := fun (x : α) => (do
     let y ← $ᵖ β
     pure (P (x, y).1)

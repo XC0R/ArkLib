@@ -6,7 +6,7 @@ Authors: František Silváši, Ilia Vlasov
 import Init.Data.List.FinRange
 import Mathlib.Algebra.Field.Basic
 import Mathlib.Algebra.Polynomial.Basic
-import Mathlib.Algebra.Polynomial.Degree.Definitions
+import Mathlib.Algebra.Polynomial.Degree.Defs
 import Mathlib.Algebra.Polynomial.FieldDivision
 import Mathlib.Data.Finset.Insert
 import Mathlib.Data.Fintype.Card
@@ -410,6 +410,7 @@ lemma solutionToQ_ne_zero {e k : ℕ}
       h_dist
       h_inj
 
+omit [DecidableEq F] in
 lemma E_and_Q_unique
     [NeZero n]
   {e k : ℕ}
@@ -422,6 +423,7 @@ lemma E_and_Q_unique
   (h_inj : Function.Injective ωs)
   (h_bw₁ : BerlekampWelchCondition e k ωs f E Q)
   (h_bw₂ : BerlekampWelchCondition e k ωs f E' Q') : E * Q' = E' * Q := by
+  classical
   let R := E * Q' - E' * Q
   have hr_deg : R.natDegree ≤ 2 * e + k - 1 := by
     simp [R]

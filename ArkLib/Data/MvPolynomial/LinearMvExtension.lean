@@ -99,8 +99,8 @@ private lemma binary_repr_sum (m i : ℕ) (hi : i < 2 ^ m) :
 /- Evaluating m-variate polynomials on (X^(2⁰), ... , X^(2ᵐ⁻¹) ) is
    right inverse to linear multivariate extensions on F^(< 2ᵐ)[X]  -/
 lemma powContraction_is_right_inverse_to_linearMvExtension
-    (p : Polynomial.degreeLT F (2^m)) :
-    powContraction.comp linearMvExtension p = p  := by
+    (p : Polynomial.degreeLT F (2 ^ m)) :
+    powContraction.comp linearMvExtension p = p := by
   have h_comp : powContraction (linearMvExtension p) =
       ∑ i ∈ Finset.range (2 ^ m), p.val.coeff i • Polynomial.X ^ i := by
     unfold powContraction linearMvExtension
@@ -108,8 +108,9 @@ lemma powContraction_is_right_inverse_to_linearMvExtension
     simp +decide [Polynomial.sum_over_range', aeval_def]
     rw [Polynomial.sum_over_range']
     all_goals norm_num [Polynomial.smul_eq_C_mul]
-    refine' Finset.sum_congr rfl fun i hi => _
-    · simp +decide [← pow_mul, Finsupp.prod]
+    refine Finset.sum_congr rfl ?_
+    intro i hi
+    · simp +decide [← pow_mul]
       have h_sum : ∑ x : Fin m, 2 ^ (x : ℕ) * (bitExpo i) x = i := by
         convert binary_repr_sum m i (Finset.mem_range.mp hi) using 1
         rw [Finset.sum_range]

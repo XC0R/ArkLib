@@ -410,12 +410,10 @@ theorem closeToWord_iff_exists_possibleDisagreeCols
       have h_eq := h_agree_outside_D colIdx h_notin_D
       -- This contradicts h_diff
       exact h_diff h_eq
-
     -- Use card_le_card and the properties
     have h_card_diff_le_card_D : Diff_set.card ≤ D.card := Finset.card_le_card h_subset
     have h_dist_eq_card_diff : hammingDist u v = Diff_set.card := by
       simp only [hammingDist, ne_eq, Diff_set]
-
     -- Combine the inequalities
     -- Assuming Δ₀(w, c) = ↑(hammingDist w c)
     rw [← ENat.coe_le_coe] -- Convert goal to ℕ∞ ≤ ℕ∞
@@ -664,20 +662,16 @@ theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
         (((@Finset.univ (C × C) _).filter (fun p => p.1 ≠ p.2))).Nonempty := by
       refine ⟨(⟨u, hu⟩, ⟨v, hv⟩), ?_⟩
       simp [huv]
-
     set pairs : Finset (C × C) :=
       ((@Finset.univ (C × C) _).filter (fun p => p.1 ≠ p.2)) with hpairs
     set vals : Finset ℕ :=
       pairs.image (fun ⟨u, v⟩ => hammingDist u.1 v.1) with hvals
-
     have hVals_nonempty : vals.Nonempty := by
       rcases hPairs_nonempty with ⟨p, hp⟩
       rcases p with ⟨u', v'⟩
       exact ⟨hammingDist u'.1 v'.1, Finset.mem_image.mpr ⟨(u', v'), hp, rfl⟩⟩
-
     -- Let d* be the minimum realized distance among distinct pairs
     set dStar : ℕ := vals.min' (by simpa [hvals] using hVals_nonempty) with hdstar
-
     -- Show the computable distance's toNat equals this minimum
     have h_toNat_eq_min' : ‖C‖₀'.toNat = dStar := by
       -- First, rewrite ‖C‖₀' as the minimum of `vals` in `ℕ∞`.
@@ -707,11 +701,9 @@ theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
       -- Conclude equality in `ℕ∞` and take `toNat`.
       have : (vals.min : ℕ∞) = dStar := le_antisymm h_le h_ge
       simpa only [hmin_coe, this, hdstar]
-
     -- Now prove that the abstract distance equals the same minimum
     -- Define the set used in sInf
     let S : Set ℕ := {d | ∃ u ∈ C, ∃ v ∈ C, u ≠ v ∧ hammingDist u v ≤ d}
-
     -- First inequality: dist C ≤ dStar using a minimizing pair
     have h_le_dStar : dist C ≤ dStar := by
       -- obtain a pair (u,v) attaining the minimum distance dStar
@@ -736,7 +728,6 @@ theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
       -- Therefore sInf S ≤ dStar
       have := Nat.sInf_le (s := S) hmemS
       simpa [Code.dist, S] using this
-
     -- Second inequality: dStar ≤ dist C using lower-bound argument
     have h_dStar_le : dStar ≤ dist C := by
       -- Show dStar is a lower bound of S
@@ -765,7 +756,6 @@ theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
       -- Greatest lower bound property on ℕ
       have := sInf.le_sInf_of_LB (S := S) hS_nonempty hLB
       simpa [Code.dist, S] using this
-
     -- Assemble inequalities and replace toNat of ‖C‖₀' by dStar
     have : ‖C‖₀ = dStar := le_antisymm h_le_dStar h_dStar_le
     simp [this, h_toNat_eq_min']
@@ -968,7 +958,7 @@ lemma exists_relClosest_codeword_of_Nonempty_Code {ι : Type*} [Fintype ι] {F :
   -- 4. Show `S_dists` is finite
   have hS_finite : S_dists.Finite := by
     -- The set of *possible* Hamming distances is finite (a subset of {0..n})
-    let S_ham_range := (Finset.range (Fintype.card ι + 1)).toSet
+    let S_ham_range := (SetLike.coe (Finset.range (Fintype.card ι + 1)) : Set ℕ)
     have hS_ham_range_finite : S_ham_range.Finite := Finset.finite_toSet _
     -- The set of *actual* Hamming distances `S_ham = {hammingDist u v | v ∈ C}`
     -- is a subset of this finite set.
@@ -1513,7 +1503,6 @@ lemma relDistFromCode'_eq_relDistFromCode {ι : Type*} [Fintype ι] [Nonempty ι
     simp only [ne_eq, ENNReal.coe_ne_top, not_false_eq_true]
   · -- ⊢ δᵣ(w, C).toNNReal = (↑↑δᵣ'(w, C)).toNNReal
     change δᵣ(w, C).toNNReal = (δᵣ'(w, C) : NNReal)
-
     -- 2. Prove the core equality in ENNReal: δᵣ(w, C) = δᵣ'(w, C)
     have h_eq : δᵣ(w, C) = (δᵣ'(w, C) : ENNReal) := by
       unfold relDistFromCode relDistFromCode'
@@ -1813,7 +1802,6 @@ theorem projection_injective
     (hv : v ∈ C) : projection S u = projection S v → u = v := by
   intro proj_agree
   by_contra hne
-
   have hdiff : hammingDist u v ≥ ‖C‖₀ := by
     simp [Code.dist]
     refine Nat.sInf_le ?_
@@ -1821,13 +1809,10 @@ theorem projection_injective
     use u
     refine exists_and_left.mp ?_
     use v
-
   let D := {i : n | u i ≠ v i}
-
   have hD : card D = hammingDist u v := by
     simp
     exact rfl
-
   have hagree : ∀ i ∈ S, u i = v i := by
     intros i hi
     let i' : {x // x ∈ S} := ⟨i, hi⟩
@@ -1835,7 +1820,6 @@ theorem projection_injective
       apply congr_fun at proj_agree
       apply proj_agree
     exact close
-
   have hdisjoint : D ∩ S = ∅ := by
     by_contra hinter
     have hinter' : (D ∩ S).Nonempty := by
@@ -1844,15 +1828,12 @@ theorem projection_injective
     obtain ⟨x, hx_in_D, hx_in_S⟩ := hinter'
     apply hagree at hx_in_S
     contradiction
-
   let diff : Set n := {i : n | ¬i ∈ S}
-
   have hsub : D ⊆ diff  := by
     unfold diff
     refine Set.subset_setOf.mpr ?_
     intro x hxd
     solve_by_elim
-
   have hcard_compl : @card diff (ofFinite diff) = ‖C‖₀ - 1 := by
     unfold diff
     simp at *
@@ -1860,17 +1841,14 @@ theorem projection_injective
     have stronger : ‖C‖₀ ≤ card n := by
       apply Code.dist_le_card
     omega
-
   have hsizes: card D ≤ @card diff (ofFinite diff) := by
     exact @Set.card_le_card _ _ _ _ (ofFinite diff) hsub
-
   rw[hcard_compl, hD] at hsizes
   omega
 
 /-- **Singleton bound** for arbitrary codes -/
 theorem singleton_bound (C : Set (n → R)) :
     (ofFinite C).card ≤ (ofFinite R).card ^ (card n - (‖C‖₀ - 1)) := by
-
   by_cases non_triv : ‖C‖₀ ≥ 1
   · -- there exists some projection S of the desired size
     have ax_proj: ∃ (S : Finset n), card S = card n - (‖C‖₀ - 1) := by
@@ -1885,10 +1863,8 @@ theorem singleton_bound (C : Set (n → R)) :
       simp?
       exact And.right ht
     obtain ⟨S, hS⟩ := ax_proj
-
     -- project C by only looking at indices in S
     let Cproj := Set.image (projection S) C
-
     -- The size of C is upper bounded by the size of its projection,
     -- because the projection is injective
     have C_le_Cproj: @card C (ofFinite C) ≤ @card Cproj (ofFinite Cproj) := by
@@ -1898,29 +1874,23 @@ theorem singleton_bound (C : Set (n → R)) :
         (Set.imageFactorization (projection S) C)
       refine Set.imageFactorization_injective_iff.mpr ?_
       intro u hu v hv heq
-
       apply projection_injective (nontriv := non_triv) (S := S) (u := u) (v := v) <;>
         assumption
-
     -- The size of Cproj itself is sufficiently bounded by its type
     have Cproj_le_type_card :
     @card Cproj (ofFinite Cproj) ≤ @card R (ofFinite R) ^ (card n - (‖C‖₀ - 1)) := by
       let card_fun := @card_fun S R (Classical.typeDecidableEq S) _ (ofFinite R)
       rw[hS] at card_fun
       rw[← card_fun]
-
       let huniv := @set_fintype_card_le_univ (S → R) ?_ Cproj (ofFinite Cproj)
       exact huniv
-
     apply le_trans (b := @card Cproj (ofFinite Cproj)) <;>
       assumption
   · simp at non_triv
     rw[non_triv]
     simp only [zero_tsub, tsub_zero]
-
     let card_fun := @card_fun n R (Classical.typeDecidableEq n) _ (ofFinite R)
     rw[← card_fun]
-
     let huniv := @set_fintype_card_le_univ (n → R) ?_ C (ofFinite C)
     exact huniv
 
@@ -2096,7 +2066,6 @@ lemma dist_eq_minWtCodewords [Ring F] {A : Type*} [DecidableEq A] [AddCommGroup 
           simp only [hammingNorm, ne_eq, Code.wt]
 
 open Finset in
-
 omit [DecidableEq F] in
 lemma dist_UB [Ring F] {A : Type*} [DecidableEq A] [AddCommGroup A] [Module F A]
     {MC : ModuleCode ι F A} : Code.minDist (MC : Set (ι → A)) ≤ length MC := by

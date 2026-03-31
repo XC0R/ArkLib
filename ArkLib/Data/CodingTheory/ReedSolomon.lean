@@ -82,7 +82,7 @@ def nonsquare [Semiring F] (ι' : ℕ) (α : ι → F) : Matrix ι (Fin ι') F :
 
 lemma nonsquare_mulVecLin [CommSemiring F] {ι' : ℕ} {α₁ : ι ↪ F} {α₂ : Fin ι' → F} {i : ι} :
     (nonsquare ι' α₁).mulVecLin α₂ i = ∑ x, α₂ x * α₁ i ^ x.1 := by
-  simp [nonsquare, mulVecLin_apply, mulVec_eq_sum]
+  simp [nonsquare, mulVec_eq_sum]
 
 /-- The transpose of a non-square Vandermonde matrix.
 -/
@@ -223,8 +223,9 @@ open LinearCode
 
 /-- The Vandermonde matrix is the generator matrix for an RS code of length `ι` and dimension `deg`.
 -/
-lemma genMatIsVandermonde [Fintype ι] [Field F] [DecidableEq F] [inst : NeZero m] {α : ι ↪ F} :
+lemma genMatIsVandermonde [Fintype ι] [Field F] [inst : NeZero m] {α : ι ↪ F} :
     fromColGenMat (Vandermonde.nonsquare (ι' := m) α) = ReedSolomon.code α m := by
+  classical
   unfold fromColGenMat ReedSolomon.code
   ext x; rw [LinearMap.mem_range, Submodule.mem_map]
   refine ⟨
@@ -254,14 +255,14 @@ lemma dim_eq_deg_of_le [NeZero n] (inj : Function.Injective α) (h : n ≤ m) :
 
 open Finset in
 /-- Generalized dimension formula for RS code with arbitrary finite index type `ι`. -/
-lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
+lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F]
     {n : ℕ} {α : ι ↪ F} (h : n ≤ Fintype.card ι) :
   LinearCode.dim (ReedSolomon.code α n) = n := by
   by_cases hcard : Fintype.card ι = 0
   · rw [hcard] at h
     rw [Fintype.card_eq_zero_iff] at hcard
-    simp at h
-    subst h
+    have hn : n = 0 := by omega
+    subst n
     simp [ReedSolomon.code, dim]
     have h : F⦃< 0⦄[X] = ⊥ := by
       ext x
@@ -313,7 +314,7 @@ lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [Decidab
       · intro hfp
         simp [hfp]
 
-lemma dim_eq_card_of_lt {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
+lemma dim_eq_card_of_lt {ι : Type*} [Fintype ι] {F : Type*} [Field F]
     {n : ℕ} {α : ι ↪ F} (h : Fintype.card ι < n) :
   LinearCode.dim (ReedSolomon.code α n) = Fintype.card ι := by
   rw [LinearCode.dim]
@@ -325,8 +326,7 @@ lemma dim_eq_card_of_lt {ι : Type*} [Fintype ι] {F : Type*} [Field F] [Decidab
     ext; simp [Submodule.mem_map];
   simp?
   apply le_antisymm
-  · apply le_trans
-    apply Submodule.finrank_le
+  · refine le_trans (Submodule.finrank_le _) ?_
     simp
   · have h_sub : ReedSolomon.code α (Fintype.card ι)
       ≤ ReedSolomon.code α n := by
@@ -349,13 +349,13 @@ lemma dim_eq_card_of_lt {ι : Type*} [Fintype ι] {F : Type*} [Field F] [Decidab
     rw [dim_eq] at h_sub
     exact h_sub
 
-theorem dim_eq_min_deg_card {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
+theorem dim_eq_min_deg_card {ι : Type*} [Fintype ι] {F : Type*} [Field F]
     {n : ℕ} {α : ι ↪ F} :
   LinearCode.dim (ReedSolomon.code α n) = min n (Fintype.card ι) := by
   by_cases hle : n ≤ Fintype.card ι
   · simp [dim_eq_deg_of_le' hle, hle]
-  · simp at hle
-    rw [dim_eq_card_of_lt hle]
+  · have hlt : Fintype.card ι < n := by omega
+    rw [dim_eq_card_of_lt hlt]
     simp
     omega
 
@@ -376,14 +376,12 @@ lemma length_eq_domain_card' {ι : Type*} [Fintype ι] {F : Type*} [Field F] {de
   simp [length]
 
 lemma rateOfLinearCode_eq_div' {ι : Type*} [Fintype ι] {F : Type*} [Field F]
-    [DecidableEq F]
     {n : ℕ} {α : ι ↪ F} (h : n ≤ Fintype.card ι) :
     rate (ReedSolomon.code α n) = n / Fintype.card ι := by
   rw [rate, dim_eq_deg_of_le' h, length_eq_domain_card']
 
 lemma rateOfLinearCode_eq_min_div
     {ι : Type*} [Fintype ι] {F : Type*} [Field F]
-    [DecidableEq F]
     {n : ℕ} {α : ι ↪ F} :
     rate (ReedSolomon.code α n) = (min n (Fintype.card ι)) / Fintype.card ι := by
   rw [rate, dim_eq_min_deg_card, length_eq_domain_card']
@@ -473,14 +471,15 @@ theorem minDist [Field F] [DecidableEq F] (inj : Function.Injective α) [NeZero 
               by aesop
         else by simp [zeroes, h]
     have : #zeroes + wt msg = m := by
-      rw [wt, filter_card_add_filter_neg_card_eq_card]
+      rw [wt, Finset.card_filter_add_card_filter_not]
       simp
     omega
 
 /-- Generalized minimal code distance for RS code with arbitrary finite index type `ι`. -/
-theorem minDist' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} [Field F] [DecidableEq F]
+theorem minDist' {ι : Type*} [Fintype ι] {F : Type*} [Field F] [DecidableEq F]
     {α : ι ↪ F} [NeZero n] (h : n ≤ Fintype.card ι) :
   Code.minDist ((ReedSolomon.code α n) : Set (ι → F)) = Fintype.card ι - n + 1 := by
+  classical
   have : NeZero (Fintype.card ι) := by
     constructor
     exact Nat.ne_of_gt (lt_of_lt_of_le (NeZero.pos n) h)
@@ -514,12 +513,12 @@ theorem minDist' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} [Field F
               by aesop
         else by simp [zeroes, h]
     have : zeroes.card + wt msg = Fintype.card ι := by
-      rw [wt, Finset.filter_card_add_filter_neg_card_eq_card]
+      rw [wt, Finset.card_filter_add_card_filter_not]
       simp
     omega
 
 /-- Generalized distance equality for RS code with arbitrary finite index type `ι`. -/
-theorem dist_eq' {ι : Type*} [Fintype ι] [DecidableEq ι] {F : Type*} {n : ℕ} {α : ι ↪ F}
+theorem dist_eq' {ι : Type*} [Fintype ι] {F : Type*} {n : ℕ} {α : ι ↪ F}
     [Field F] [DecidableEq F] [NeZero n] (h : n ≤ Fintype.card ι) :
     Code.dist (R := F) ((ReedSolomon.code α n) : Set (ι → F)) = Fintype.card ι - n + 1 := by
   simp_rw [dist_eq_minDist]
@@ -532,7 +531,7 @@ theorem dist_eq {F : Type*} {m n : ℕ} {α : Fin m → F} [Field F] [DecidableE
   rw [ReedSolomonCode.minDist inj h]
 
 /-- Generalized unique decoding radius for RS code with arbitrary finite index type `ι`. -/
-theorem uniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
+theorem uniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι]
     {F : Type*} {n : ℕ} {α : ι ↪ F} [Field F] [DecidableEq F] [NeZero n]
     (h : n ≤ Fintype.card ι) :
     Code.uniqueDecodingRadius (ι := ι) (F := F) (C := ReedSolomon.code α n) =
@@ -544,7 +543,7 @@ theorem uniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 open NNReal in
 /-- Generalized relative unique decoding radius for RS code with arbitrary finite index type `ι`. -/
-theorem relativeUniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι] [DecidableEq ι]
+theorem relativeUniqueDecodingRadius_RS_eq' {ι : Type*} [Fintype ι]
     {F : Type*} {n : ℕ} {α : ι ↪ F} [Field F] [DecidableEq F] [NeZero n]
     (h : n ≤ Fintype.card ι) :
     Code.relativeUniqueDecodingRadius (ι := ι) (F := F) (C := ReedSolomon.code α n) =

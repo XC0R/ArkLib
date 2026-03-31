@@ -471,7 +471,7 @@ theorem johnson_bound_alphabet_free [Field F]
               by_cases he0 : e = 0
               · subst he0; simpa [D0, E0, Den] using
                   johnson_den_lb_e_zero hn_pos_nat (by linarith) (by exact_mod_cast d_not_small)
-              · exact johnson_den_lb_e_pos hn_pos (ne_of_gt hq_pos) he0 one_div_q_le
+              · exact johnson_den_lb_e_pos hn_pos he0 one_div_q_le
                   (by linarith) quad_nonneg
             rw [term_simplification]
             calc (JohnsonBound.d B' / n) /
