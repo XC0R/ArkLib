@@ -420,7 +420,7 @@ def liftAppendRightContext :
           (.inr <| OracleDecoration.QueryHandle.appendRight
             spec₁ spec₂ roles₁ roles₂ od₁ od₂ tr₁ tr₂ q)
 
-private theorem simulateQ_ext
+theorem simulateQ_ext
     {ι : Type u} {spec : OracleSpec.{u, v} ι} {r : Type v → Type}
     [Monad r] [LawfulMonad r]
     {impl₁ impl₂ : QueryImpl spec r}
@@ -433,7 +433,7 @@ private theorem simulateQ_ext
   | query_bind t oa ih =>
       simp [himpl t, ih]
 
-private theorem simulateQ_compose_lambda
+theorem simulateQ_compose_lambda
     {ι : Type} {spec : OracleSpec ι}
     {ι' : Type} {spec' : OracleSpec ι'}
     {r : Type → Type}
@@ -449,7 +449,7 @@ private theorem simulateQ_compose_lambda
   | query_bind t oa ih =>
       simp [ih]
 
-private theorem simulateQ_cast_query
+theorem simulateQ_cast_query
     {ι : Type u} {spec : OracleSpec.{u, v} ι} {r : Type v → Type}
     [Monad r] [LawfulMonad r]
     {α β : Type v} (h : α = β) (impl : QueryImpl spec r) (q : OracleQuery spec α) :
@@ -458,7 +458,7 @@ private theorem simulateQ_cast_query
   cases h
   simp [simulateQ_query]
 
-private theorem simulateQ_liftAppendLeftContext_eq
+theorem simulateQ_liftAppendLeftContext_eq
     (oStmt : OracleStatement OStmt) :
     ∀ q,
       simulateQ
@@ -533,7 +533,7 @@ private theorem simulateQ_liftAppendLeftContext_eq
               simpa using OracleDecoration.QueryHandle.answerQuery_appendLeft
                 spec₁ spec₂ roles₁ roles₂ od₁ od₂ tr₁ tr₂ q
 
-private theorem simulateQ_liftAppendRightContext_eq
+theorem simulateQ_liftAppendRightContext_eq
     (oStmt : OracleStatement OStmt) :
     ∀ q,
       simulateQ
