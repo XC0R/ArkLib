@@ -821,12 +821,12 @@ alias run'_pure_bind := run'_bind_pure
 
 -- @[simp]
 -- lemma mem_support_pure_stateT_run {ι σ α : Type} {spec : OracleSpec ι} (x : α) (s s' : σ) (y : α) :
---   (y, s') ∈ OracleComp.support ((pure x : StateT σ (OracleComp spec) α).run s) ↔ y = x ∧ s' = s :=
+--   (y, s') ∈ support ((pure x : StateT σ (OracleComp spec) α).run s) ↔ y = x ∧ s' = s :=
 -- by simp only [StateT.run_pure, OracleComp.support_pure, Set.mem_singleton_iff, Prod.mk.injEq]
 
 -- @[simp]
 -- lemma mem_support_pure_state {ι σ α : Type} {spec : OracleSpec ι} (x : α) (s s' : σ) (y : α) :
---   (y, s') ∈ OracleComp.support ((pure x : StateT σ (OracleComp spec) α) s) ↔ y = x ∧ s' = s := by
+--   (y, s') ∈ support ((pure x : StateT σ (OracleComp spec) α) s) ↔ y = x ∧ s' = s := by
 --     apply mem_support_pure_stateT_run
 
 -- section MapLemmas
@@ -858,14 +858,14 @@ alias run'_pure_bind := run'_bind_pure
 -- /-- Support of StateT.map over pure. -/
 -- @[simp]
 -- theorem support_map_pure (f : α → β) (a : α) (s : σ) :
---     ((pure a : StateT σ (OracleComp spec) α).map f s).support =
+--     support ((pure a : StateT σ (OracleComp spec) α).map f s) =
 --     {(f a, s)} := by
 --   simp only [map_pure, support_pure]
 
 -- /-- Support of StateT.map over failure. -/
 -- @[simp]
 -- theorem support_map_failure (f : α → β) (s : σ) :
---     ((failure : StateT σ (OracleComp spec) α).map f s).support =
+--     support ((failure : StateT σ (OracleComp spec) α).map f s) =
 --     ∅ := by
 --   simp only [map_failure, support_failure]
 
@@ -879,7 +879,7 @@ alias run'_pure_bind := run'_bind_pure
 -- /-- Support of StateT.map with constant function over pure. -/
 -- @[simp]
 -- theorem support_map_const_pure {γ : Type u} (result : β) (x : γ) (s : σ) :
---     ((pure x : StateT σ (OracleComp spec) γ).map (fun _ => result) s).support =
+--     support ((pure x : StateT σ (OracleComp spec) γ).map (fun _ => result) s) =
 --     {(result, s)} := by
 --   simp only [map_const_pure, support_pure]
 
@@ -887,8 +887,8 @@ alias run'_pure_bind := run'_bind_pure
 -- @[simp]
 -- theorem support_ite (p : Prop) [Decidable p]
 --     (ma ma' : StateT σ (OracleComp spec) α) (s : σ) :
---     ((if p then ma else ma') s).support =
---     if p then (ma s).support else (ma' s).support := by
+--     support ((if p then ma else ma') s) =
+--     if p then support (ma s) else support (ma' s) := by
 --   split_ifs <;> rfl
 
 -- end MapLemmas

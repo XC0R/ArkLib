@@ -523,13 +523,13 @@ noncomputable def batchingKnowledgeStateFunction :
     rcases h_relOut with ⟨stmtOut, oStmtOut, h_output_mem_V_run_support, h_relOut⟩
     have h_output_mem_V_run_support' :
         some (stmtOut, oStmtOut) ∈
-          (do
+          support (do
             let s ← init
             Prod.fst <$>
               (simulateQ impl
                 (Verifier.run (stmtIn, oStmtIn) tr
                   (batchingOracleVerifier κ L K β ℓ ℓ' h_l (𝓑 := 𝓑)
-                    (aOStmtIn := aOStmtIn)).toVerifier)).run s).support := by
+                    (aOStmtIn := aOStmtIn)).toVerifier)).run s) := by
       exact (OptionT.mem_support_iff
         (mx := OptionT.mk (do
           let s ← init
@@ -792,7 +792,7 @@ theorem batchingReduction_perfectCompleteness (hInit : NeverFail init) :
       erw [simulateQ_bind]
       -- turn the simulated oracle query into OracleInterface.answer form
       rw [OptionT.simulateQ_simOracle2_liftM_query_T2]
-      change vStmtOut ∈ (Bind.bind (m := (OracleComp []ₒ)) _ _).support
+      change vStmtOut ∈ support (Bind.bind (m := (OracleComp []ₒ)) _ _)
       erw [_root_.bind_pure_simulateQ_comp]
       simp only [Matrix.cons_val_zero, guard_eq]
       -- simp  [bind_pure_comp,

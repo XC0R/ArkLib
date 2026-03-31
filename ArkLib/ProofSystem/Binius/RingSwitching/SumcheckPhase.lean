@@ -391,7 +391,7 @@ theorem iteratedSumcheckOracleReduction_perfectCompleteness (i : Fin ℓ') (hIni
       erw [simulateQ_bind]
       -- turn the simulated oracle query into OracleInterface.answer form
       rw [OptionT.simulateQ_simOracle2_liftM_query_T2]
-      change vStmtOut ∈ (Bind.bind (m := (OracleComp []ₒ)) _ _).support
+      change vStmtOut ∈ support (Bind.bind (m := (OracleComp []ₒ)) _ _)
       erw [_root_.bind_pure_simulateQ_comp]
       simp only [Matrix.cons_val_zero, guard_eq]
       -- simp  [bind_pure_comp,
@@ -633,13 +633,13 @@ def iteratedSumcheckKnowledgeStateFunction (i : Fin ℓ') :
     rcases probEvent_relOut_gt_0 with ⟨stmtOut, oStmtOut, h_output_mem_V_run_support, h_relOut⟩
     have h_output_mem_V_run_support' :
         some (stmtOut, oStmtOut) ∈
-          (do
+          support (do
             let s ← init
             Prod.fst <$>
               (simulateQ impl
                 (Verifier.run (stmtIn, oStmtIn) tr
                   (iteratedSumcheckOracleVerifier κ (L := L) (K := K) (ℓ := ℓ) (ℓ' := ℓ') (𝓑 := 𝓑)
-                  (β := β) (h_l := h_l) aOStmtIn i).toVerifier).run s)).support:= by
+                  (β := β) (h_l := h_l) aOStmtIn i).toVerifier).run s)):= by
       exact (OptionT.mem_support_iff
         (mx := OptionT.mk (do
           let s ← init
@@ -1373,7 +1373,7 @@ theorem finalSumcheckOracleReduction_perfectCompleteness {σ : Type}
       erw [simulateQ_bind]
       -- turn the simulated oracle query into OracleInterface.answer form
       rw [OptionT.simulateQ_simOracle2_liftM_query_T2] -- V queries P's message
-      change vStmtOut ∈ (Bind.bind (m := (OracleComp []ₒ)) _ _).support
+      change vStmtOut ∈ support (Bind.bind (m := (OracleComp []ₒ)) _ _)
       erw [_root_.bind_pure_simulateQ_comp]
       simp only [Matrix.cons_val_zero, guard_eq]
       -- simp  [bind_pure_comp,
@@ -1440,8 +1440,8 @@ theorem finalSumcheckOracleReduction_perfectCompleteness {σ : Type}
     conv at h_verOut_mem_support =>
       erw [simulateQ_bind]
       simp only [Set.mem_singleton_iff]
-      change some (verStmtOut, verOStmtOut) ∈ (liftComp _ _).support
-      rw [support_liftComp]
+      -- change (some (verStmtOut, verOStmtOut)) ∈ support (liftComp _ _)
+      erw [support_liftComp]
       dsimp only [Functor.map]
       erw [support_bind]
       simp only [Fin.isValue, Fin.val_last, OptionT.simulateQ_simOracle2_liftM_query_T2, pure_bind,
@@ -1613,13 +1613,13 @@ noncomputable def finalSumcheckKnowledgeStateFunction {σ : Type} (init : ProbCo
     rcases probEvent_relOut_gt_0 with ⟨stmtOut, oStmtOut, h_output_mem_V_run_support, h_relOut⟩
     have h_output_mem_V_run_support' :
         some (stmtOut, oStmtOut) ∈
-          (do
+          support (do
             let s ← init
             Prod.fst <$>
               (simulateQ impl
                 (Verifier.run (stmtIn, oStmtIn) tr
                   (finalSumcheckVerifier κ L K β ℓ ℓ' h_l (𝓑 := 𝓑) aOStmtIn).toVerifier)).run
-                    s).support := by
+                    s) := by
       exact (OptionT.mem_support_iff
         (mx := OptionT.mk (do
           let s ← init
