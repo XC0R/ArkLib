@@ -410,7 +410,8 @@ lemma ps_coprime_case_constant {F : Type} [Field F] [DecidableEq F]
     have hdeg :=
       ps_nat_degree_resultant_le (A := A) (B := B) (m := mY) (n := b_y)
     have hdeg' :
-        RY.natDegree ≤ mY * Polynomial.Bivariate.degreeX B + b_y * Polynomial.Bivariate.degreeX A := by
+        RY.natDegree ≤
+          mY * Polynomial.Bivariate.degreeX B + b_y * Polynomial.Bivariate.degreeX A := by
       simpa [RY, hRY] using hdeg
     have hBx : Polynomial.Bivariate.degreeX B ≤ b_x := by
       simpa using h_g_degX
@@ -423,7 +424,8 @@ lemma ps_coprime_case_constant {F : Type} [Field F] [DecidableEq F]
         exact Nat.mul_comm b_y (degreeX A)
       exact le_of_eq this
     have hsum :
-        mY * Polynomial.Bivariate.degreeX B + b_y * Polynomial.Bivariate.degreeX A ≤ mY * b_x + mX * b_y :=
+        mY * Polynomial.Bivariate.degreeX B + b_y * Polynomial.Bivariate.degreeX A ≤
+          mY * b_x + mX * b_y :=
       Nat.add_le_add h1 h2
     exact le_trans hdeg' hsum
 
@@ -621,24 +623,30 @@ lemma ps_exists_p_nonzero {F : Type} [Field F]
     simpa [g_y] using ps_card_eval_y_eq_zero_le_nat_degree_y (A := G) hG0 P_y
     -- card lower bounds on filtered sets
   have hcard_Px' : (n_x : ℕ) - g_x ≤ Px'.card := by
-    have hpart : (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card + Px'.card = P_x.card := by
+    have hpart :
+        (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card + Px'.card = P_x.card := by
       simpa [Px'] using
         (Finset.filter_card_add_filter_neg_card_eq_card (s := P_x)
           (p := fun x => Polynomial.Bivariate.evalX x G = 0))
-    have hPx'_eq : Px'.card = P_x.card - (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card := by
-      have := congrArg (fun t => t - (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card) hpart
+    have hPx'_eq :
+        Px'.card = P_x.card - (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card := by
+      have := congrArg
+        (fun t => t - (P_x.filter (fun x => Polynomial.Bivariate.evalX x G = 0)).card) hpart
       simpa [Nat.add_sub_cancel_left] using this
     have h1 : (n_x : ℕ) - g_x ≤ P_x.card - g_x := Nat.sub_le_sub_right h_card_Px g_x
     have h2 : P_x.card - g_x ≤ Px'.card := by
       simpa [hPx'_eq] using (Nat.sub_le_sub_left hcard_zero_x P_x.card)
     exact le_trans h1 h2
   have hcard_Py' : (n_y : ℕ) - g_y ≤ Py'.card := by
-    have hpart : (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card + Py'.card = P_y.card := by
+    have hpart :
+        (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card + Py'.card = P_y.card := by
       simpa [Py'] using
         (Finset.filter_card_add_filter_neg_card_eq_card (s := P_y)
           (p := fun y => Polynomial.Bivariate.evalY y G = 0))
-    have hPy'_eq : Py'.card = P_y.card - (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card := by
-      have := congrArg (fun t => t - (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card) hpart
+    have hPy'_eq :
+        Py'.card = P_y.card - (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card := by
+      have := congrArg
+        (fun t => t - (P_y.filter (fun y => Polynomial.Bivariate.evalY y G = 0)).card) hpart
       simpa [Nat.add_sub_cancel_left] using this
     have h1 : (n_y : ℕ) - g_y ≤ P_y.card - g_y := Nat.sub_le_sub_right h_card_Py g_y
     have h2 : P_y.card - g_y ≤ Py'.card := by
@@ -789,7 +797,8 @@ lemma ps_exists_p_nonzero {F : Type} [Field F]
             Px' Py' quot_x quot_y hcard_Px'' hcard_Py''
             hquotX' hquotY' h_le_1')
 -- get B1 = P1 * A1
-  rcases ps_exists_p_of_degree_x_eq_zero_nat_degree_y_eq_zero (A := A1) (B := B1) hA1 hconst.1 hconst.2 with
+  rcases ps_exists_p_of_degree_x_eq_zero_nat_degree_y_eq_zero
+      (A := A1) (B := B1) hA1 hconst.1 hconst.2 with
     ⟨P1, hB1fac⟩
   refine ⟨P1, ?_⟩
 -- assemble

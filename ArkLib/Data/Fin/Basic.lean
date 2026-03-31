@@ -148,7 +148,7 @@ theorem induction_append_left {m n : ℕ} {motive : Fin (m + n + 1) → Sort*} {
 /-- `Fin.induction` on `m + n` for `m + i` steps is equivalent to `Fin.induction` on `n` on `i`
   steps on the result of `Fin.induction` on `m`. -/
 theorem induction_append_right {m n : ℕ} {motive : Fin (m + n + 1) → Sort*} {zero : motive 0}
-  {succ : ∀ i : Fin (m + n), motive i.castSucc → motive i.succ} {i : Fin (n + 1)} :
+    {succ : ∀ i : Fin (m + n), motive i.castSucc → motive i.succ} {i : Fin (n + 1)} :
     induction zero succ (i.natAdd m) =
       @induction n (fun i => motive (i.natAdd m))
         (@induction m (fun j => motive (Fin.cast (by omega) (j.castAdd n)))

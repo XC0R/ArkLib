@@ -813,7 +813,7 @@ theorem fcons_inj {β : Fin n → A} (a₁ a₂ : F α) (b₁ b₂ : (i : Fin n)
 
 @[simp]
 theorem fconcat_zero {α : Fin 0 → A} {β : A} (a : F β) : !h⦃F⦄⟨α⟩[] :+ʰ a =
-  fun i => match i with | 0 => a := rfl
+    fun i => match i with | 0 => a := rfl
 
 @[simp]
 theorem fconcat_castSucc {α : Fin n → A} {β : A}
@@ -1002,7 +1002,8 @@ theorem hcons_fin_zero {α : Sort u} {β : Fin 0 → Sort u} (a : α) (v : (i : 
     hcons a v = fun i => match i with | 0 => a := by
   ext i; rfl
 
-theorem hconcat_hcons {α : Sort u} {β : Fin n → Sort u} {γ : Sort u} (a : α) (v : (i : Fin n) → β i) (c : γ) :
+theorem hconcat_hcons {α : Sort u} {β : Fin n → Sort u} {γ : Sort u}
+    (a : α) (v : (i : Fin n) → β i) (c : γ) :
     True := by
     simp_all only
 

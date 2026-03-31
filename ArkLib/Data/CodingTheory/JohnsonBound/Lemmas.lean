@@ -1,8 +1,11 @@
-/- Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Ilia Vlasov, František Silváši
 -/
 import ArkLib.Data.CodingTheory.JohnsonBound.Expectations
+/-! # Johnson Bound Lemmas -/
+
 
 namespace JohnsonBound
 
@@ -197,7 +200,7 @@ lemma le_sum_sum_choose_K [Zero F] (h_n : 0 < n) (h_card : 2 ≤ card F) :
       · simp [h_n.ne']
       · exact fun _ _ ↦ Set.mem_univ _
     convert mul_le_mul_of_nonneg_left h_jensen (Nat.cast_nonneg n) using 1
-    · simp +decide [ ← Finset.mul_sum _ _ _, ← Finset.sum_div, k, h_n.ne' ] ; ring_nf
+    · simp +decide [ ← Finset.mul_sum _ _ _, ← Finset.sum_div, k, h_n.ne' ]; ring_nf
       simp +decide [ h_n.ne' ]
     · simp [← mul_sum _ _ _, h_n.ne']
   have h_combined : ∑ i : Fin n, sum_choose_K_i B i ≥

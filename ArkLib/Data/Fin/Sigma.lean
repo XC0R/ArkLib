@@ -226,7 +226,7 @@ theorem dflatten_embedSum {m : ℕ} {n : Fin m → ℕ} {motive : (k : Fin (vsum
     induction i using induction with
     | zero => simp
     | succ i ih' =>
-      simp
+      simp?
       exact ih (motive := fun i => motive (natAdd (n 0) i)) (fun i => v i.succ) i j
 
 /-- Homogeneous flatten: flattens a nested homogeneous vector
@@ -260,7 +260,7 @@ theorem vflatten_eq_vappend_last {m : ℕ} {n : Fin (m + 1) → ℕ}
   | succ m ih =>
     ext i
     rw [vflatten_succ, ih, vflatten_succ, vappend_assoc]
-    simp
+    simp?
     sorry
 
 @[simp]

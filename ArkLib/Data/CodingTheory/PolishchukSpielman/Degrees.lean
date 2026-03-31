@@ -22,7 +22,8 @@ lemma [BCIKS20].
 - `ps_card_eval_x_eq_zero_le_degree_x`, `ps_card_eval_y_eq_zero_le_nat_degree_y`:
   Bounds on the number of roots of a bivariate polynomial on lines.
 - `ps_eval_y_eq_eval_x_swap`: Relates evaluation in Y to evaluation in X of the swapped polynomial.
-- `ps_exists_x_preserve_nat_degree_y`, `ps_exists_y_preserve_degree_x`: Existence of evaluation points
+- `ps_exists_x_preserve_nat_degree_y`, `ps_exists_y_preserve_degree_x`:
+  Existence of evaluation points
   preserving the degree.
 
 ## References
@@ -651,7 +652,8 @@ lemma ps_degree_bounds_of_mul {F : Type} [Field F]
     have hyA0 : Polynomial.Bivariate.evalY y A ≠ 0 := (Finset.mem_filter.mp hyPy').2
 
     have h_quot_x_deg : (quot_x y).natDegree ≤ b_x - a_x := (h_quot_x y hyP_y).1
-    have h_quot_x_eq : Polynomial.Bivariate.evalY y B = (quot_x y) * Polynomial.Bivariate.evalY y A :=
+    have h_quot_x_eq :
+        Polynomial.Bivariate.evalY y B = (quot_x y) * Polynomial.Bivariate.evalY y A :=
       (h_quot_x y hyP_y).2
 
     have hBA_evalY :
@@ -724,14 +726,16 @@ lemma ps_degree_bounds_of_mul {F : Type} [Field F]
       have hlt' : Polynomial.Bivariate.degreeX P < px'.card := lt_of_lt_of_le hlt h_px'_ge
       exact hlt'
 
-    rcases ps_exists_x_preserve_nat_degree_y (F := F) (B := P) (hB := hP) (P_x := px') h_px'_card with
+    rcases ps_exists_x_preserve_nat_degree_y
+        (F := F) (B := P) (hB := hP) (P_x := px') h_px'_card with
       ⟨x, hxPx', hxdegY⟩
 
     have hxP_x : x ∈ P_x := (Finset.mem_filter.mp hxPx').1
     have hxA0 : Polynomial.Bivariate.evalX x A ≠ 0 := (Finset.mem_filter.mp hxPx').2
 
     have h_quot_y_deg : (quot_y x).natDegree ≤ b_y - a_y := (h_quot_y x hxP_x).1
-    have h_quot_y_eq : Polynomial.Bivariate.evalX x B = (quot_y x) * Polynomial.Bivariate.evalX x A :=
+    have h_quot_y_eq :
+        Polynomial.Bivariate.evalX x B = (quot_y x) * Polynomial.Bivariate.evalX x A :=
       (h_quot_y x hxP_x).2
 
     have hBA_evalX :

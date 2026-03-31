@@ -1,7 +1,8 @@
 /-
 Copyright (c) 2024 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland, Ilia Vlasov, Chung Thai Nguyen
+Authors: Quang Dao, Katerina Hristova, František Silváši, Julian Sutherland,
+         Ilia Vlasov, Chung Thai Nguyen
 -/
 
 import ArkLib.Data.Fin.Basic
@@ -93,6 +94,8 @@ import CompPoly.Data.Nat.Bitwise
 - Implement `ENNRat (ℚ≥0∞)`, for usage in `relDistFromCode` and `relDistFromCode'`,
   as counterpart of `ENat (ℕ∞)` in `distFromCode` and `distFromCode'`.
 -/
+
+set_option linter.style.longFile 2400
 
 variable {n : Type*} [Fintype n] {R : Type*} [DecidableEq R]
 
@@ -186,7 +189,7 @@ theorem dist_le_card (C : Set (n → R)) : dist C ≤ Fintype.card n := by
     unfold Set.Nontrivial at h
     obtain ⟨u, hu, v, hv, huv⟩ := h
     refine Nat.sInf_le ?_
-    simp
+    simp?
     refine ⟨u, And.intro hu ⟨v, And.intro hv ⟨huv, hammingDist_le_card_fintype⟩⟩⟩
 
 lemma dist_eq_minDist {ι : Type*} [Fintype ι] {F : Type*} [DecidableEq F] (C : Set (ι → F)) :
@@ -513,7 +516,7 @@ theorem eq_of_lt_dist {C : Set (n → R)} {u v : n → R} (hu : u ∈ C) (hv : v
   by_contra hNe
   push_neg at hNe
   revert huv
-  simp
+  simp?
   refine Nat.sInf_le ?_
   simp only [Set.mem_setOf_eq]
   refine ⟨u, And.intro hu ⟨v, And.intro hv ⟨hNe, le_rfl⟩⟩⟩
@@ -530,7 +533,7 @@ theorem distFromCode_eq_top_iff_empty (u : n → R) (C : Set (n → R)) : Δ₀(
     intro v hv
     apply sInf_eq_top.mp at h
     revert h
-    simp
+    simp?
     refine ⟨Fintype.card n, v, And.intro hv ⟨?_, ?_⟩⟩
     · norm_num; exact hammingDist_le_card_fintype
     · norm_num
@@ -693,8 +696,7 @@ theorem dist'_eq_dist : ‖C‖₀'.toNat = ‖C‖₀ := by
         -- Use the universal lower-bound property of `min'`.
         refine Finset.le_min (s := vals) (m := (dStar : ℕ∞)) ?_;
         intro a ha; exact
-          (show (dStar : ℕ∞) ≤ (a : ℕ∞) from
-            by
+          (show (dStar : ℕ∞) ≤ (a : ℕ∞) from by
               -- `dStar ≤ a` in `ℕ`, then coerce.
               have h' : dStar ≤ a := by
                 -- `min' ≤ any element`.
@@ -827,7 +829,7 @@ noncomputable def distToCode [LinearOrder α] [Zero α]
 end
 
 lemma distToCode_of_nonempty {α : Type*} [LinearOrder α] [Zero α]
-                             {ι F : Type*}
+    {ι F : Type*}
                              {w : ι → F} {C : Set (ι → F)}
                              {δf : (ι → F) → (ι → F) → α}
                              (h₁ : (possibleDistsToCode w C δf).Finite)
@@ -1227,7 +1229,7 @@ A word `u` is relatively close to a code `C` within an relative error bound `δ`
 it is relatively close within the equivalent absolute error bound `⌊δ * n⌋`.
 -/
 theorem relDistFromCode_le_iff_distFromCode_le {C : Set (ι → F)} (u : ι → F) (δ : ℝ≥0) :
-  δᵣ(u, C) ≤ δ ↔ Δ₀(u, C) ≤ Nat.floor (δ * Fintype.card ι) := by
+    δᵣ(u, C) ≤ δ ↔ Δ₀(u, C) ≤ Nat.floor (δ * Fintype.card ι) := by
   have h_n_pos : 0 < Fintype.card ι := Fintype.card_pos
   have h_n_pos_nnreal : 0 < (Fintype.card ι : ℝ≥0) := by exact_mod_cast h_n_pos
   conv_rhs => rw [closeToCode_iff_closeToCodeword_of_minDist]
@@ -1411,7 +1413,7 @@ def possibleRelHammingDists (C : Set (ι → F)) : Set ℚ≥0 :=
 -/
 @[simp]
 lemma possibleRelHammingDists_subset_relHammingDistRange :
-  possibleRelHammingDists C ⊆ relHammingDistRange ι := fun _ ↦ by
+    possibleRelHammingDists C ⊆ relHammingDistRange ι := fun _ ↦ by
     aesop (add simp [possibleRelHammingDists, possibleDists])
 
 variable [Nonempty ι]
@@ -1442,18 +1444,19 @@ notation "δᵣ" C => minRelHammingDistCode C
 -/
 @[simp]
 lemma possibleRelHammingDistsToC_subset_relHammingDistRange [DecidableEq F] :
-  possibleDistsToCode w C relHammingDist ⊆ relHammingDistRange ι := fun _ ↦ by
+    possibleDistsToCode w C relHammingDist ⊆ relHammingDistRange ι := fun _ ↦ by
     aesop (add simp Code.possibleDistsToCode)
 
 /-- The set of possible relative Hamming distances from a vector to a code is a finite set.
 -/
 @[simp]
 lemma finite_possibleRelHammingDistsToCode [Nonempty ι] [DecidableEq F] :
-  (possibleDistsToCode w C relHammingDist).Finite :=
+    (possibleDistsToCode w C relHammingDist).Finite :=
   Set.Finite.subset finite_relHammingDistRange possibleRelHammingDistsToC_subset_relHammingDistRange
 
-instance [Nonempty ι] [DecidableEq F] : Fintype (possibleDistsToCode w C relHammingDist)
-  := @Fintype.ofFinite _ finite_possibleRelHammingDistsToCode
+instance [Nonempty ι] [DecidableEq F] :
+    Fintype (possibleDistsToCode w C relHammingDist) :=
+  @Fintype.ofFinite _ finite_possibleRelHammingDistsToCode
 
 -- NOTE: this does not look clean, also `possibleDistsToCode` has the condition `c ≠ w`
 -- which seems not a standard since `w` can be a codeword, so commented out for now
@@ -1777,13 +1780,13 @@ variable {F : Type*} [DecidableEq F]
 open Finset
 
 def wt [Zero F]
-  (v : ι → F) : ℕ := #{i | v i ≠ 0}
+    (v : ι → F) : ℕ := #{i | v i ≠ 0}
 
 lemma wt_eq_hammingNorm [Zero F] {v : ι → F} :
-  wt v = hammingNorm v := rfl
+    wt v = hammingNorm v := rfl
 
 lemma wt_eq_zero_iff [Zero F] {v : ι → F} :
-  wt v = 0 ↔ Fintype.card ι = 0 ∨ ∀ i, v i = 0 := by
+    wt v = 0 ↔ Fintype.card ι = 0 ∨ ∀ i, v i = 0 := by
   by_cases IsEmpty ι <;>
   aesop (add simp [wt, Finset.filter_eq_empty_iff])
 
@@ -1879,7 +1882,7 @@ theorem singleton_bound (C : Set (n → R)) :
         omega
       obtain ⟨t, ht⟩ := instexists.1 some
       exists t
-      simp
+      simp?
       exact And.right ht
     obtain ⟨S, hS⟩ := ax_proj
 
@@ -1930,8 +1933,9 @@ abbrev ModuleCode.{u, v, w} (ι : Type u) (F : Type v) [Semiring F] -- ModuleCod
 abbrev LinearCode.{u, v} (ι : Type u) [Fintype ι] (F : Type v) [Semiring F] : Type (max u v) :=
   Submodule F (ι → F)
 
-lemma LinearCode_is_ModuleCode.{u, v} {ι : Type u} [Fintype ι] {F : Type v} [Semiring F]
-    : LinearCode ι F = ModuleCode ι F F := by rfl
+lemma LinearCode_is_ModuleCode.{u, v} {ι : Type u} [Fintype ι] {F : Type v} [Semiring F] :
+    LinearCode ι F = ModuleCode ι F F := by
+  rfl
 
 -- TODO: MDS code
 
@@ -2008,13 +2012,14 @@ noncomputable def dim [Semiring F] {A : Type*} [AddCommMonoid A] [Module F A]
 /-- The dimension of a linear code equals the rank of its associated generator matrix.
 -/
 lemma rank_eq_dim_fromColGenMat [CommRing F] {G : Matrix κ ι F} :
-  G.rank = dim (fromColGenMat G) := rfl
+    G.rank = dim (fromColGenMat G) := rfl
 
 /--
 The length of a linear code.
 -/
-def length [Semiring F] {A : Type*} [AddCommMonoid A] [Module F A] (_ : ModuleCode ι F A) : ℕ
-    := Fintype.card ι
+def length [Semiring F] {A : Type*} [AddCommMonoid A] [Module F A]
+    (_ : ModuleCode ι F A) : ℕ :=
+  Fintype.card ι
 
 /--
 The rate of a linear code.
@@ -2107,7 +2112,7 @@ noncomputable def restrictLinear [Semiring F] [Module F A] (S : Finset ι) :
   map_smul' := by intro a f; ext i; simp }
 
 theorem singletonBound [CommRing F] [StrongRankCondition F]
-  (LC : LinearCode ι F) :
+    (LC : LinearCode ι F) :
   dim LC ≤ length LC - Code.minDist (LC : Set (ι → F)) + 1 := by
   classical
   -- abbreviations
@@ -2262,12 +2267,11 @@ end Computable
 end LinearCode
 
 lemma poly_eq_zero_of_dist_lt {n k : ℕ} {F : Type*} [DecidableEq F] [CommRing F] [IsDomain F]
-  {p : Polynomial F} {ωs : Fin n → F}
+    {p : Polynomial F} {ωs : Fin n → F}
   (h_deg : p.natDegree < k)
   (hn : k ≤ n)
   (h_inj : Function.Injective ωs)
-  (h_dist : Δ₀(p.eval ∘ ωs, 0) < n - k + 1)
-  : p = 0 := by
+  (h_dist : Δ₀(p.eval ∘ ωs, 0) < n - k + 1) : p = 0 := by
   by_cases hk : k = 0
   · simp [hk] at h_deg
   · have h_n_k_1 : n - k + 1 = n - (k - 1) := by omega
@@ -2279,8 +2283,7 @@ lemma poly_eq_zero_of_dist_lt {n k : ℕ} {F : Type*} [DecidableEq F] [CommRing 
     rw [←Finset.card_image_of_injective _ h_inj
     ] at h_dist
     have h_dist_p : k  ≤
-      (@Finset.image (Fin n) F _ ωs {i | Polynomial.eval (ωs i) p = 0} : Finset F).card
-        := by omega
+      (@Finset.image (Fin n) F _ ωs {i | Polynomial.eval (ωs i) p = 0} : Finset F).card := by omega
     by_cases heq_0 : p = 0 <;> try simp [heq_0]
     have h_dist := Nat.le_trans h_dist_p (by {
       apply Polynomial.card_le_degree_of_subset_roots (p := p)

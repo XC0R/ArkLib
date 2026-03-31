@@ -9,6 +9,8 @@ import ArkLib.Data.Probability.Notation
 import CompPoly.Data.Fin.BigOperators
 import CompPoly.Data.Nat.Bitwise
 import Mathlib.Algebra.MvPolynomial.SchwartzZippel
+/-! # Probability Instances -/
+
 
 open ProbabilityTheory Filter
 open NNReal Finset Function
@@ -116,7 +118,7 @@ theorem prob_uniform_eq_card_filter_div_card {F : Type} [Fintype F] [Nonempty F]
   rw [h_card_eq]
 
 lemma Fintype.card_fun_fin_one_eq {F : Type} [Fintype F] [Nonempty F] :
-  Fintype.card (Fin 1 → F) = Fintype.card F := by
+    Fintype.card (Fin 1 → F) = Fintype.card F := by
   rw [Fintype.card_fun]
   simp only [Fintype.card_unique, pow_one]
 

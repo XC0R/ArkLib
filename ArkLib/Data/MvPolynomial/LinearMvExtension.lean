@@ -35,7 +35,7 @@ def bitExpo (i : ℕ) : (Fin m) →₀ ℕ :=
     degree wise linear m-variate polynomials, sending
     `aᵢ Xⁱ ↦ aᵢ ∏ⱼ Xⱼ^(bitⱼ(i))`, where `bitⱼ(i)` is the j-th binary digit of `(i mod 2ᵐ)`. -/
 def linearMvExtension :
-  Polynomial.degreeLT F (2^m) →ₗ[F] MvPolynomial (Fin m) F where
+    Polynomial.degreeLT F (2^m) →ₗ[F] MvPolynomial (Fin m) F where
     -- p(X) = aᵢ Xᶦ ↦ aᵢ ∏ⱼ Xⱼ^(bitⱼ(i))
     toFun p := (p : Polynomial F).sum fun i a =>
       MvPolynomial.monomial (bitExpo i) a
@@ -68,12 +68,12 @@ def partialEval {k : ℕ} (f : MvPolynomial (Fin m) F) (α : Fin k → F) (h : k
     `aₑ X₀^σ(0) ⬝ ⋯ ⬝ Xₘ₋₁^σ(m-1) →  aₑ (X^(2⁰))^σ(0) ⬝ ⋯ ⬝ (X^(2ᵐ⁻¹))^σ(m-1)`
     for all `σ : Fin m → ℕ` -/
 def powAlgHom :
-  MvPolynomial (Fin m) F →ₐ[F] Polynomial F :=
+    MvPolynomial (Fin m) F →ₐ[F] Polynomial F :=
    aeval fun j => Polynomial.X ^ (2 ^ (j : ℕ))
 
 /- The linear map optained by forgetting the multiplicative structure-/
 def powContraction :
-  MvPolynomial (Fin m) F →ₗ[F] Polynomial F :=
+    MvPolynomial (Fin m) F →ₗ[F] Polynomial F :=
   powAlgHom.toLinearMap
 
 private lemma binary_repr_sum (m i : ℕ) (hi : i < 2 ^ m) :
@@ -99,7 +99,7 @@ private lemma binary_repr_sum (m i : ℕ) (hi : i < 2 ^ m) :
 /- Evaluating m-variate polynomials on (X^(2⁰), ... , X^(2ᵐ⁻¹) ) is
    right inverse to linear multivariate extensions on F^(< 2ᵐ)[X]  -/
 lemma powContraction_is_right_inverse_to_linearMvExtension
-  (p : Polynomial.degreeLT F (2^m)) :
+    (p : Polynomial.degreeLT F (2^m)) :
     powContraction.comp linearMvExtension p = p  := by
   have h_comp : powContraction (linearMvExtension p) =
       ∑ i ∈ Finset.range (2 ^ m), p.val.coeff i • Polynomial.X ^ i := by

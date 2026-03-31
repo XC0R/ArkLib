@@ -46,14 +46,12 @@ def splitNth (f : 𝔽[X]) (n : ℕ) [inst : NeZero n] : Fin n → 𝔽[X] :=
     let sup :=
       Finset.filterMap (fun x => if x % n = i.1 then .some (x / n) else .none)
       f.support
-      (
-        by
-          intros a a' b
-          simp only [Option.mem_def, Option.ite_none_right_eq_some, Option.some.injEq, and_imp]
-          intros h g h' g'
-          rw [Eq.symm (Nat.div_add_mod' a n), Eq.symm (Nat.div_add_mod' a' n)]
-          rw [h, g, h', g']
-      )
+      (by
+        intros a a' b
+        simp only [Option.mem_def, Option.ite_none_right_eq_some, Option.some.injEq, and_imp]
+        intros h g h' g'
+        rw [Eq.symm (Nat.div_add_mod' a n), Eq.symm (Nat.div_add_mod' a' n)]
+        rw [h, g, h', g'])
     Polynomial.ofFinsupp
       ⟨
         sup,
@@ -237,7 +235,7 @@ lemma splitNth_def (n : ℕ) (f : 𝔽[X]) [inst : NeZero n] :
 /- Lemma bounding degree of each `n`-split polynomial. -/
 omit [NoZeroDivisors 𝔽] in
 lemma splitNth_degree_le {n : ℕ} {f : 𝔽[X]} [inst : NeZero n] :
-  ∀ {i}, (splitNth f n i).natDegree ≤ f.natDegree / n := by
+    ∀ {i}, (splitNth f n i).natDegree ≤ f.natDegree / n := by
     intros i
     unfold splitNth Polynomial.natDegree Polynomial.degree
     simp only [support_ofFinsupp]

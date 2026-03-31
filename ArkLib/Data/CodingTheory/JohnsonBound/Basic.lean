@@ -1,8 +1,11 @@
-/- Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+/-
+Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Ilia Vlasov, František Silváši
 -/
 import ArkLib.Data.CodingTheory.JohnsonBound.Lemmas
+/-! # Johnson Bound Basics -/
+
 
 namespace JohnsonBound
 

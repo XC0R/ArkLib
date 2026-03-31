@@ -385,8 +385,8 @@ lemma ps_resultant_dvd_pow_eval_x {F : Type} [Field F] [DecidableEq F]
         -- rewrite `evalX` as `map` in the hypothesis `hQ`
         simpa [ps_eval_x_eq_map, ev] using hQ
 
-      have hsum_left
-      : (∑ j : Fin n, Polynomial.monomial (j : ℕ) (v_col (Fin.castAdd m j))) = -q := by
+      have hsum_left :
+          (∑ j : Fin n, Polynomial.monomial (j : ℕ) (v_col (Fin.castAdd m j))) = -q := by
         -- identify this sum with `ofFn n` applied to `-toFn n q`
         have hsum1 : (∑ j : Fin n, Polynomial.monomial (j : ℕ) (v_col (Fin.castAdd m j))) =
             Polynomial.ofFn n (fun j : Fin n => v_col (Fin.castAdd m j)) := by
@@ -421,8 +421,8 @@ lemma ps_resultant_dvd_pow_eval_x {F : Type} [Field F] [DecidableEq F]
           _ = -q := by
             simp [hofFn]
 
-      have hsum_right : (∑ j : Fin m, Polynomial.monomial (j : ℕ) (v_col (Fin.natAdd n j))) =
-          X ^ (j' : ℕ) := by
+      have hsum_right :
+          (∑ j : Fin m, Polynomial.monomial (j : ℕ) (v_col (Fin.natAdd n j))) = X ^ (j' : ℕ) := by
         classical
         have hv : ∀ j : Fin m, v_col (Fin.natAdd n j) = (if j = j' then (1 : F) else 0) := by
           intro j
@@ -440,8 +440,10 @@ lemma ps_resultant_dvd_pow_eval_x {F : Type} [Field F] [DecidableEq F]
                 = ∑ j : Fin m, (if j = j' then Polynomial.monomial (j : ℕ) (1 : F) else 0) := by
                     classical
                     have hfun :
-                        (fun j : Fin m => Polynomial.monomial (j : ℕ) (if j = j' then (1 : F) else 0)) =
-                          fun j : Fin m => (if j = j' then Polynomial.monomial (j : ℕ) (1 : F) else 0) := by
+                        (fun j : Fin m =>
+                          Polynomial.monomial (j : ℕ) (if j = j' then (1 : F) else 0)) =
+                            fun j : Fin m =>
+                              (if j = j' then Polynomial.monomial (j : ℕ) (1 : F) else 0) := by
                       funext j
                       by_cases hj : j = j'
                       · simp [hj]
@@ -552,8 +554,8 @@ lemma ps_resultant_dvd_pow_eval_y {F : Type} [Field F] [DecidableEq F]
   have hn' : Polynomial.Bivariate.natDegreeY (Polynomial.Bivariate.swap B) ≤ n := by
     simpa [-Polynomial.Bivariate.swap_apply, ps_nat_degree_y_swap] using hn
 
-  have hQdeg'
-  : Q.natDegree ≤ n - Polynomial.Bivariate.natDegreeY (Polynomial.Bivariate.swap A) := by
+  have hQdeg' :
+      Q.natDegree ≤ n - Polynomial.Bivariate.natDegreeY (Polynomial.Bivariate.swap A) := by
     simpa [-Polynomial.Bivariate.swap_apply, ps_nat_degree_y_swap] using hQdeg
 
   have h :=
@@ -646,7 +648,7 @@ lemma ps_resultant_ne_zero_of_is_rel_prime {F : Type} [Field F] [DecidableEq F]
       · have hQ0 : Q = 0 := by
           simp [hm0, hQ_ofFn, Polynomial.ofFn]
         rw [hQ0, hm0]
-        simp
+        simp?
         simpa [hm0] using hnmpos
       · have hmpos : 1 ≤ m := Nat.succ_le_iff.2 (Nat.pos_of_ne_zero hm0)
         have hQnat : Q.natDegree < m := by
