@@ -13,7 +13,7 @@ layer (`Boundary.Reification`).
 `OracleStatementAccess` carries exactly two fields:
 
 - `simulateIn`: translate a query to an *inner* input oracle into a computation
-  over *outer* input oracles.  Statement-independent: applies at every round
+  over *outer* input oracles. Statement-independent: applies at every round
   uniformly, because the input oracle is fixed before the interaction begins.
 
 - `simulateOut`: translate a query to an *outer* output oracle into a
@@ -21,18 +21,30 @@ layer (`Boundary.Reification`).
   Statement-dependent because the outer output oracle type may depend on the
   outer statement and transcript.
 
+The asymmetry is meaningful:
+- Input oracle simulation (`simulateIn`) can be done without knowing the
+  transcript, because the input oracle is fixed before any interaction happens.
+- Output oracle simulation (`simulateOut`) happens after the interaction, so
+  it can reference both the input and the resulting output oracles.
+
 ## pullbackCounterpart
 
 The key combinator walks a `Spec.Counterpart.withMonads` tree and rewires every
-receiver-node oracle query through `simulateIn` via `simulateQ`.  This is an
-instance of interpreter lifting: the inner oracle calls are handled by an outer
-oracle handler.
+receiver-node oracle query through `simulateIn` via `simulateQ`. This is an
+instance of interpreter lifting (cf. Xia et al., *Interaction Trees*): the inner
+oracle calls are handled by an outer oracle handler.
 
-## Usage
+## Prover vs. verifier asymmetry
 
 `OracleStatementAccess` is sufficient for verifier pullbacks and for the
-verifier half of a reduction pullback.  To pull back the prover (which holds
-concrete oracle data), you also need the reification layer.
+verifier half of a reduction pullback. The verifier never holds concrete oracle
+data — it only issues queries. To pull back the prover (which holds concrete
+`OracleStatement` data), you also need the reification layer.
+
+## See also
+
+- `Boundary.Reification` — adds concrete oracle materialization for provers
+- `Boundary.Core` — plain (non-oracle) boundaries
 -/
 
 namespace Interaction
@@ -177,26 +189,24 @@ parameterized by the outer statement and transcript because the outer output
 oracle type may depend on them. -/
 structure OracleStatementAccess
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut)
+    {InnerSpec : InnerStmtIn → Spec}
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec)
     {Outerιₛᵢ : Type} (OuterOStmtIn : Outerιₛᵢ → Type)
     {Innerιₛᵢ : Type} (InnerOStmtIn : Innerιₛᵢ → Type)
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     (InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type)
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     (OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type)
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)] where
@@ -204,46 +214,54 @@ structure OracleStatementAccess
     QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ)
   simulateOut :
     (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       QueryImpl [OuterOStmtOut outer tr]ₒ
         (OracleComp
           ([OuterOStmtIn]ₒ +
-            [InnerOStmtOut (toStatement.proj outer) tr]ₒ))
+            [InnerOStmtOut (projection.proj outer) tr]ₒ))
 
 /-- Oracle access bundled with a plain witness boundary.  Witness transport does
 not affect oracle simulation; this structure groups them for convenience. -/
 structure OracleContextAccess
     {OuterStmtIn InnerStmtIn : Type}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     (toContext :
-      Context OuterStmtIn InnerStmtIn
+      Context projection
         OuterWitIn InnerWitIn
-        InnerContext InnerStmtOut InnerWitOut)
+        InnerStmtOut OuterStmtOut
+        InnerWitOut OuterWitOut)
     {Outerιₛᵢ : Type} (OuterOStmtIn : Outerιₛᵢ → Type)
     {Innerιₛᵢ : Type} (InnerOStmtIn : Innerιₛᵢ → Type)
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     (InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type)
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toContext.stmt.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     (OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toContext.stmt.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type)
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)] where
-  stmt : OracleStatementAccess toContext.stmt
+  stmt : OracleStatementAccess projection
     OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut
 
 namespace OracleStatementAccess
@@ -330,41 +348,39 @@ queries, compose it with `simulateIn` to produce a simulation that issues outer
 input oracle queries instead.  Used inside `pullbackSimulate`. -/
 def routeInnerOutputQueries
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     {InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type}
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     {OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type}
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      OracleStatementAccess toStatement
+      OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     {outer : OuterStmtIn}
-    {tr : Spec.Transcript (InnerContext (toStatement.proj outer))}
+    {tr : Spec.Transcript (InnerSpec (projection.proj outer))}
     {ιₘ : Type}
     (msgSpec : OracleSpec ιₘ)
     (simulateInner :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ
         (OracleComp ([InnerOStmtIn]ₒ + msgSpec))) :
-    QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+    QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ
       (OracleComp ([OuterOStmtIn]ₒ + msgSpec)) :=
   fun q =>
     let route :
@@ -387,44 +403,42 @@ Only the inner input-oracle traffic is rerouted.  Base message-oracle queries
 from `msgSpec` are passed through unchanged. -/
 theorem routeInnerOutputQueries_eval
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     {InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type}
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     {OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type}
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      OracleStatementAccess toStatement
+      OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     {outer : OuterStmtIn}
-    {tr : Spec.Transcript (InnerContext (toStatement.proj outer))}
+    {tr : Spec.Transcript (InnerSpec (projection.proj outer))}
     {ιₘ : Type}
     (msgSpec : OracleSpec ιₘ)
     (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
     (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
     (msgImpl : QueryImpl msgSpec Id)
     (innerOutputImpl :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ Id)
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ Id)
     (simulateInner :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ
         (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
     (hInput :
       ∀ q,
@@ -521,46 +535,44 @@ issue inner output oracle sub-queries; those are routed to the outer input
 oracle via `routeInnerOutputQueries`. -/
 def pullbackSimulate
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     {InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type}
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     {OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type}
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      OracleStatementAccess toStatement
+      OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     (outer : OuterStmtIn)
-    (tr : Spec.Transcript (InnerContext (toStatement.proj outer)))
+    (tr : Spec.Transcript (InnerSpec (projection.proj outer)))
     {ιₘ : Type}
     (msgSpec : OracleSpec ιₘ)
     (simulateInner :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ
         (OracleComp ([InnerOStmtIn]ₒ + msgSpec))) :
     QueryImpl [OuterOStmtOut outer tr]ₒ
       (OracleComp ([OuterOStmtIn]ₒ + msgSpec)) :=
   fun q =>
     let route :
         QueryImpl
-          ([OuterOStmtIn]ₒ + [InnerOStmtOut (toStatement.proj outer) tr]ₒ)
+          ([OuterOStmtIn]ₒ + [InnerOStmtOut (projection.proj outer) tr]ₒ)
           (OracleComp ([OuterOStmtIn]ₒ + msgSpec)) :=
       fun
       | .inl qIn =>
@@ -585,46 +597,44 @@ provided:
   concrete inner output oracle. -/
 theorem pullbackSimulate_eval
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
     [∀ i, OracleInterface (OuterOStmtIn i)]
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
-      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerSpec s)) → Type}
     {InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type}
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) → Type}
     {OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
       Outerιₛₒ outer tr → Type}
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      OracleStatementAccess toStatement
+      OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     (outer : OuterStmtIn)
-    (tr : Spec.Transcript (InnerContext (toStatement.proj outer)))
+    (tr : Spec.Transcript (InnerSpec (projection.proj outer)))
     {ιₘ : Type}
     (msgSpec : OracleSpec ιₘ)
     (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
     (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
     (msgImpl : QueryImpl msgSpec Id)
     (innerOutputImpl :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ Id)
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ Id)
     (outerOutputImpl :
       QueryImpl [OuterOStmtOut outer tr]ₒ Id)
     (simulateInner :
-      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+      QueryImpl [InnerOStmtOut (projection.proj outer) tr]ₒ
         (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
     (hInput :
       ∀ q,
@@ -869,9 +879,11 @@ def pullback
     {pSpec : Spec} {roles : RoleDecoration pSpec}
     {od : OracleDecoration pSpec roles}
     {OuterStmtIn InnerStmtIn : Type}
+    {projection : Boundary.StatementProjection OuterStmtIn InnerStmtIn (fun _ => pSpec)}
     {InnerStmtOut : InnerStmtIn → Spec.Transcript pSpec → Type}
+    {OuterStmtOut : OuterStmtIn → Spec.Transcript pSpec → Type}
     (stmt :
-      Boundary.Statement OuterStmtIn InnerStmtIn (fun _ => pSpec) InnerStmtOut)
+      Boundary.Statement projection InnerStmtOut OuterStmtOut)
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
@@ -890,13 +902,13 @@ def pullback
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      Boundary.OracleStatementAccess stmt
+      Boundary.OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     (verifier :
       OracleVerifier oSpec pSpec roles od
         InnerStmtIn InnerOStmtIn InnerStmtOut InnerOStmtOut) :
     OracleVerifier oSpec pSpec roles od
-      OuterStmtIn OuterOStmtIn stmt.StmtOut OuterOStmtOut where
+      OuterStmtIn OuterOStmtIn OuterStmtOut OuterOStmtOut where
   iov :=
     Boundary.pullbackCounterpart access.simulateIn
       pSpec
@@ -932,14 +944,18 @@ without concrete oracle data. -/
 def pullbackVerifier
     {ι : Type} {oSpec : OracleSpec ι}
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : Boundary.StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
     {InnerOD :
-      (s : InnerStmtIn) → OracleDecoration (InnerContext s) (InnerRoles s)}
+      (s : InnerStmtIn) → OracleDecoration (InnerSpec s) (InnerRoles s)}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     (stmt :
-      Boundary.Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut)
+      Boundary.Statement projection InnerStmtOut OuterStmtOut)
     {Outerιₛᵢ Innerιₛᵢ : Type}
     {OuterOStmtIn : Outerιₛᵢ → Type}
     {InnerOStmtIn : Innerιₛᵢ → Type}
@@ -947,50 +963,50 @@ def pullbackVerifier
     [∀ i, OracleInterface (InnerOStmtIn i)]
     {Innerιₛₒ :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Type}
     {InnerOStmtOut :
       (s : InnerStmtIn) →
-      (tr : Spec.Transcript (InnerContext s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       Innerιₛₒ s tr → Type}
     {Outerιₛₒ :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (stmt.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (stmt.proj outer))) →
       Type}
     {OuterOStmtOut :
       (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (stmt.proj outer))) →
+      (tr : Spec.Transcript (InnerSpec (stmt.proj outer))) →
       Outerιₛₒ outer tr → Type}
     [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
     [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
     (access :
-      Boundary.OracleStatementAccess stmt
+      Boundary.OracleStatementAccess projection
         OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
     (verifier :
       (s : InnerStmtIn) →
         {ιₐ : Type} →
         (accSpec : OracleSpec ιₐ) →
         Spec.Counterpart.withMonads
-          (InnerContext s)
+          (InnerSpec s)
           (InnerRoles s)
           (toMonadDecoration oSpec InnerOStmtIn
-            (InnerContext s) (InnerRoles s) (InnerOD s) accSpec)
+            (InnerSpec s) (InnerRoles s) (InnerOD s) accSpec)
           (fun tr => InnerStmtOut s tr)) :
     (outer : OuterStmtIn) →
       {ιₐ : Type} →
       (accSpec : OracleSpec ιₐ) →
       Spec.Counterpart.withMonads
-        (InnerContext (stmt.proj outer))
+        (InnerSpec (stmt.proj outer))
         (InnerRoles (stmt.proj outer))
         (toMonadDecoration oSpec OuterOStmtIn
-          (InnerContext (stmt.proj outer))
+          (InnerSpec (stmt.proj outer))
           (InnerRoles (stmt.proj outer))
           (InnerOD (stmt.proj outer))
           accSpec)
-        (fun tr => stmt.StmtOut outer tr) :=
+        (fun tr => OuterStmtOut outer tr) :=
   fun outer {_} accSpec =>
     Boundary.pullbackCounterpart access.simulateIn
-      (InnerContext (stmt.proj outer))
+      (InnerSpec (stmt.proj outer))
       (InnerRoles (stmt.proj outer))
       (InnerOD (stmt.proj outer))
       (fun tr stmtOut => stmt.lift outer tr stmtOut)

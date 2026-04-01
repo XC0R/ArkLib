@@ -5,23 +5,38 @@ import ArkLib.Interaction.Reduction
 
 A *boundary* reinterprets an existing interaction through a different outer
 statement/witness interface without changing the underlying transcript or round
-structure.  This is distinct from sequential composition, which extends a
-protocol by appending new rounds.
+structure. This is distinct from sequential composition (`Spec.append`,
+`Reduction.Continuation.comp`), which extends a protocol by appending new rounds.
+
+## When to use a boundary vs. composition
+
+A boundary is the right tool when:
+- the `Spec`, transcript shape, and round structure are *unchanged*;
+- you want to reinterpret the protocol at a different outer statement or witness;
+- you are *not* appending more rounds.
+
+Use composition when the protocol itself grows. Use a boundary when only the
+interface changes. See `INTERACTION_BOUNDARIES.md` for detailed rationale and
+examples (sumcheck single-round reuse, FRIBinius witness reinterpretation,
+BatchedFRI batching boundary).
 
 ## Three structures, one idea
 
 `Statement` carries the statement-level boundary data:
-- project the outer input statement to the inner one (`proj`);
-- define what the outer output statement is (`StmtOut`);
-- lift an inner output statement back to an outer one (`lift`).
+- `proj` maps the outer input statement to the inner one;
+- `StmtOut` defines the outer output statement type;
+- `lift` produces an outer output statement from an inner one.
 
-`Witness` adds honest-prover witness transport over a fixed `Statement` boundary:
-- project the outer witness to the inner one (`proj`);
-- lift the inner output witness back to the outer one (`lift`).
+`WitnessProjection` carries the input-witness projection.
+
+`Witness` then adds the output-witness lifting half over a fixed witness
+projection:
+- `proj` maps the outer witness to the inner one;
+- `lift` reconstructs the outer output witness.
 
 `Context` bundles both into a single record.
 
-## pullback
+## Pullback
 
 Given a boundary `b` and an inner protocol participant (verifier, prover, or
 reduction), `pullback b` produces an outer participant that:
@@ -29,154 +44,257 @@ reduction), `pullback b` produces an outer participant that:
 2. runs the inner participant on the projected input,
 3. lifts the inner output back through `b`.
 
-The transcript is unchanged throughout.
+The transcript is unchanged throughout. For verifier-only pullbacks, a
+`Statement` boundary suffices. For prover or full reduction pullbacks, a
+`Context` boundary is needed. At the oracle level, additional simulation /
+materialization data is required — see `Boundary.Oracle` and
+`Boundary.Reification`.
+
+## See also
+
+- `Boundary.Oracle` — adds verifier-side oracle simulation
+- `Boundary.Reification` — adds concrete oracle materialization for provers
+- `Boundary.Compatibility` — soundness/completeness predicates for boundaries
+- `Boundary.Security` / `Boundary.OracleSecurity` — security transport theorems
 -/
 
 namespace Interaction
 namespace Boundary
 
-/-- The statement-level half of a boundary.
-
-`proj` maps the outer input statement to the inner one used by the protocol.
-`StmtOut` specifies the *outer* output statement type after the interaction; it
-may be strictly larger than the inner output statement type pushed through
-`proj`.  `lift` produces an outer output statement from the inner one, given the
-outer input and the shared transcript. -/
-structure Statement
+/-- The projection half of a statement boundary. -/
+structure StatementProjection
     (OuterStmtIn InnerStmtIn : Type)
-    (InnerContext : InnerStmtIn → Spec)
-    (InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type) where
+    (InnerSpec : InnerStmtIn → Spec) where
   proj : OuterStmtIn → InnerStmtIn
-  StmtOut :
-    (outer : OuterStmtIn) →
-      Spec.Transcript (InnerContext (proj outer)) → Type
+
+namespace StatementProjection
+
+variable
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+
+/-- The outer protocol spec induced by a statement projection. -/
+@[inline] abbrev spec
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec) :
+    OuterStmtIn → Spec :=
+  fun outer => InnerSpec (projection.proj outer)
+
+/-- Identity statement projection. -/
+@[inline, reducible] def id
+    (StmtIn : Type)
+    (InnerSpec : StmtIn → Spec) :
+    StatementProjection StmtIn StmtIn InnerSpec where
+  proj := fun stmt => stmt
+
+end StatementProjection
+
+/-- The lifting half of a statement boundary over a fixed statement projection
+and an explicit outer output statement family. -/
+structure Statement
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec)
+    (InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type)
+    (OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type) where
   lift :
     (outer : OuterStmtIn) →
-      (tr : Spec.Transcript (InnerContext (proj outer))) →
-      InnerStmtOut (proj outer) tr →
-      StmtOut outer tr
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+      InnerStmtOut (projection.proj outer) tr →
+      OuterStmtOut outer tr
 
 namespace Statement
 
 variable
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
 
-/-- The outer protocol spec, computed by composing `proj` with the inner context
-family.  The transcript type is unchanged: both inner and outer participants run
-the same interaction. -/
-@[inline] abbrev context
-    (boundary : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut) :
-    OuterStmtIn → Spec :=
-  fun outer => InnerContext (boundary.proj outer)
+/-- The input projection underlying a statement lifting. -/
+@[inline] abbrev proj
+    (_ : Statement projection InnerStmtOut OuterStmtOut) :
+    OuterStmtIn → InnerStmtIn :=
+  projection.proj
 
-/-- Identity boundary: the inner and outer statement interfaces coincide. -/
+/-- The outer output family underlying a statement lifting. -/
+@[inline] abbrev StmtOut
+    (_ : Statement projection InnerStmtOut OuterStmtOut) :
+    (outer : OuterStmtIn) →
+      Spec.Transcript (InnerSpec (projection.proj outer)) → Type :=
+  OuterStmtOut
+
+/-- Identity statement boundary. -/
 @[inline, reducible] def id
     (StmtIn : Type)
-    (context : StmtIn → Spec)
-    (StmtOut : (s : StmtIn) → Spec.Transcript (context s) → Type) :
-    Statement StmtIn StmtIn context StmtOut where
-  proj := fun stmt => stmt
-  StmtOut := StmtOut
+    (InnerSpec : StmtIn → Spec)
+    (StmtOut : (s : StmtIn) → Spec.Transcript (InnerSpec s) → Type) :
+    Statement
+      (StatementProjection.id StmtIn InnerSpec)
+      StmtOut
+      StmtOut where
   lift := fun _ _ stmtOut => stmtOut
 
 /-- Boundary that only changes the input statement; the output is passed through
-unchanged.  Use this when you need to project the input but the inner and outer
-output statement types are definitionally equal. -/
+unchanged. -/
 @[inline] def ofInputOnly
-    (proj : OuterStmtIn → InnerStmtIn) :
-    Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut where
-  proj := proj
-  StmtOut := fun outer tr => InnerStmtOut (proj outer) tr
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec) :
+    Statement
+      projection
+      InnerStmtOut
+      (fun outer tr => InnerStmtOut (projection.proj outer) tr) where
   lift := fun _ _ stmtOut => stmtOut
 
 /-- Boundary that only changes the output statement; the input is passed through
-unchanged.  Use this when the outer and inner input types coincide but you want
-to map the output statement to a richer outer type. -/
+unchanged. -/
 @[inline] def ofOutputOnly
     (StmtIn : Type)
-    (Context : StmtIn → Spec)
+    (InnerSpec : StmtIn → Spec)
     (InnerStmtOut OuterStmtOut :
-      (s : StmtIn) → Spec.Transcript (Context s) → Type)
+      (s : StmtIn) → Spec.Transcript (InnerSpec s) → Type)
     (lift :
       (s : StmtIn) →
-      (tr : Spec.Transcript (Context s)) →
+      (tr : Spec.Transcript (InnerSpec s)) →
       InnerStmtOut s tr →
       OuterStmtOut s tr) :
-    Statement StmtIn StmtIn Context InnerStmtOut where
-  proj := fun stmt => stmt
-  StmtOut := OuterStmtOut
+    Statement
+      (StatementProjection.id StmtIn InnerSpec)
+      InnerStmtOut
+      OuterStmtOut where
   lift := lift
 
 end Statement
 
-/-- The witness-level half of a boundary, paired with a fixed `Statement`
-boundary.
+/-- The projection half of a witness boundary. -/
+structure WitnessProjection
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec)
+    (OuterWitIn InnerWitIn : Type) where
+  proj : (outer : OuterStmtIn) → OuterWitIn → InnerWitIn
 
-`proj` maps the outer prover witness to the inner witness expected by the inner
-protocol.  `lift` reconstructs the outer output witness after the inner prover
-finishes, given the outer input statement and witness, the transcript, the inner
-output statement, and the inner output witness. -/
+namespace WitnessProjection
+
+variable
+    {StmtIn : Type}
+    {WitIn : Type}
+    {InnerSpec : StmtIn → Spec}
+
+/-- Identity witness projection. -/
+@[inline, reducible] def id :
+    WitnessProjection
+      (StatementProjection.id StmtIn InnerSpec)
+      WitIn
+      WitIn where
+  proj := fun _ wit => wit
+
+end WitnessProjection
+
+/-- The lifting half of a witness boundary over a fixed witness projection and
+an explicit outer output-witness family. -/
 structure Witness
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (OuterWitIn InnerWitIn : Type)
-    (stmt : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut)
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {OuterWitIn InnerWitIn : Type}
+    (witnessProjection : WitnessProjection projection OuterWitIn InnerWitIn)
+    (InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type)
     (InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type) where
-  WitOut :
-    (outer : OuterStmtIn) →
-      Spec.Transcript (InnerContext (stmt.proj outer)) → Type
-  proj : (outer : OuterStmtIn) → OuterWitIn → InnerWitIn
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type)
+    (OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type) where
   lift :
     (outer : OuterStmtIn) →
       OuterWitIn →
-      (tr : Spec.Transcript (InnerContext (stmt.proj outer))) →
-      InnerStmtOut (stmt.proj outer) tr →
-      InnerWitOut (stmt.proj outer) tr →
-      WitOut outer tr
+      (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+      InnerStmtOut (projection.proj outer) tr →
+      InnerWitOut (projection.proj outer) tr →
+      OuterWitOut outer tr
 
 namespace Witness
 
 variable
     {StmtIn : Type}
-    {Context : StmtIn → Spec}
-    {StmtOut : (s : StmtIn) → Spec.Transcript (Context s) → Type}
+    {InnerSpec : StmtIn → Spec}
+    {StmtOut : (s : StmtIn) → Spec.Transcript (InnerSpec s) → Type}
     {WitIn : Type}
-    {WitOut : (s : StmtIn) → Spec.Transcript (Context s) → Type}
+    {WitOutTy : (s : StmtIn) → Spec.Transcript (InnerSpec s) → Type}
+
+/-- The input witness projection underlying a witness lifting. -/
+@[inline] abbrev proj
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {OuterWitIn InnerWitIn : Type}
+    {witnessProjection : WitnessProjection projection OuterWitIn InnerWitIn}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {InnerWitOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (_ : Witness witnessProjection InnerStmtOut InnerWitOut OuterWitOut) :
+    (outer : OuterStmtIn) → OuterWitIn → InnerWitIn :=
+  witnessProjection.proj
+
+/-- The outer output witness family underlying a witness lifting. -/
+@[inline] abbrev WitOut
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {OuterWitIn InnerWitIn : Type}
+    {witnessProjection : WitnessProjection projection OuterWitIn InnerWitIn}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {InnerWitOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (_ : Witness witnessProjection InnerStmtOut InnerWitOut OuterWitOut) :
+    (outer : OuterStmtIn) →
+      Spec.Transcript (InnerSpec (projection.proj outer)) → Type :=
+  OuterWitOut
 
 /-- Identity witness boundary over the identity statement boundary. -/
 @[inline, reducible] def id :
-    Witness WitIn WitIn
-      (Statement.id StmtIn Context StmtOut)
-      WitOut where
-  WitOut := fun stmt tr => WitOut stmt tr
-  proj := fun _ wit => wit
+    Witness
+      (WitnessProjection.id
+        (StmtIn := StmtIn)
+        (WitIn := WitIn)
+        (InnerSpec := InnerSpec))
+      StmtOut
+      WitOutTy
+      WitOutTy where
   lift := fun _ _ _ _ witOut => witOut
 
 /-- Witness boundary that only changes the input witness; the output witness is
 passed through unchanged. -/
 @[inline] def ofInputOnly
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {OuterWitIn InnerWitIn : Type}
-    {stmt : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    (witnessProjection : WitnessProjection projection OuterWitIn InnerWitIn)
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (proj :
-      (outer : OuterStmtIn) →
-      OuterWitIn →
-      InnerWitIn) :
-    Witness OuterWitIn InnerWitIn stmt InnerWitOut where
-  WitOut := fun outer tr => InnerWitOut (stmt.proj outer) tr
-  proj := proj
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    :
+    Witness
+      witnessProjection
+      InnerStmtOut
+      InnerWitOut
+      (fun outer tr => InnerWitOut (projection.proj outer) tr) where
   lift := fun _ _ _ _ witOut => witOut
 
 end Witness
@@ -184,62 +302,85 @@ end Witness
 /-- A full plain boundary bundling statement and witness transport.
 
 Use `Context` when constructing a prover or full reduction pullback.
-For verifier-only pullbacks, a `Statement` boundary suffices. -/
+For verifier-only pullbacks, a `Statement` lifting suffices. -/
 structure Context
-    (OuterStmtIn InnerStmtIn : Type)
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec)
     (OuterWitIn InnerWitIn : Type)
-    (InnerContext : InnerStmtIn → Spec)
     (InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type)
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type)
+    (OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type)
     (InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type) where
-  stmt : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut
-  wit : Witness OuterWitIn InnerWitIn stmt InnerWitOut
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type)
+    (OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type) where
+  witProj : WitnessProjection projection OuterWitIn InnerWitIn
+  stmt : Statement projection InnerStmtOut OuterStmtOut
+  wit : Witness witProj InnerStmtOut InnerWitOut OuterWitOut
 
 namespace Context
 
 variable
     {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
 
-/-- The outer output statement type, delegated to the statement boundary. -/
+/-- The outer output statement type, delegated to the context parameters. -/
 @[inline] abbrev StmtOut
-    (boundary : Context OuterStmtIn InnerStmtIn OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut) :
+    (_ : Context projection
+      OuterWitIn InnerWitIn
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut) :
     (outer : OuterStmtIn) →
-      Spec.Transcript (InnerContext (boundary.stmt.proj outer)) → Type :=
-  boundary.stmt.StmtOut
+      Spec.Transcript (InnerSpec (projection.proj outer)) → Type :=
+  OuterStmtOut
 
-/-- The outer output witness type, delegated to the witness boundary. -/
+/-- The outer output witness type, delegated to the context parameters. -/
 @[inline] abbrev WitOut
-    (boundary : Context OuterStmtIn InnerStmtIn OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut) :
+    (_ : Context projection
+      OuterWitIn InnerWitIn
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut) :
     (outer : OuterStmtIn) →
-      Spec.Transcript (InnerContext (boundary.stmt.proj outer)) → Type :=
-  boundary.wit.WitOut
+      Spec.Transcript (InnerSpec (projection.proj outer)) → Type :=
+  OuterWitOut
 
 /-- Project an outer `(stmt, wit)` pair to an inner `(stmt, wit)` pair. -/
 @[inline] def proj
-    (boundary : Context OuterStmtIn InnerStmtIn OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut) :
+    (boundary : Context projection
+      OuterWitIn InnerWitIn
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut) :
     OuterStmtIn × OuterWitIn → InnerStmtIn × InnerWitIn :=
   fun ⟨outerStmt, outerWit⟩ =>
-    ⟨boundary.stmt.proj outerStmt, boundary.wit.proj outerStmt outerWit⟩
+    ⟨projection.proj outerStmt, boundary.wit.proj outerStmt outerWit⟩
 
-/-- Lift inner outputs back to outer outputs, returning both statement and witness
-components. -/
+/-- Lift inner outputs back to outer outputs, returning both statement and
+witness components. -/
 @[inline] def lift
-    (boundary : Context OuterStmtIn InnerStmtIn OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut)
+    (boundary : Context projection
+      OuterWitIn InnerWitIn
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut)
     (outerStmt : OuterStmtIn) (outerWit : OuterWitIn)
-    (tr : Spec.Transcript (InnerContext (boundary.stmt.proj outerStmt)))
-    (stmtOut : InnerStmtOut (boundary.stmt.proj outerStmt) tr)
-    (witOut : InnerWitOut (boundary.stmt.proj outerStmt) tr) :
+    (tr : Spec.Transcript (InnerSpec (projection.proj outerStmt)))
+    (stmtOut : InnerStmtOut (projection.proj outerStmt) tr)
+    (witOut : InnerWitOut (projection.proj outerStmt) tr) :
     boundary.StmtOut outerStmt tr × boundary.WitOut outerStmt tr :=
   ⟨boundary.stmt.lift outerStmt tr stmtOut,
     boundary.wit.lift outerStmt outerWit tr stmtOut witOut⟩
@@ -248,89 +389,106 @@ components. -/
 @[inline, reducible] def id
     (StmtIn : Type)
     (WitIn : Type)
-    (context : StmtIn → Spec)
+    (InnerSpec : StmtIn → Spec)
     (StmtOut WitOut :
-      (s : StmtIn) → Spec.Transcript (context s) → Type) :
-    Context StmtIn StmtIn WitIn WitIn context StmtOut WitOut where
-  stmt := Statement.id StmtIn context StmtOut
+      (s : StmtIn) → Spec.Transcript (InnerSpec s) → Type) :
+    Context
+      (StatementProjection.id StmtIn InnerSpec)
+      WitIn WitIn
+      StmtOut StmtOut
+      WitOut WitOut where
+  stmt := Statement.id StmtIn InnerSpec StmtOut
+  witProj := WitnessProjection.id
   wit := Witness.id
 
 /-- Context boundary that only changes the input statement and witness. -/
 @[inline] def ofInputOnly
     {OuterStmtIn InnerStmtIn : Type}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
+    {InnerSpec : InnerStmtIn → Spec}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (stmtProj : OuterStmtIn → InnerStmtIn)
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    (projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec)
     (witProj :
       (outer : OuterStmtIn) →
       OuterWitIn →
       InnerWitIn) :
-    Context OuterStmtIn InnerStmtIn
+    Context
+      projection
       OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut where
-  stmt := Statement.ofInputOnly stmtProj
-  wit := Witness.ofInputOnly witProj
+      InnerStmtOut
+      (fun outer tr => InnerStmtOut (projection.proj outer) tr)
+      InnerWitOut
+      (fun outer tr => InnerWitOut (projection.proj outer) tr) where
+  witProj := { proj := witProj }
+  stmt := Statement.ofInputOnly projection
+  wit := Witness.ofInputOnly
+    (projection := projection)
+    (witnessProjection := { proj := witProj })
 
 end Context
 
 namespace Verifier
 
-/-- Reinterpret an inner verifier through an outer statement boundary.
-
-Projects the outer input statement, runs the inner verifier, and lifts the
-inner output statement back to the outer interface.  The transcript and
-round structure are unchanged. -/
+/-- Reinterpret an inner verifier through an outer statement boundary. -/
 def pullback {m : Type _ → Type _} [Functor m]
     {OuterStmtIn InnerStmtIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (boundary : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut)
-    (verifier : Verifier m InnerStmtIn InnerContext InnerRoles InnerStmtOut) :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (boundary : Statement projection InnerStmtOut OuterStmtOut)
+    (verifier : Verifier m InnerStmtIn InnerSpec InnerRoles InnerStmtOut) :
     Verifier m OuterStmtIn
-      (fun outer => InnerContext (boundary.proj outer))
-      (fun outer => InnerRoles (boundary.proj outer))
-      boundary.StmtOut :=
+      (StatementProjection.spec projection)
+      (fun outer => InnerRoles (projection.proj outer))
+      OuterStmtOut :=
   fun outer =>
     Spec.Counterpart.mapOutput
       (fun tr stmtOut => boundary.lift outer tr stmtOut)
-      (verifier (boundary.proj outer))
+      (verifier (projection.proj outer))
 
 end Verifier
 
 namespace Prover
 
-/-- Reinterpret an inner prover through a full context boundary.
-
-Projects the outer `(stmt, wit)` pair, runs the inner prover strategy, and
-lifts the inner `(stmtOut, witOut)` pair back to the outer interface. -/
+/-- Reinterpret an inner prover through a full context boundary. -/
 def pullback {m : Type _ → Type _} [Monad m]
     {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (boundary : Context OuterStmtIn InnerStmtIn
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (boundary : Context projection
       OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut)
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut)
     (prover : Prover m InnerStmtIn InnerWitIn
-      InnerContext InnerRoles InnerStmtOut InnerWitOut) :
+      InnerSpec InnerRoles InnerStmtOut InnerWitOut) :
     Prover m OuterStmtIn OuterWitIn
-      (fun outer => InnerContext (boundary.stmt.proj outer))
-      (fun outer => InnerRoles (boundary.stmt.proj outer))
-      boundary.StmtOut
-      boundary.WitOut :=
+      (StatementProjection.spec projection)
+      (fun outer => InnerRoles (projection.proj outer))
+      OuterStmtOut
+      OuterWitOut :=
   fun outerStmt outerWit => do
     let strat ← prover
-      (boundary.stmt.proj outerStmt)
+      (projection.proj outerStmt)
       (boundary.wit.proj outerStmt outerWit)
     pure <| Spec.Strategy.mapOutputWithRoles
       (fun tr out =>
@@ -344,23 +502,31 @@ namespace Reduction
 /-- Reinterpret an inner reduction through a full context boundary. -/
 def pullback {m : Type _ → Type _} [Monad m] [Functor m]
     {OuterStmtIn InnerStmtIn : Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
     {InnerStmtOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     {InnerWitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (boundary : Context OuterStmtIn InnerStmtIn
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (boundary : Context projection
       OuterWitIn InnerWitIn
-      InnerContext InnerStmtOut InnerWitOut)
+      InnerStmtOut OuterStmtOut
+      InnerWitOut OuterWitOut)
     (reduction : Reduction m InnerStmtIn InnerWitIn
-      InnerContext InnerRoles InnerStmtOut InnerWitOut) :
+      InnerSpec InnerRoles InnerStmtOut InnerWitOut) :
     Reduction m OuterStmtIn OuterWitIn
-      (fun outer => InnerContext (boundary.stmt.proj outer))
-      (fun outer => InnerRoles (boundary.stmt.proj outer))
-      boundary.StmtOut
-      boundary.WitOut where
+      (StatementProjection.spec projection)
+      (fun outer => InnerRoles (projection.proj outer))
+      OuterStmtOut
+      OuterWitOut where
   prover := Prover.pullback boundary reduction.prover
   verifier := Verifier.pullback boundary.stmt reduction.verifier
 
