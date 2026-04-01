@@ -10,6 +10,8 @@ import ArkLib.Data.Classes.HasSize
 import ArkLib.Data.Classes.Initialize
 import ArkLib.Data.Classes.Serde
 import ArkLib.Data.Classes.Slice
+import ArkLib.Data.CompPoly.Basic
+import ArkLib.Data.CompPoly.Fold
 import ArkLib.Data.CodingTheory.Basic
 import ArkLib.Data.CodingTheory.BerlekampWelch.BerlekampWelch
 import ArkLib.Data.CodingTheory.BerlekampWelch.Condition
@@ -164,6 +166,13 @@ import ArkLib.ProofSystem.ConstraintSystem.MemoryChecking
 import ArkLib.ProofSystem.ConstraintSystem.Plonk
 import ArkLib.ProofSystem.ConstraintSystem.R1CS
 import ArkLib.ProofSystem.Fri.Domain
+import ArkLib.ProofSystem.Fri.Interaction.Core
+import ArkLib.ProofSystem.Fri.Interaction.FoldRound
+import ArkLib.ProofSystem.Fri.Interaction.FoldPhase
+import ArkLib.ProofSystem.Fri.Interaction.FinalFold
+import ArkLib.ProofSystem.Fri.Interaction.QueryRound
+import ArkLib.ProofSystem.Fri.Interaction.Protocol
+import ArkLib.ProofSystem.Fri.Interaction.General
 import ArkLib.ProofSystem.Fri.RoundConsistency
 import ArkLib.ProofSystem.Fri.Spec.General
 import ArkLib.ProofSystem.Fri.Spec.SingleRound
