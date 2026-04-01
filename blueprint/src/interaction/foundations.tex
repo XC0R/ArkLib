@@ -2,15 +2,28 @@
 
 \section{Foundations: Dependently-Typed Interaction}\label{sec:interaction-foundations}
 
-The core abstraction in ArkLib is a dependently-typed specification of
-sequential interaction.  We explain why this foundation is necessary, define the
-key types, and show how metadata is layered via displayed algebras rather than
-baked into a bespoke inductive.
+The interaction core of ArkLib is designed to model protocols in which the
+remainder of the interaction may depend on the transcript so far.  This extra
+generality is not introduced for its own sake.  It is needed to represent
+protocols where an early message determines the later message space, ambient
+field, or even the number of remaining rounds, while still supporting
+transcripts, composition, oracle semantics, and security reasoning in one
+uniform framework.  We begin with the modeling problem, then define the core
+interaction tree, and finally explain how additional metadata is layered over
+that tree rather than baked into a bespoke inductive.
 
 \subsection{Motivation: from flat indexing to dependent trees}
 
-A natural first attempt at modeling an $n$-round protocol is to store the move
-types in a vector indexed by $\Fin\;n$:
+Any general framework for interactive proofs must allow later parts of the
+protocol to depend on what has already been said.  In many familiar examples the
+round structure is fixed in advance, so this dependence is easy to ignore.  But
+there are important protocols in which the transcript changes the ambient object
+of later interaction: the message space, the field, or the remaining length of
+the protocol itself.
+
+A natural first attempt at modeling an $n$-round protocol is therefore to fix
+the number of rounds in advance and store the move types in a vector indexed by
+$\Fin\;n$:
 %
 \[
   \ProtocolSpec\;n \;\defeq\;
@@ -20,21 +33,29 @@ types in a vector indexed by $\Fin\;n$:
     \bigr\}.
 \]
 %
-This is the approach taken in the original ArkLib core.
-It is workable for protocols whose round types are fixed
-statically, but it suffers from pervasive \emph{index-arithmetic casts}.
-Accessing the transcript up to round~$k$ requires casting from $\Fin\;k$ to
-$\Fin\;n$; composing two protocols of lengths $m$ and $n$ forces every index
+This is the approach taken in the original ArkLib core.  It works for protocols
+whose round types are fixed statically, but it presupposes that the schedule of
+interaction is known before the protocol begins.  That is already too rigid for
+protocols where a later challenge space depends on an earlier message, or where
+an early claim determines how many rounds remain.
+
+Even in the fixed-round setting, the global index creates a second problem:
+composition and prefixes become dominated by index arithmetic.  Accessing the
+transcript up to round~$k$ requires casting from $\Fin\;k$ to $\Fin\;n$;
+composing two protocols of lengths $m$ and $n$ forces every index
 $i : \Fin\;(m+n)$ to be split into cases $i < m$ and $i \ge m$, each requiring
 dependent type casts with ad-hoc arithmetic lemmas.  In practice, composition
 definitions accumulate several layers of \texttt{Fin.castLE},
-\texttt{Fin.castSucc}, and casting calls that make proofs brittle and
-definitions hard to read.
+\texttt{Fin.castSucc}, and related casts that make proofs brittle and
+definitions hard to read.  This implementation pain is a symptom of the deeper
+semantic mismatch.
 
 An intermediate improvement replaces the $\Fin\;n$-indexed vector with an
 inductive list of $(\Direction \times \Type)$ pairs.  This removes the
 cast burden, because structural recursion on a list naturally decomposes
 ``first round'' from ``remaining rounds.''  All $\Fin$-arithmetic disappears.
+But the list model still fixes the entire schedule in advance: it improves the
+recursion principle without changing what can be expressed.
 
 However, the list-based model still fixes every round's type \emph{independently
 of prior moves}.  For most standard protocols---sumcheck, FRI, and their
@@ -48,7 +69,9 @@ mathematically forced:
     The prover and verifier begin with a relation over~$\Q$.
     The verifier samples a random prime~$q$; all subsequent rounds
     operate over~$\F_q$.  The type of later messages---field elements
-    modulo~$q$---depends on the verifier's choice.
+    modulo~$q$---depends on the verifier's choice.  The transcript does not
+    merely affect the values exchanged later; it changes the message space
+    itself.
 
   \item \textbf{Variable-length protocols (zkVMs such as Jolt~\cite{Jolt}).}
     The prover commits a claimed execution trace of length~$T$.
@@ -60,7 +83,9 @@ mathematically forced:
 
 Because ArkLib aims to model \emph{all} IOP-based protocols, including these,
 we adopt a \emph{dependently-typed specification of interaction}, where each
-round's continuation may depend on the move actually played.
+round's continuation may depend on the move actually played.  The right object
+is therefore not a list of round slots, but a well-founded tree of possible next
+moves.
 
 \subsection{Interaction specifications and transcripts}
 
@@ -82,10 +107,10 @@ round's continuation may depend on the move actually played.
   \lean{Interaction.Spec}
 \end{definition}
 
-This is a $W$-type in the Hancock--Setzer sense~\cite{HancockSetzer2000}. It
-can also be viewed as a well-founded dependent game tree, closely related to
-the history-dependent game trees studied by Escard\'o--Oliva~\cite{EscardoOliva2023}.
-The non-dependent special case---a flat list of types---is recovered by
+One should read $\mathsf{Spec}$ as a protocol tree.  Each internal node records
+the next \emph{move space}~$X$, and each move $x : X$ determines the remainder
+of the protocol.  Fixed-round protocols are recovered as a special case; the
+non-dependent list encoding appears via
 $\mathsf{Spec.ofList} : \List\;\Type \to \mathsf{Spec}$.
 
 \begin{definition}[Transcript]
@@ -100,6 +125,19 @@ $\mathsf{Spec.ofList} : \List\;\Type \to \mathsf{Spec}$.
   \]
   \lean{Interaction.Spec.Transcript}
 \end{definition}
+
+This is the point at which the formal object should feel natural to both
+audiences: cryptographically, a transcript is simply the record of all messages
+actually exchanged; type-theoretically, it is a dependent path through the
+interaction tree.
+
+For readers from type theory, $\mathsf{Spec}$ is a $W$-type in the
+Hancock--Setzer sense~\cite{HancockSetzer2000}.  It can also be viewed as a
+well-founded dependent game tree, closely related to the history-dependent game
+trees studied by Escard\'o--Oliva~\cite{EscardoOliva2023}.  We mention these
+connections because they explain why the subsequent structure composes so
+smoothly, not because they are prerequisites for reading the rest of this
+chapter.
 
 \subsection{Decorations as displayed algebras}
 
@@ -137,13 +175,18 @@ Decorations admit a natural transformation $\mathsf{map} :
   \uses{int:decoration}
 \end{definition}
 
-This is the \emph{displayed algebra} pattern emphasized by
-McBride~\cite{McBride2010}, together with the \emph{ornament} perspective
-developed further by Dagand--McBride~\cite{DagandMcBride2014}.
-The key benefit: because roles, oracle interfaces, and other metadata are all
-instances of $\mathsf{Decoration}$ (or $\mathsf{Decoration.Refine}$), every
-operation on $\mathsf{Spec}$---transcripts, append, replicate, state chains---is
-defined \emph{once} and reused at every metadata layer.
+The key benefit is practical.  Because roles, oracle interfaces, and other
+metadata are all instances of $\mathsf{Decoration}$ (or
+$\mathsf{Decoration.Refine}$), every operation on $\mathsf{Spec}$---transcripts,
+append, replicate, state chains---is defined \emph{once} and then reused at
+every metadata layer.
+
+For readers from PL and type theory, this is the \emph{displayed algebra}
+pattern emphasized by McBride~\cite{McBride2010}, together with the
+\emph{ornament} perspective developed further by
+Dagand--McBride~\cite{DagandMcBride2014}.  In this chapter, however, the main
+point is simpler: decorations let us enrich the same interaction tree without
+rebuilding the entire framework for each new concern.
 
 \subsection{Strategies}
 
@@ -165,6 +208,11 @@ defined \emph{once} and reused at every metadata layer.
 The definition is by structural recursion on $\mathsf{Spec}$, following the
 Hancock--Setzer pattern.  This avoids the positivity issues that arise when
 defining strategies as a coinductive free monad over a generic~$m$.
+
+Cryptographically, a strategy is the notion of protocol algorithm used
+throughout the framework: honest provers, honest verifiers, oracle simulators,
+and related objects are all instances obtained by choosing an appropriate monad
+and output family.
 
 $\mathsf{Strategy.run}$ executes a strategy, returning the full transcript
 and the dependent output.  $\mathsf{Strategy.mapOutput}$ is the functorial
