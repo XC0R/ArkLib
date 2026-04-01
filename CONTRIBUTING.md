@@ -149,6 +149,10 @@ When translating theorem statements into names, we use standard mappings for sym
 * **Definitions**: Prefer term-style definitions over tactic-style definitions. Avoid
   starting a `def` with a `by` block unless there is a strong reason; if a definition
   seems to require tactics, first reconsider the helper API or surrounding design.
+* **Library Combinators**: Prefer existing standard-library or repo combinators over bespoke
+  helper definitions for simple tuple/index plumbing. If a definition is just
+  snoc/append/update/projection/reindexing and a clear combinator already exists, use it
+  directly rather than introducing or keeping a wrapper definition.
 * **Hypotheses**: Prefer placing hypotheses to the left of the colon (e.g., `(h : P) : Q`) rather than using arrows (`: P → Q`) when the proof introduces them.
 * **Functions**: Prefer `fun x ↦ ...` over `λ x, ...`.
 * **Instances**: Use the `where` syntax for defining instances and structures.

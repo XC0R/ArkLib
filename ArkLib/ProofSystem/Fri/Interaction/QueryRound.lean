@@ -1,4 +1,4 @@
-/- 
+/-
 Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
@@ -66,7 +66,7 @@ fold challenge at index `k`. -/
 private def roundChallengeAt
     (stmt : FinalStatement (F := F) (k := k) (d := d)) :
     Fin (k + 1) → F
-  | ⟨i, hi⟩ =>
+  | ⟨i, _⟩ =>
       if h : i < k then
         stmt.1 ⟨i, h⟩
       else

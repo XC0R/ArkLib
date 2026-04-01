@@ -1,4 +1,4 @@
-/- 
+/-
 Copyright (c) 2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
@@ -31,29 +31,6 @@ variable [DIsCyclicC : IsCyclicWithGen D] [DSmooth : SmoothPowerOfTwo n D]
 variable (x : Fˣ)
 variable {k : ℕ} (s : Fin (k + 1) → ℕ+) (d : ℕ)
 
-/-- Append one more verifier challenge to the existing fold-round challenge
-prefix. -/
-private def snocChallengePrefix {i : ℕ}
-    (prev : FoldChallengePrefix (F := F) i) (α : F) :
-    FoldChallengePrefix (F := F) i.succ :=
-  fun j =>
-    by
-      cases j using Fin.lastCases with
-      | last => exact α
-      | cast j => exact prev j
-
-/-- Append the current round's codeword to the previously produced fold-codeword
-oracle family. -/
-private def snocCodewordPrefix {i : ℕ}
-    (prev : OracleStatement (FoldCodewordPrefix (F := F) (n := n) D x s i))
-    (next : Codeword (F := F) s n i.succ) :
-    OracleStatement (FoldCodewordPrefix (F := F) (n := n) D x s i.succ) :=
-  fun j =>
-    by
-      cases j using Fin.lastCases with
-      | last => exact next
-      | cast j => exact prev j
-
 /-- Oracle continuation for the `i`-th non-final FRI fold round. -/
 def foldRoundContinuation {SharedIn : Type} {ι : Type} {oSpec : OracleSpec ι}
     (i : Fin k)
@@ -75,18 +52,14 @@ def foldRoundContinuation {SharedIn : Type} {ι : Type} {oSpec : OracleSpec ι}
       let nextPoly := honestFoldPoly (F := F) (s := s) (d := d) witness α
       let nextCodeword :=
         honestCodeword (F := F) (D := D) (x := x) (s := s) (d := d) i.1.succ nextPoly
-      let nextChallenges :=
-        snocChallengePrefix (F := F) sWithOracles.stmt α
-      let nextCodewords :=
-        snocCodewordPrefix (D := D) (x := x) (s := s) (n := n)
-          sWithOracles.oracleStmt nextCodeword
+      let nextChallenges := Fin.snoc sWithOracles.stmt α
+      let nextCodewords := Fin.snoc sWithOracles.oracleStmt nextCodeword
       pure ⟨nextCodeword, pure ⟨⟨nextChallenges, nextCodewords⟩, nextPoly⟩⟩
   verifier shared {_} _accSpec prevChallenges := do
     let α ← sampleChallenge shared
-    pure ⟨α, fun _ => snocChallengePrefix (F := F) prevChallenges α⟩
-  simulate _ tr := fun q =>
+    return ⟨α, fun _ => Fin.snoc prevChallenges α⟩
+  simulate _ tr := fun ⟨j, q⟩ =>
     by
-      rcases q with ⟨j, q⟩
       cases j using Fin.lastCases with
       | last =>
           exact pure <|

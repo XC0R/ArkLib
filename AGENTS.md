@@ -37,6 +37,10 @@ Start with [`README.md`](README.md) for project overview.
 - Prefer term-style definitions over tactic-style definitions. Do not start a definition
   with a `by` block unless there is a strong reason; if a definition seems to require
   tactics, first reconsider the surrounding API, helper definitions, or expected normal form.
+- Prefer existing library and repo combinators over bespoke helper definitions for simple
+  tuple/index plumbing. If a definition is just snoc/append/update/projection/reindexing and a
+  clear standard combinator already expresses it, use that directly instead of writing or keeping
+  a wrapper definition.
 - Edit source, not derived output such as `.lake/`, `blueprint/web/`, `blueprint/print/`,
   `dependency_graphs/`, or `home_page/docs/`.
 - Pre-existing `sorry` blocks exist in active formalizations; distinguish existing gaps from new
