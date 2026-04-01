@@ -143,6 +143,12 @@ When translating theorem statements into names, we use standard mappings for sym
   ```
 * **Imports**: Group imports at the top of the file.
 * **Operators**: Put spaces on both sides of `:`, `:=`, and infix operators. Place them before a line break rather than at the start of the next line.
+* **Readable Notation**: Prefer Lean notation such as `∑`, `∏`, infix operators, binder
+  notation, and dot notation over more verbose combinator forms when this makes the code
+  easier to read and still elaborates cleanly.
+* **Definitions**: Prefer term-style definitions over tactic-style definitions. Avoid
+  starting a `def` with a `by` block unless there is a strong reason; if a definition
+  seems to require tactics, first reconsider the helper API or surrounding design.
 * **Hypotheses**: Prefer placing hypotheses to the left of the colon (e.g., `(h : P) : Q`) rather than using arrows (`: P → Q`) when the proof introduces them.
 * **Functions**: Prefer `fun x ↦ ...` over `λ x, ...`.
 * **Instances**: Use the `where` syntax for defining instances and structures.

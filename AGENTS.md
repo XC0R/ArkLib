@@ -31,6 +31,12 @@ Start with [`README.md`](README.md) for project overview.
   `set_option autoImplicit false` in individual files.
 - The long-file linter cap is `1500` unless a file opts out locally.
 - `ArkLib.lean` is generated; do not hand-edit it.
+- Prefer readable Lean notation when it helps clarity: use notation such as `∑`, `∏`,
+  infix operators, binder notation, and dot notation instead of more verbose combinator
+  forms when the result is clearer and elaborates cleanly.
+- Prefer term-style definitions over tactic-style definitions. Do not start a definition
+  with a `by` block unless there is a strong reason; if a definition seems to require
+  tactics, first reconsider the surrounding API, helper definitions, or expected normal form.
 - Edit source, not derived output such as `.lake/`, `blueprint/web/`, `blueprint/print/`,
   `dependency_graphs/`, or `home_page/docs/`.
 - Pre-existing `sorry` blocks exist in active formalizations; distinguish existing gaps from new
