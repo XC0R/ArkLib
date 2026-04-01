@@ -91,6 +91,12 @@ import ArkLib.Interaction.Basic.StateChain
 import ArkLib.Interaction.Basic.Strategy
 import ArkLib.Interaction.Multiparty
 import ArkLib.Interaction.Oracle
+import ArkLib.Interaction.Boundary.Core
+import ArkLib.Interaction.Boundary.Oracle
+import ArkLib.Interaction.Boundary.Reification
+import ArkLib.Interaction.Boundary.Compatibility
+import ArkLib.Interaction.Boundary.Security
+import ArkLib.Interaction.Boundary.OracleSecurity
 import ArkLib.Interaction.Reduction
 import ArkLib.Interaction.Security
 import ArkLib.Interaction.TwoParty.Compose

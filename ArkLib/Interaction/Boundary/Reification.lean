@@ -186,6 +186,327 @@ def Realizes
 
 end OracleStatementReification
 
+namespace OracleStatementReification
+
+/-! ### Consequences of Realization -/
+
+/-- If a concrete outer input oracle materializes an inner input oracle, then
+the access-layer input simulation is realized by that materialized inner oracle
+on every query. -/
+theorem realizes_materializeIn
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ : Type} {OuterOStmtIn : Outerιₛᵢ → Type}
+    {Innerιₛᵢ : Type} {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    {access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut}
+    {reification :
+      OracleStatementReification toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut}
+    (hRealizes : Realizes access reification)
+    (outer : OuterStmtIn)
+    (oStmtIn : OracleStatement OuterOStmtIn) :
+    ∀ q,
+      simulateQ
+        (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+        (access.simulateIn q) =
+          pure
+            ((OracleInterface.simOracle0
+              InnerOStmtIn
+              (reification.materializeIn outer oStmtIn)) q) := by
+  intro q
+  rcases q with ⟨i, q⟩
+  simpa [OracleInterface.simOracle0] using hRealizes.1 outer oStmtIn i q
+
+/-- If a concrete inner output oracle is materialized into an outer output
+oracle, then the access-layer output simulation is realized by that
+materialized outer oracle on every query. -/
+theorem realizes_materializeOut
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ : Type} {OuterOStmtIn : Outerιₛᵢ → Type}
+    {Innerιₛᵢ : Type} {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    {access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut}
+    {reification :
+      OracleStatementReification toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut}
+    (hRealizes : Realizes access reification)
+    (outer : OuterStmtIn)
+    (oStmtIn : OracleStatement OuterOStmtIn)
+    (tr : Spec.Transcript (InnerContext (toStatement.proj outer)))
+    (innerOStmtOut :
+      OracleStatement (InnerOStmtOut (toStatement.proj outer) tr)) :
+    ∀ q,
+      simulateQ
+        (QueryImpl.add
+          (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+          (OracleInterface.simOracle0
+            (InnerOStmtOut (toStatement.proj outer) tr)
+            innerOStmtOut))
+        (access.simulateOut outer tr q) =
+          pure
+            ((OracleInterface.simOracle0
+              (OuterOStmtOut outer tr)
+              (reification.materializeOut
+                outer
+                oStmtIn
+                tr
+                innerOStmtOut)) q) := by
+  intro q
+  rcases q with ⟨i, q⟩
+  simpa [OracleInterface.simOracle0] using
+    hRealizes.2 outer oStmtIn tr innerOStmtOut i q
+
+/-- If a concrete inner output oracle realizes `simulateInner`, then rerouting
+that simulation across the boundary via `routeInnerOutputQueries` still realizes
+the same concrete inner output oracle against the outer input oracle. -/
+theorem routeInnerOutputQueries_materialize
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ : Type} {OuterOStmtIn : Outerιₛᵢ → Type}
+    {Innerιₛᵢ : Type} {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    (access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    (reification :
+      OracleStatementReification toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    (hRealizes : Realizes access reification)
+    {outer : OuterStmtIn}
+    (oStmtIn : OracleStatement OuterOStmtIn)
+    {tr : Spec.Transcript (InnerContext (toStatement.proj outer))}
+    {ιₘ : Type}
+    (msgSpec : OracleSpec ιₘ)
+    (msgImpl : QueryImpl msgSpec Id)
+    (innerOStmtOut :
+      OracleStatement (InnerOStmtOut (toStatement.proj outer) tr))
+    (simulateInner :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+        (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
+    (hInner :
+      ∀ q,
+        simulateQ
+            (QueryImpl.add
+              (OracleInterface.simOracle0
+                InnerOStmtIn
+                (reification.materializeIn outer oStmtIn))
+              msgImpl)
+            (simulateInner q) =
+          pure
+            ((OracleInterface.simOracle0
+              (InnerOStmtOut (toStatement.proj outer) tr)
+              innerOStmtOut) q)) :
+    ∀ q,
+      simulateQ
+          (QueryImpl.add
+            (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+            msgImpl)
+          (OracleStatementAccess.routeInnerOutputQueries
+            (access := access)
+            (outer := outer)
+            (tr := tr)
+            msgSpec
+            simulateInner
+            q) =
+        pure
+          ((OracleInterface.simOracle0
+            (InnerOStmtOut (toStatement.proj outer) tr)
+            innerOStmtOut) q) := by
+  intro q
+  simpa using
+    OracleStatementAccess.routeInnerOutputQueries_eval
+      (access := access)
+      (outer := outer)
+      (tr := tr)
+      msgSpec
+      (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+      (OracleInterface.simOracle0
+        InnerOStmtIn
+        (reification.materializeIn outer oStmtIn))
+      msgImpl
+      (OracleInterface.simOracle0
+        (InnerOStmtOut (toStatement.proj outer) tr)
+        innerOStmtOut)
+      simulateInner
+                  (realizes_materializeIn
+                    (hRealizes := hRealizes)
+                    outer
+                    oStmtIn)
+      hInner
+      q
+
+/-- If a concrete inner output oracle realizes an inner output simulation, then
+materializing that oracle across the boundary realizes the pulled-back outer
+output simulation. -/
+theorem pullbackSimulate_materialize
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ : Type} {OuterOStmtIn : Outerιₛᵢ → Type}
+    {Innerιₛᵢ : Type} {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    (access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    (reification :
+      OracleStatementReification toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    (hRealizes : Realizes access reification)
+    (outer : OuterStmtIn)
+    (oStmtIn : OracleStatement OuterOStmtIn)
+    (tr : Spec.Transcript (InnerContext (toStatement.proj outer)))
+    {ιₘ : Type}
+    (msgSpec : OracleSpec ιₘ)
+    (msgImpl : QueryImpl msgSpec Id)
+    (innerOStmtOut :
+      OracleStatement (InnerOStmtOut (toStatement.proj outer) tr))
+    (simulateInner :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+        (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
+    (hInner :
+      ∀ q,
+        simulateQ
+            (QueryImpl.add
+              (OracleInterface.simOracle0
+                InnerOStmtIn
+                (reification.materializeIn outer oStmtIn))
+              msgImpl)
+            (simulateInner q) =
+          pure
+            ((OracleInterface.simOracle0
+              (InnerOStmtOut (toStatement.proj outer) tr)
+              innerOStmtOut) q)) :
+    ∀ q,
+      simulateQ
+          (QueryImpl.add
+            (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+            msgImpl)
+          (OracleStatementAccess.pullbackSimulate
+            (access := access)
+            outer
+            tr
+            msgSpec
+            simulateInner
+            q) =
+        pure
+          ((OracleInterface.simOracle0
+            (OuterOStmtOut outer tr)
+            (reification.materializeOut outer oStmtIn tr innerOStmtOut)) q) := by
+  intro q
+  simpa using
+    OracleStatementAccess.pullbackSimulate_eval
+      (access := access)
+      outer
+      tr
+      msgSpec
+      (OracleInterface.simOracle0 OuterOStmtIn oStmtIn)
+      (OracleInterface.simOracle0
+        InnerOStmtIn
+        (reification.materializeIn outer oStmtIn))
+      msgImpl
+      (OracleInterface.simOracle0
+        (InnerOStmtOut (toStatement.proj outer) tr)
+        innerOStmtOut)
+      (OracleInterface.simOracle0
+        (OuterOStmtOut outer tr)
+        (reification.materializeOut outer oStmtIn tr innerOStmtOut))
+      simulateInner
+      (realizes_materializeIn
+        (hRealizes := hRealizes)
+        outer
+        oStmtIn)
+      hInner
+      (realizes_materializeOut
+        (hRealizes := hRealizes)
+        outer
+        oStmtIn
+        tr
+        innerOStmtOut)
+      q
+
+end OracleStatementReification
+
 /-- A fully bundled oracle statement boundary: plain statement boundary + oracle
 access (simulation) + oracle reification (materialization) + coherence proof.
 

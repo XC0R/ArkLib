@@ -40,6 +40,131 @@ namespace Boundary
 
 open OracleComp OracleSpec
 
+/-! ### Generic Simulation Lemmas -/
+
+/-- Pointwise-equal query handlers induce pointwise-equal simulated oracle
+computations. -/
+theorem simulateQ_ext
+    {ι : Type _} {spec : OracleSpec ι}
+    {r : Type _ → Type _}
+    [Monad r] [LawfulMonad r]
+    {impl₁ impl₂ : QueryImpl spec r}
+    (himpl : ∀ q, impl₁ q = impl₂ q) :
+    ∀ {α : Type _} (oa : OracleComp spec α),
+      simulateQ impl₁ oa = simulateQ impl₂ oa := by
+  intro α oa
+  induction oa using OracleComp.inductionOn with
+  | pure x =>
+      simp
+  | query_bind t oa ih =>
+      simp [himpl t, ih]
+
+/-- Simulating through one handler and then another is the same as simulating
+once through their composed handler. -/
+theorem simulateQ_compose
+    {ι : Type _} {spec : OracleSpec ι}
+    {ι' : Type _} {spec' : OracleSpec ι'}
+    {r : Type _ → Type _}
+    [Monad r] [LawfulMonad r]
+    (impl' : QueryImpl spec' r)
+    (impl : QueryImpl spec (OracleComp spec')) :
+    ∀ {α : Type _} (oa : OracleComp spec α),
+      simulateQ impl' (simulateQ impl oa) =
+        simulateQ (fun q => simulateQ impl' (impl q)) oa := by
+  intro α oa
+  induction oa using OracleComp.inductionOn with
+  | pure x =>
+      simp
+  | query_bind t oa ih =>
+      simp [ih]
+
+/-- `simulateQ` commutes with mapping the result of the simulated oracle
+computation. -/
+theorem simulateQ_map
+    {ι : Type _} {spec : OracleSpec ι}
+    {r : Type _ → Type _}
+    [Monad r] [LawfulMonad r]
+    {α β : Type _}
+    (impl : QueryImpl spec r)
+    (f : α → β)
+    (oa : OracleComp spec α) :
+    simulateQ impl (f <$> oa) = f <$> simulateQ impl oa := by
+  induction oa using OracleComp.inductionOn with
+  | pure x =>
+      simp
+  | query_bind t oa ih =>
+      simp [ih]
+
+/-- Lifting an `Id`-valued handler into a larger oracle computation commutes
+with `simulateQ`. -/
+theorem simulateQ_liftId
+    {ι : Type _} {spec : OracleSpec ι}
+    {ι' : Type _} {superSpec : OracleSpec ι'}
+    (impl : QueryImpl spec Id) :
+    ∀ {α : Type _} (oa : OracleComp spec α),
+      simulateQ
+          (fun q => (liftM (n := OracleComp superSpec) (impl q) : OracleComp superSpec _))
+          oa =
+        (liftM (n := OracleComp superSpec) (simulateQ impl oa) : OracleComp superSpec α) := by
+  intro α oa
+  induction oa using OracleComp.inductionOn with
+  | pure x =>
+      rfl
+  | query_bind t oa ih =>
+      simp [simulateQ_bind, ih, simulateQ_query]
+
+/-- If a computation only queries the left summand of a sum oracle spec, then
+evaluating it with the combined handler is the same as evaluating it with the
+left handler alone. -/
+theorem simulateQ_add_liftComp_left
+    {ι₁ : Type _} {ι₂ : Type _}
+    {spec₁ : OracleSpec ι₁} {spec₂ : OracleSpec ι₂}
+    {r : Type _ → Type _}
+    [Monad r] [LawfulMonad r]
+    (impl₁ : QueryImpl spec₁ r)
+    (impl₂ : QueryImpl spec₂ r)
+    {α : Type _}
+    (oa : OracleComp spec₁ α) :
+    simulateQ
+        (QueryImpl.add impl₁ impl₂)
+        (OracleComp.liftComp oa (spec₁ + spec₂)) =
+      simulateQ impl₁ oa := by
+  rw [OracleComp.liftComp_def, simulateQ_compose]
+  apply simulateQ_ext
+  intro q
+  change
+    simulateQ
+        (QueryImpl.add impl₁ impl₂)
+        (liftM (query (spec := spec₁ + spec₂) (.inl q))) =
+      impl₁ q
+  simp [QueryImpl.add, simulateQ_query]
+
+/-- If a computation only queries the right summand of a sum oracle spec, then
+evaluating it with the combined handler is the same as evaluating it with the
+right handler alone. -/
+theorem simulateQ_add_liftComp_right
+    {ι₁ : Type _} {ι₂ : Type _}
+    {spec₁ : OracleSpec ι₁} {spec₂ : OracleSpec ι₂}
+    {r : Type _ → Type _}
+    [Monad r] [LawfulMonad r]
+    (impl₁ : QueryImpl spec₁ r)
+    (impl₂ : QueryImpl spec₂ r)
+    {α : Type _}
+    (oa : OracleComp spec₂ α) :
+    simulateQ
+        (QueryImpl.add impl₁ impl₂)
+        (OracleComp.liftComp oa (spec₁ + spec₂)) =
+      simulateQ impl₂ oa := by
+  rw [OracleComp.liftComp_def, simulateQ_compose]
+  apply simulateQ_ext
+  intro q
+  change
+    simulateQ
+        (QueryImpl.add impl₁ impl₂)
+        (liftM (query (spec := spec₁ + spec₂) (.inr q))) =
+      impl₂ q
+  simp [QueryImpl.add, simulateQ_query]
+
 /-- Verifier-side oracle simulation data for a statement boundary.
 
 `simulateIn` routes a single inner input-oracle query to outer input-oracle
@@ -123,6 +248,8 @@ structure OracleContextAccess
 
 namespace OracleStatementAccess
 
+/-! ### Input Query Routing -/
+
 /-- Route inner input oracle queries through `simulateIn`, passing base oracles
 (`oSpec`) and the accumulator (`accSpec`) through unchanged.  Used at receiver
 nodes of `pullbackCounterpart`. -/
@@ -147,6 +274,56 @@ def routeInputQueries
         (simulateIn q)
   | .inr q =>
       liftM <| query (spec := accSpec) q
+
+/-- Evaluating `routeInputQueries` against concrete outer input oracles yields
+the same result as directly evaluating the original inner query handler against
+the corresponding concrete inner input oracles.
+
+This is the basic operational fact behind `pullbackCounterpart`: rerouting a
+receiver-node verifier computation through `simulateIn` does not change its
+behavior once the outer input oracle concretely realizes the inner one. -/
+theorem routeInputQueries_eval
+    {ι : Type} {oSpec : OracleSpec ι}
+    {Outerιₛᵢ Innerιₛᵢ ιₐ : Type}
+    {OuterOStmtIn : Outerιₛᵢ → Type}
+    {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    (simulateIn :
+      QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (accSpec : OracleSpec ιₐ)
+    (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
+    (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
+    (accImpl : QueryImpl accSpec Id)
+    (hInput :
+      ∀ q,
+        simulateQ outerInputImpl (simulateIn q) =
+          pure (innerInputImpl q)) :
+    ∀ {α : Type _}
+      (oa : OracleComp ((oSpec + [InnerOStmtIn]ₒ) + accSpec) α),
+      simulateQ
+          (fun
+            | .inl (.inl q) =>
+                liftM <| query (spec := oSpec) q
+            | .inl (.inr q) =>
+                (liftM (n := OracleComp oSpec) (outerInputImpl q) : OracleComp oSpec _)
+            | .inr q =>
+                (liftM (n := OracleComp oSpec) (accImpl q) : OracleComp oSpec _))
+          (simulateQ
+            (routeInputQueries (oSpec := oSpec) simulateIn accSpec)
+            oa) =
+        simulateQ
+          (fun
+            | .inl (.inl q) =>
+                liftM <| query (spec := oSpec) q
+            | .inl (.inr q) =>
+                (liftM (n := OracleComp oSpec) (innerInputImpl q) : OracleComp oSpec _)
+            | .inr q =>
+                (liftM (n := OracleComp oSpec) (accImpl q) : OracleComp oSpec _))
+          oa := by
+  sorry
+
+/-! ### Output Query Routing -/
 
 /-- Given a simulation of an inner output oracle that issues inner input oracle
 queries, compose it with `simulateIn` to produce a simulation that issues outer
@@ -201,6 +378,142 @@ def routeInnerOutputQueries
       | .inr qMsg =>
           liftM <| query (spec := msgSpec) qMsg
     simulateQ route (simulateInner q)
+
+/-- Evaluating `routeInnerOutputQueries` against concrete outer input oracles
+agrees with evaluating the original inner output-oracle simulation against the
+corresponding concrete inner input oracles.
+
+Only the inner input-oracle traffic is rerouted.  Base message-oracle queries
+from `msgSpec` are passed through unchanged. -/
+theorem routeInnerOutputQueries_eval
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ Innerιₛᵢ : Type}
+    {OuterOStmtIn : Outerιₛᵢ → Type}
+    {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    (access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    {outer : OuterStmtIn}
+    {tr : Spec.Transcript (InnerContext (toStatement.proj outer))}
+    {ιₘ : Type}
+    (msgSpec : OracleSpec ιₘ)
+    (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
+    (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
+    (msgImpl : QueryImpl msgSpec Id)
+    (innerOutputImpl :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ Id)
+    (simulateInner :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+        (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
+    (hInput :
+      ∀ q,
+        simulateQ outerInputImpl (access.simulateIn q) =
+          pure (innerInputImpl q))
+    (hInner :
+      ∀ q,
+        simulateQ
+            (QueryImpl.add innerInputImpl msgImpl)
+            (simulateInner q) =
+          pure (innerOutputImpl q)) :
+    ∀ q,
+      simulateQ
+          (QueryImpl.add outerInputImpl msgImpl)
+          (routeInnerOutputQueries
+            (access := access)
+            (outer := outer)
+            (tr := tr)
+            msgSpec
+            simulateInner
+            q) =
+        pure (innerOutputImpl q) := by
+  intro q
+  dsimp [routeInnerOutputQueries]
+  calc
+    simulateQ
+        (QueryImpl.add outerInputImpl msgImpl)
+        (simulateQ
+          (fun
+            | .inl qIn =>
+                OracleComp.liftComp
+                  (superSpec := [OuterOStmtIn]ₒ + msgSpec)
+                  (access.simulateIn qIn)
+            | .inr qMsg =>
+                liftM <| query (spec := msgSpec) qMsg)
+          (simulateInner q)) =
+      simulateQ
+        (fun q =>
+          simulateQ
+            (QueryImpl.add outerInputImpl msgImpl)
+            (match q with
+            | .inl qIn =>
+                OracleComp.liftComp
+                  (superSpec := [OuterOStmtIn]ₒ + msgSpec)
+                  (access.simulateIn qIn)
+            | .inr qMsg =>
+                liftM <| query (spec := msgSpec) qMsg))
+        (simulateInner q) := by
+        rw [simulateQ_compose]
+    _ =
+      simulateQ
+        (QueryImpl.add innerInputImpl msgImpl)
+        (simulateInner q) := by
+          apply simulateQ_ext
+          intro q'
+          cases q' with
+          | inl qIn =>
+              calc
+                simulateQ
+                    (QueryImpl.add outerInputImpl msgImpl)
+                    (OracleComp.liftComp
+                      (access.simulateIn qIn)
+                      ([OuterOStmtIn]ₒ + msgSpec)) =
+                  simulateQ outerInputImpl (access.simulateIn qIn) := by
+                    simpa using
+                      simulateQ_add_liftComp_left
+                        outerInputImpl
+                        msgImpl
+                        (access.simulateIn qIn)
+                _ = pure (innerInputImpl qIn) :=
+                  hInput qIn
+          | inr qMsg =>
+              calc
+                simulateQ
+                    (QueryImpl.add outerInputImpl msgImpl)
+                    (OracleComp.liftComp
+                      (liftM (query (spec := msgSpec) qMsg) : OracleComp msgSpec _)
+                      ([OuterOStmtIn]ₒ + msgSpec)) =
+                  simulateQ msgImpl
+                    (liftM (query (spec := msgSpec) qMsg) : OracleComp msgSpec _) := by
+                      simpa using
+                        simulateQ_add_liftComp_right
+                          outerInputImpl
+                          msgImpl
+                          (liftM (query (spec := msgSpec) qMsg) : OracleComp msgSpec _)
+                _ = msgImpl qMsg := by
+                  simp [simulateQ_query]
+    _ = pure (innerOutputImpl q) :=
+      hInner q
 
 /-- Rewire a verifier's output oracle simulation through a statement boundary.
 An outer output oracle query is passed to `simulateOut`, which may in turn
@@ -262,7 +575,166 @@ def pullbackSimulate
             qOut
     simulateQ route (access.simulateOut outer tr q)
 
+/-- Evaluating `pullbackSimulate` against concrete outer input oracles and a
+concrete message oracle agrees with the intended concrete outer output oracle,
+provided:
+
+- outer input oracles realize `simulateIn`,
+- the inner output simulation is realized against the induced inner inputs, and
+- `simulateOut` is realized against the outer input oracle together with that
+  concrete inner output oracle. -/
+theorem pullbackSimulate_eval
+    {OuterStmtIn InnerStmtIn : Type}
+    {InnerContext : InnerStmtIn → Spec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {toStatement : Statement OuterStmtIn InnerStmtIn InnerContext InnerStmtOut}
+    {Outerιₛᵢ Innerιₛᵢ : Type}
+    {OuterOStmtIn : Outerιₛᵢ → Type}
+    {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    {Innerιₛₒ :
+      (s : InnerStmtIn) → (tr : Spec.Transcript (InnerContext s)) → Type}
+    {InnerOStmtOut :
+      (s : InnerStmtIn) →
+      (tr : Spec.Transcript (InnerContext s)) →
+      Innerιₛₒ s tr → Type}
+    {Outerιₛₒ :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) → Type}
+    {OuterOStmtOut :
+      (outer : OuterStmtIn) →
+      (tr : Spec.Transcript (InnerContext (toStatement.proj outer))) →
+      Outerιₛₒ outer tr → Type}
+    [∀ s tr i, OracleInterface (InnerOStmtOut s tr i)]
+    [∀ outer tr i, OracleInterface (OuterOStmtOut outer tr i)]
+    (access :
+      OracleStatementAccess toStatement
+        OuterOStmtIn InnerOStmtIn InnerOStmtOut OuterOStmtOut)
+    (outer : OuterStmtIn)
+    (tr : Spec.Transcript (InnerContext (toStatement.proj outer)))
+    {ιₘ : Type}
+    (msgSpec : OracleSpec ιₘ)
+    (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
+    (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
+    (msgImpl : QueryImpl msgSpec Id)
+    (innerOutputImpl :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ Id)
+    (outerOutputImpl :
+      QueryImpl [OuterOStmtOut outer tr]ₒ Id)
+    (simulateInner :
+      QueryImpl [InnerOStmtOut (toStatement.proj outer) tr]ₒ
+        (OracleComp ([InnerOStmtIn]ₒ + msgSpec)))
+    (hInput :
+      ∀ q,
+        simulateQ outerInputImpl (access.simulateIn q) =
+          pure (innerInputImpl q))
+    (hInner :
+      ∀ q,
+        simulateQ
+            (QueryImpl.add innerInputImpl msgImpl)
+            (simulateInner q) =
+          pure (innerOutputImpl q))
+    (hOuter :
+      ∀ q,
+        simulateQ
+            (QueryImpl.add outerInputImpl innerOutputImpl)
+            (access.simulateOut outer tr q) =
+          pure (outerOutputImpl q)) :
+    ∀ q,
+      simulateQ
+          (QueryImpl.add outerInputImpl msgImpl)
+          (pullbackSimulate
+            (access := access)
+            outer
+            tr
+            msgSpec
+            simulateInner
+            q) =
+        pure (outerOutputImpl q) := by
+  intro q
+  dsimp [pullbackSimulate]
+  calc
+    simulateQ
+        (QueryImpl.add outerInputImpl msgImpl)
+        (simulateQ
+          (fun
+            | .inl qIn =>
+                liftM <| query (spec := [OuterOStmtIn]ₒ) qIn
+            | .inr qOut =>
+                routeInnerOutputQueries
+                  (access := access)
+                  (outer := outer)
+                  (tr := tr)
+                  msgSpec
+                  simulateInner
+                  qOut)
+          (access.simulateOut outer tr q)) =
+      simulateQ
+        (fun q =>
+          simulateQ
+            (QueryImpl.add outerInputImpl msgImpl)
+            (match q with
+            | .inl qIn =>
+                liftM <| query (spec := [OuterOStmtIn]ₒ) qIn
+            | .inr qOut =>
+                routeInnerOutputQueries
+                  (access := access)
+                  (outer := outer)
+                  (tr := tr)
+                  msgSpec
+                  simulateInner
+                  qOut))
+        (access.simulateOut outer tr q) := by
+        rw [simulateQ_compose]
+    _ =
+      simulateQ
+        (QueryImpl.add outerInputImpl innerOutputImpl)
+        (access.simulateOut outer tr q) := by
+          apply simulateQ_ext
+          intro q'
+          cases q' with
+          | inl qIn =>
+              calc
+                simulateQ
+                    (QueryImpl.add outerInputImpl msgImpl)
+                    (OracleComp.liftComp
+                      (liftM (query (spec := [OuterOStmtIn]ₒ) qIn) :
+                        OracleComp [OuterOStmtIn]ₒ _)
+                      ([OuterOStmtIn]ₒ + msgSpec)) =
+                  simulateQ outerInputImpl
+                    (liftM (query (spec := [OuterOStmtIn]ₒ) qIn) :
+                      OracleComp [OuterOStmtIn]ₒ _) := by
+                      simpa using
+                        simulateQ_add_liftComp_left
+                          outerInputImpl
+                          msgImpl
+                          (liftM (query (spec := [OuterOStmtIn]ₒ) qIn) :
+                            OracleComp [OuterOStmtIn]ₒ _)
+                _ = outerInputImpl qIn := by
+                  simp [simulateQ_query]
+          | inr qOut =>
+              simpa [QueryImpl.add] using
+                routeInnerOutputQueries_eval
+                  (access := access)
+                  (outer := outer)
+                  (tr := tr)
+                  msgSpec
+                  outerInputImpl
+                  innerInputImpl
+                  msgImpl
+                  innerOutputImpl
+                  simulateInner
+                  hInput
+                  hInner
+                  qOut
+    _ = pure (outerOutputImpl q) :=
+      hOuter q
+
 end OracleStatementAccess
+
+/-! ### Counterpart Pullback -/
 
 /-- Rewire every receiver-node oracle query in a `Spec.Counterpart.withMonads`
 tree through `simulateIn`, mapping inner input oracle queries to outer input
@@ -324,6 +796,65 @@ def pullbackCounterpart
             (fun tr out => f ⟨x, tr⟩ out)
             accSpec
             cptRest⟩
+
+/-- Running a verifier counterpart after `pullbackCounterpart` is the same as
+running the original inner counterpart against the realized inner input oracle,
+then lifting only the verifier's final plain output.
+
+Operationally:
+- `pullbackCounterpart` reroutes every receiver-node inner input-oracle query
+  through `simulateIn`;
+- the hypothesis `hInput` says that concrete outer input oracles realize that
+  simulation;
+- so `runWithOracleCounterpart` sees exactly the same verifier behavior, up to
+  the final output map `f`. -/
+theorem runWithOracleCounterpart_pullbackCounterpart
+    {ι : Type} {oSpec : OracleSpec ι}
+    {Outerιₛᵢ Innerιₛᵢ : Type}
+    {OuterOStmtIn : Outerιₛᵢ → Type}
+    {InnerOStmtIn : Innerιₛᵢ → Type}
+    [∀ i, OracleInterface (OuterOStmtIn i)]
+    [∀ i, OracleInterface (InnerOStmtIn i)]
+    (simulateIn :
+      QueryImpl [InnerOStmtIn]ₒ (OracleComp [OuterOStmtIn]ₒ))
+    (outerInputImpl : QueryImpl [OuterOStmtIn]ₒ Id)
+    (innerInputImpl : QueryImpl [InnerOStmtIn]ₒ Id)
+    (hInput :
+      ∀ q,
+        simulateQ outerInputImpl (simulateIn q) =
+          pure (innerInputImpl q)) :
+    ∀ (spec : Spec) (roles : RoleDecoration spec)
+      (od : OracleDecoration spec roles)
+      {ιₐ : Type} (accSpec : OracleSpec ιₐ) (accImpl : QueryImpl accSpec Id)
+      {OutputP Output₁ Output₂ : Spec.Transcript spec → Type}
+      (f : ∀ tr, Output₁ tr → Output₂ tr)
+      (strat :
+        Spec.Strategy.withRoles (OracleComp oSpec) spec roles OutputP)
+      (cpt :
+        Spec.Counterpart.withMonads spec roles
+          (OracleDecoration.toMonadDecoration
+            oSpec InnerOStmtIn spec roles od accSpec)
+          Output₁),
+      OracleDecoration.runWithOracleCounterpart
+          outerInputImpl
+          spec
+          roles
+          od
+          accSpec
+          accImpl
+          strat
+          (pullbackCounterpart simulateIn spec roles od f accSpec cpt) =
+        (fun z => ⟨z.1, z.2.1, f z.1 z.2.2⟩) <$>
+          OracleDecoration.runWithOracleCounterpart
+            innerInputImpl
+            spec
+            roles
+            od
+            accSpec
+            accImpl
+            strat
+            cpt := by
+  sorry
 
 end Boundary
 
