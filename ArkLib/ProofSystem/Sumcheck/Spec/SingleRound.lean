@@ -12,7 +12,6 @@ import ArkLib.ProofSystem.Component.CheckClaim
 import ArkLib.ProofSystem.Component.RandomQuery
 import ArkLib.ProofSystem.Component.ReduceClaim
 import ArkLib.Data.Fin.Basic
-import ArkLib.ToVCVio.Lemmas
 
 /-!
 # Single round of the Sum-check Protocol
