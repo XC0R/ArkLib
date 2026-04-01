@@ -135,7 +135,18 @@ def accImplAfter :
   | .node _ rest, ⟨.receiver, rRest⟩, odFn, _, accSpec, accImpl, ⟨x, trRest⟩ =>
       accImplAfter (rest x) (rRest x) (odFn x) accSpec accImpl trRest
 
-private def runWithOracleCounterpart
+/-- Execute a prover strategy against a monadic oracle verifier counterpart.
+
+This is the core operational engine behind `OracleReduction.run` and
+`OracleReduction.execute`. It threads three oracle sources through the verifier:
+
+- ambient base oracles `oSpec`,
+- concrete input oracles `OStmtIn`,
+- accumulated sender-message oracles `accSpec`.
+
+The result packages the realized transcript, prover output, and verifier output
+for that transcript. -/
+def runWithOracleCounterpart
     {ι : Type} {oSpec : OracleSpec ι}
     {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
     (inputImpl : QueryImpl [OStmtIn]ₒ Id) :
@@ -284,7 +295,9 @@ theorem toMonadDecoration_append
       exact toMonadDecoration_append (rest x) (fun p => spec₂ ⟨x, p⟩)
         (rRest x) (fun p => roles₂ ⟨x, p⟩) (odFn x) (fun p => od₂ ⟨x, p⟩) _
 
-private theorem runWithOracleCounterpart_mapOutputWithRoles_mapOutput
+/-- Mapping the prover-side output of a strategy before execution is equivalent
+to executing first and then mapping the prover component of the result. -/
+theorem runWithOracleCounterpart_mapOutputWithRoles
     {ι : Type} {oSpec : OracleSpec ι}
     {ιₛᵢ : Type} {OStmtIn : ιₛᵢ → Type} [∀ i, OracleInterface (OStmtIn i)]
     (inputImpl : QueryImpl [OStmtIn]ₒ Id)

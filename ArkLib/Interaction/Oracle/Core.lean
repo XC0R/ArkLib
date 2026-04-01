@@ -807,13 +807,13 @@ oracle statements. The verifier produces the plain next statement, while the
 `simulate` field exposes query-level access to the output oracle family.
 Concrete reification of those output oracles is optional and lives in a
 separate layer. -/
-structure OracleReduction {ι : Type} (oSpec : OracleSpec.{0, 0} ι)
+structure OracleReduction {ι : Type} (oSpec : OracleSpec ι)
     (StatementIn : Type) {ιₛᵢ : Type} (OStmtIn : ιₛᵢ → Type)
-    [∀ i, OracleInterface.{0, 0} (OStmtIn i)]
+    [∀ i, OracleInterface (OStmtIn i)]
     (WitnessIn : Type)
-    (Context : StatementIn → Spec.{0})
+    (Context : StatementIn → Spec)
     (Roles : (s : StatementIn) → RoleDecoration (Context s))
-    (OD : (s : StatementIn) → OracleDecoration.{0, 0} (Context s) (Roles s))
+    (OD : (s : StatementIn) → OracleDecoration (Context s) (Roles s))
     (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type)
     {ιₛₒ : (s : StatementIn) → (tr : Spec.Transcript (Context s)) → Type}
     (OStmtOut : (s : StatementIn) → (tr : Spec.Transcript (Context s)) → ιₛₒ s tr → Type)
@@ -821,7 +821,7 @@ structure OracleReduction {ι : Type} (oSpec : OracleSpec.{0, 0} ι)
     (WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type) where
   prover : OracleProver oSpec StatementIn OStmtIn WitnessIn Context Roles
     StatementOut OStmtOut WitnessOut
-  verifier : (s : StatementIn) → {ιₐ : Type} → (accSpec : OracleSpec.{0, 0} ιₐ) →
+  verifier : (s : StatementIn) → {ιₐ : Type} → (accSpec : OracleSpec ιₐ) →
     Spec.Counterpart.withMonads (Context s) (Roles s)
       (toMonadDecoration oSpec OStmtIn (Context s) (Roles s) (OD s) accSpec)
       (fun tr => StatementOut s tr)
