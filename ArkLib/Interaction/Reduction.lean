@@ -166,6 +166,170 @@ def Reduction.Continuation.execute {m : Type u → Type u} [Monad m]
   Spec.Strategy.runWithRoles (Context shared) (Roles shared) strategy
     (reduction.verifier shared stmt)
 
+namespace Reduction.Continuation
+
+/-- Fix the shared input of a continuation and view it as an ordinary
+reduction. This is a thin wrapper for top-level use sites where the shared
+input is static. -/
+def fix {m : Type u → Type u}
+    {SharedIn : Type v}
+    {Context : SharedIn → Spec}
+    {Roles : (shared : SharedIn) → RoleDecoration (Context shared)}
+    {StatementIn WitnessIn : SharedIn → Type w}
+    {StatementOut WitnessOut :
+      (shared : SharedIn) → Spec.Transcript (Context shared) → Type u}
+    (reduction : Reduction.Continuation m SharedIn Context Roles
+      StatementIn WitnessIn StatementOut WitnessOut)
+    (shared : SharedIn) :
+    Reduction m (StatementIn shared) (WitnessIn shared)
+      (fun _ => Context shared)
+      (fun _ => Roles shared)
+      (fun _ tr => StatementOut shared tr)
+      (fun _ tr => WitnessOut shared tr) where
+  prover stmt wit :=
+    reduction.prover shared stmt wit
+  verifier stmt :=
+    reduction.verifier shared stmt
+
+/-- Compose a continuation reduction with a transcript-indexed continuation
+reduction. The first continuation runs over `ctx₁`, producing intermediate
+outputs `StmtMid` and `WitMid`. These feed into `reduction2`, whose protocol
+`ctx₂` may depend on the first transcript. -/
+def comp {m : Type u → Type u} [Monad m]
+    {SharedIn : Type v}
+    {StatementIn WitnessIn : SharedIn → Type w}
+    {ctx₁ : SharedIn → Spec}
+    {roles₁ : (shared : SharedIn) → RoleDecoration (ctx₁ shared)}
+    {StmtMid WitMid : (shared : SharedIn) → Spec.Transcript (ctx₁ shared) → Type u}
+    {ctx₂ : (shared : SharedIn) → Spec.Transcript (ctx₁ shared) → Spec}
+    {roles₂ : (shared : SharedIn) → (tr₁ : Spec.Transcript (ctx₁ shared)) →
+      RoleDecoration (ctx₂ shared tr₁)}
+    {StmtOut WitOut : (shared : SharedIn) -> (tr₁ : Spec.Transcript (ctx₁ shared)) →
+      Spec.Transcript (ctx₂ shared tr₁) → Type u}
+    (reduction1 : Reduction.Continuation m SharedIn
+      ctx₁ roles₁ StatementIn WitnessIn StmtMid WitMid)
+    (reduction2 : Reduction.Continuation m
+      ((shared : SharedIn) × Spec.Transcript (ctx₁ shared))
+      (fun shared => ctx₂ shared.1 shared.2)
+      (fun shared => roles₂ shared.1 shared.2)
+      (fun shared => StmtMid shared.1 shared.2)
+      (fun shared => WitMid shared.1 shared.2)
+      (fun shared tr₂ => StmtOut shared.1 shared.2 tr₂)
+      (fun shared tr₂ => WitOut shared.1 shared.2 tr₂)) :
+    Reduction.Continuation m SharedIn
+      (fun shared => (ctx₁ shared).append (ctx₂ shared))
+      (fun shared => (roles₁ shared).append (roles₂ shared))
+      StatementIn WitnessIn
+      (fun shared => Spec.Transcript.liftAppend (ctx₁ shared) (ctx₂ shared) (StmtOut shared))
+      (fun shared => Spec.Transcript.liftAppend (ctx₁ shared) (ctx₂ shared) (WitOut shared)) where
+  prover shared stmt wit := do
+    let strat₁ ← reduction1.prover shared stmt wit
+    let strat ← Spec.Strategy.compWithRoles strat₁
+      (fun tr₁ midOut =>
+        reduction2.prover ⟨shared, tr₁⟩ midOut.stmt midOut.wit)
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr out =>
+        Spec.Transcript.liftAppendProd
+          (ctx₁ shared) (ctx₂ shared) (StmtOut shared) (WitOut shared) tr out)
+      strat
+  verifier shared stmt :=
+    Spec.Counterpart.append (reduction1.verifier shared stmt)
+      (fun tr₁ sMid => reduction2.verifier ⟨shared, tr₁⟩ sMid)
+
+/-- Compose per-stage prover and verifier step functions into a continuation over
+a chained protocol `Spec.stateChain Stage spec advance n`.
+
+This is the continuation analogue of `Reduction.stateChainComp`: the shared
+input `shared` remains fixed, while the local statement and witness are carried
+only at the continuation boundary. -/
+def stateChainComp {m : Type u → Type u} [Monad m]
+    {SharedIn : Type v}
+    {StatementIn WitnessIn : SharedIn → Type w}
+    {Stage : Nat → Type u}
+    {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (st : Stage i) -> Spec.Transcript (spec i st) -> Stage (i + 1)}
+    {roles : (i : Nat) → (st : Stage i) → RoleDecoration (spec i st)}
+    {ProverState VerifierState : (shared : SharedIn) → (i : Nat) → Stage i → Type u}
+    (n : Nat)
+    (initStage : SharedIn → Stage 0)
+    (proverInit : (shared : SharedIn) → StatementIn shared → WitnessIn shared →
+      m (ProverState shared 0 (initStage shared)))
+    (proverStep : (shared : SharedIn) → (i : Nat) → (st : Stage i) →
+      ProverState shared i st →
+      m (Spec.Strategy.withRoles m (spec i st) (roles i st)
+        (fun tr => ProverState shared (i + 1) (advance i st tr))))
+    (stmtResult : (shared : SharedIn) → (stmt : StatementIn shared) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) →
+      Spec.Transcript.stateChainFamily (fun i st => VerifierState shared i st)
+        n 0 (initStage shared) tr)
+    (verifierInit : (shared : SharedIn) → StatementIn shared →
+      VerifierState shared 0 (initStage shared))
+    (verifierStep : (shared : SharedIn) → (i : Nat) → (st : Stage i) →
+      VerifierState shared i st →
+      Spec.Counterpart m (spec i st) (roles i st)
+        (fun tr => VerifierState shared (i + 1) (advance i st tr))) :
+    Reduction.Continuation m SharedIn
+      (fun shared =>
+        Spec.stateChain Stage spec advance n 0 (initStage shared))
+      (fun shared =>
+        RoleDecoration.stateChain roles n 0 (initStage shared))
+      StatementIn WitnessIn
+      (fun shared tr =>
+        Spec.Transcript.stateChainFamily (fun i st => VerifierState shared i st)
+          n 0 (initStage shared) tr)
+      (fun shared tr =>
+        Spec.Transcript.stateChainFamily (fun i st => ProverState shared i st)
+          n 0 (initStage shared) tr) where
+  prover shared stmt wit := do
+    let a ← proverInit shared stmt wit
+    let strat ← Spec.Strategy.stateChainCompWithRoles
+      (proverStep shared) n 0 (initStage shared) a
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr pOut => ⟨stmtResult shared stmt tr, pOut⟩) strat
+  verifier shared stmt :=
+    Spec.Counterpart.stateChainComp
+      (verifierStep shared) n 0 (initStage shared) (verifierInit shared stmt)
+
+/-- Uniform `Reduction.Continuation.stateChainComp` with fixed prover state `α`
+and verifier state `β` at every stage. -/
+def stateChainCompUniform {m : Type u → Type u} [Monad m]
+    {SharedIn : Type v}
+    {StatementIn WitnessIn : SharedIn → Type w}
+    {Stage : Nat → Type u}
+    {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (st : Stage i) -> Spec.Transcript (spec i st) -> Stage (i + 1)}
+    {roles : (i : Nat) → (st : Stage i) → RoleDecoration (spec i st)}
+    {α β : Type u}
+    (n : Nat)
+    (initStage : SharedIn → Stage 0)
+    (proverInit : (shared : SharedIn) → StatementIn shared → WitnessIn shared → m α)
+    (proverStep : (shared : SharedIn) → (i : Nat) → (st : Stage i) → α →
+      m (Spec.Strategy.withRoles m (spec i st) (roles i st) (fun _ => α)))
+    (stmtResult : (shared : SharedIn) → (stmt : StatementIn shared) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) → β)
+    (verifierInit : (shared : SharedIn) → StatementIn shared → β)
+    (verifierStep : (shared : SharedIn) → (i : Nat) → (st : Stage i) → β →
+      Spec.Counterpart m (spec i st) (roles i st) (fun _ => β)) :
+    Reduction.Continuation m SharedIn
+      (fun shared =>
+        Spec.stateChain Stage spec advance n 0 (initStage shared))
+      (fun shared =>
+        RoleDecoration.stateChain roles n 0 (initStage shared))
+      StatementIn WitnessIn
+      (fun _ _ => β)
+      (fun _ _ => α) where
+  prover shared stmt wit := do
+    let a ← proverInit shared stmt wit
+    let strat ← Spec.Strategy.stateChainCompWithRolesUniform
+      (proverStep shared) n 0 (initStage shared) a
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr a' => ⟨stmtResult shared stmt tr, a'⟩) strat
+  verifier shared stmt :=
+    Spec.Counterpart.stateChainCompUniform
+      (verifierStep shared) n 0 (initStage shared) (verifierInit shared stmt)
+
+end Reduction.Continuation
+
 /-- Run a prover strategy against a verifier. Convenience wrapper around
 `Spec.Strategy.runWithRoles` that applies the statement-indexed verifier. -/
 def Verifier.run {m : Type u → Type u} [Monad m]

@@ -3,20 +3,16 @@ Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
-import CompPoly.Multivariate.CMvPolynomial
-import CompPoly.Multivariate.Operations
-import CompPoly.Multivariate.Rename
-import CompPoly.Univariate.ToPoly.Impl
 import Mathlib.Algebra.Polynomial.BigOperators
-import ArkLib.OracleReduction.OracleInterface
+import ArkLib.Data.CompPoly.Basic
 
 /-!
 # CompPoly Types and Computable Operations for Sum-Check
 
 This module provides:
 
-1. **Degree-bounded polynomial types** (`CDegreeLE`, `CMvDegreeLE`) as CompPoly-native
-   subtypes for sum-check messages and oracle polynomials.
+1. **Shared degree-bounded polynomial wrappers** from
+   `ArkLib.Data.CompPoly.Basic`.
 2. **Computable partial evaluation and domain summation** for `CMvPolynomial`, built
    on top of CompPoly's `bind₁` and `eval₂` APIs:
    - `partialEvalFirst` / `partialEvalLast` — fix the first/last variable to a scalar,
@@ -48,29 +44,6 @@ from `eval₂_equiv`.
 open CompPoly CPoly Std
 
 attribute [local instance] instDecidableEqOfLawfulBEq
-
-/-! ## Degree-bounded polynomial types -/
-
-namespace CPoly.CMvPolynomial
-
-variable {n : ℕ} {R : Type} [CommSemiring R] [BEq R] [LawfulBEq R]
-
-/-- `p` has individual degree at most `deg` when every monomial exponent is bounded by `deg`
-in every coordinate. Uses `CMvMonomial.degreeOf` for the per-coordinate degree. -/
-def IndividualDegreeLE (deg : ℕ) (p : CMvPolynomial n R) : Prop :=
-  ∀ i : Fin n, ∀ mono ∈ Lawful.monomials p, mono.degreeOf i ≤ deg
-
-end CPoly.CMvPolynomial
-
-/-- A computable univariate polynomial with `natDegree ≤ d`. Used as the round message type
-for sum-check (the prover sends a degree-bounded polynomial). -/
-def CDegreeLE (R : Type) [BEq R] [Semiring R] [LawfulBEq R] (d : ℕ) :=
-  { p : CPolynomial R // p.natDegree ≤ d }
-
-/-- A computable `n`-variate polynomial with individual degree at most `d` in every
-coordinate. This is the bundled oracle statement type for sum-check instances. -/
-def CMvDegreeLE (R : Type) [BEq R] [CommSemiring R] [LawfulBEq R] (n d : ℕ) :=
-  { p : CMvPolynomial n R // CMvPolynomial.IndividualDegreeLE (R := R) d p }
 
 /-! ## Computable partial evaluation and domain summation -/
 
@@ -218,48 +191,6 @@ theorem roundPoly_natDegree_le {deg : ℕ} (D : Fin m → R) {k : ℕ}
 end Univariate
 
 end CPoly.CMvPolynomial
-
-/-! ## OracleInterface instances for CompPoly types -/
-
-section OracleInterface
-
-open OracleComp OracleSpec
-
-variable {n : ℕ} {deg : ℕ} {R : Type} [CommSemiring R] [BEq R] [LawfulBEq R]
-
-instance instOracleInterfaceCMvPolynomial :
-    OracleInterface (CMvPolynomial n R) where
-  Query := Fin n → R
-  toOC := {
-    spec := (Fin n → R) →ₒ R
-    impl := fun points => do return CMvPolynomial.eval points (← read)
-  }
-
-instance instOracleInterfaceCPolynomial [Nontrivial R] :
-    OracleInterface (CPolynomial R) where
-  Query := R
-  toOC := {
-    spec := R →ₒ R
-    impl := fun point => do return CPolynomial.eval point (← read)
-  }
-
-instance instOracleInterfaceCDegreeLE [Semiring R] :
-    OracleInterface (CDegreeLE R deg) where
-  Query := R
-  toOC := {
-    spec := R →ₒ R
-    impl := fun point => do return CPolynomial.eval point (← read).1
-  }
-
-instance instOracleInterfaceCMvDegreeLE :
-    OracleInterface (CMvDegreeLE R n deg) where
-  Query := Fin n → R
-  toOC := {
-    spec := (Fin n → R) →ₒ R
-    impl := fun points => do return CMvPolynomial.eval points (← read).1
-  }
-
-end OracleInterface
 
 /-! ## Sum-check prover residual state -/
 

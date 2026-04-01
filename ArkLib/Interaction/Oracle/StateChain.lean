@@ -107,6 +107,94 @@ def OracleReduction.stateChainComp {ι : Type} {oSpec : OracleSpec ι}
     stateChainVerifier od accSpec verifierStep n 0 (initStage s) (verifierInit s)
   simulate := simulateResult
 
+namespace OracleReduction.Continuation
+
+/-- N-ary state chain composition of oracle continuations. The shared input
+determines the full chained protocol, while the continuation-local statement and
+witness are only used to initialize and interpret the carried prover/verifier
+state. Each stage's verifier sees oracle access from `oSpec + [OStmtIn]ₒ` plus
+the accumulated sender-message spec. -/
+def stateChainComp {ι : Type} {oSpec : OracleSpec ι}
+    {SharedIn : Type}
+    {StatementIn : SharedIn → Type}
+    {ιₛᵢ : SharedIn → Type}
+    {OStmtIn : (shared : SharedIn) → ιₛᵢ shared → Type}
+    [∀ shared i, OracleInterface (OStmtIn shared i)]
+    {WitnessIn : SharedIn → Type}
+    {Stage : Nat → Type}
+    {spec : (i : Nat) → Stage i → Spec}
+    {advance : (i : Nat) → (s : Stage i) → Spec.Transcript (spec i s) → Stage (i + 1)}
+    {roles : (i : Nat) → (s : Stage i) → RoleDecoration (spec i s)}
+    {od : (i : Nat) → (s : Stage i) → OracleDecoration (spec i s) (roles i s)}
+    {ProverState VerifierState : (shared : SharedIn) → (i : Nat) → Stage i → Type}
+    (n : Nat)
+    (initStage : SharedIn → Stage 0)
+    {ιₛₒ : (shared : SharedIn) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) → Type}
+    {OStmtOut :
+      (shared : SharedIn) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) →
+      ιₛₒ shared tr → Type}
+    [∀ shared tr i, OracleInterface (OStmtOut shared tr i)]
+    (proverInit :
+      (shared : SharedIn) →
+      StatementWithOracles (StatementIn shared) (OStmtIn shared) → WitnessIn shared →
+      OracleComp oSpec (ProverState shared 0 (initStage shared)))
+    (proverStep : (shared : SharedIn) → (i : Nat) → (st : Stage i) →
+      ProverState shared i st →
+      OracleComp oSpec (Spec.Strategy.withRoles (OracleComp oSpec) (spec i st) (roles i st)
+        (fun tr => ProverState shared (i + 1) (advance i st tr))))
+    (stmtResult : (shared : SharedIn) → (stmt : StatementIn shared) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) →
+      Spec.Transcript.stateChainFamily (fun i st => VerifierState shared i st)
+        n 0 (initStage shared) tr)
+    (proverOStmtResult :
+      (shared : SharedIn) →
+      (s : StatementWithOracles (StatementIn shared) (OStmtIn shared)) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) →
+      OracleStatement (OStmtOut shared tr))
+    (verifierInit : (shared : SharedIn) → StatementIn shared →
+      VerifierState shared 0 (initStage shared))
+    (verifierStep : (shared : SharedIn) → {ιₐ : Type} → (accSpec : OracleSpec ιₐ) →
+      (i : Nat) → (st : Stage i) → VerifierState shared i st →
+      Spec.Counterpart.withMonads (spec i st) (roles i st)
+        (toMonadDecoration oSpec (OStmtIn shared) (spec i st) (roles i st) (od i st) accSpec)
+        (fun tr => VerifierState shared (i + 1) (advance i st tr)))
+    (simulateResult : (shared : SharedIn) →
+      (tr : Spec.Transcript (Spec.stateChain Stage spec advance n 0 (initStage shared))) →
+      QueryImpl [OStmtOut shared tr]ₒ
+        (OracleComp ([OStmtIn shared]ₒ + toOracleSpec
+          (Spec.stateChain Stage spec advance n 0 (initStage shared))
+          (RoleDecoration.stateChain roles n 0 (initStage shared))
+          (Role.Refine.stateChain (fun i st => od i st) n 0 (initStage shared)) tr))) :
+    OracleReduction.Continuation oSpec SharedIn
+      (fun shared => Spec.stateChain Stage spec advance n 0 (initStage shared))
+      (fun shared => RoleDecoration.stateChain roles n 0 (initStage shared))
+      (fun shared => Role.Refine.stateChain (fun i st => od i st) n 0 (initStage shared))
+      StatementIn OStmtIn WitnessIn
+      (fun shared tr =>
+        Spec.Transcript.stateChainFamily (fun i st => VerifierState shared i st)
+          n 0 (initStage shared) tr)
+      OStmtOut
+      (fun shared tr =>
+        Spec.Transcript.stateChainFamily (fun i st => ProverState shared i st)
+          n 0 (initStage shared) tr) where
+  prover shared sWithOracles w := do
+    let a ← proverInit shared sWithOracles w
+    let strat ← Spec.Strategy.stateChainCompWithRoles
+      (proverStep shared) n 0 (initStage shared) a
+    pure <| Spec.Strategy.mapOutputWithRoles
+      (fun tr pOut =>
+        ⟨⟨stmtResult shared sWithOracles.stmt tr, proverOStmtResult shared sWithOracles tr⟩, pOut⟩)
+      strat
+  verifier shared {_} accSpec stmt :=
+    stateChainVerifier od accSpec (verifierStep shared) n 0 (initStage shared)
+      (verifierInit shared stmt)
+  simulate shared tr :=
+    simulateResult shared tr
+
+end OracleReduction.Continuation
+
 end OracleDecoration
 
 end Interaction
