@@ -59,6 +59,15 @@ oracle families. The downstream verifier and reduction interfaces are also
 polymorphic in their statement, witness, and oracle-family universes where the
 underlying `Spec`, `Counterpart.withMonads`, and `OracleComp` interfaces permit
 it.
+
+## See also
+
+- `Oracle/Continuation.lean` — `OracleReduction.Continuation` and intrinsic
+  `Chain`
+- `Oracle/Composition.lean` — append-level oracle composition infrastructure
+- `Oracle/StateChain.lean` — N-ary state chain composition for oracle reductions
+- `OracleReification.lean` — optional concrete oracle materialization
+- `OracleSecurity.lean` — completeness, soundness, knowledge soundness
 -/
 
 universe u v w

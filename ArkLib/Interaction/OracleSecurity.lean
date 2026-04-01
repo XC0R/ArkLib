@@ -7,10 +7,31 @@ import ArkLib.Interaction.Security
 This module gives the oracle-side analog of `ArkLib.Interaction.Security`,
 using the redesigned oracle-only reduction API from `ArkLib.Interaction.Oracle`.
 
-The key point is that verifier-side acceptance is phrased in terms of
+The key design point is that verifier-side acceptance is phrased in terms of
 *existence* of concrete output oracle statements compatible with the verifier's
 query-level `simulate` interface, rather than by assuming a built-in
-reification function.
+reification function. This means:
+
+- The verifier never holds concrete oracle data; it only issues queries.
+- Soundness asks: for any malicious prover, the probability that there *exists*
+  a concrete output oracle family realizing the verifier's simulation *and*
+  the resulting output passes the acceptance predicate is at most `ε`.
+- Completeness asks: the honest prover produces concrete output oracle data
+  that *does* realize the simulation, and the output passes acceptance.
+
+## Main definitions
+
+- `OracleReduction.completeness` — honest-execution completeness
+- `OracleReduction.soundness` — soundness against arbitrary provers
+- `OracleReduction.knowledgeSoundness` — knowledge soundness with a
+  `Straightline` extractor
+- `OracleStatement.Realizes` — coherence between a concrete oracle family
+  and a deterministic query implementation
+
+## See also
+
+- `Security.lean` — plain (non-oracle) security definitions
+- `OracleReification.lean` — optional concrete reification layer
 -/
 
 noncomputable section

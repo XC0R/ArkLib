@@ -15,24 +15,39 @@ semantics, except `randomChallenger` which explicitly uses `ProbComp`.
 
 ## Definitions
 
-- **Random challenger**: builds a `Counterpart ProbComp` that samples at
-  receiver nodes, using a generic sampler `sample : (T : Type) → ProbComp T`.
-- **Completeness**: honest execution on valid input yields valid output with
-  high probability.
-- **Soundness**: any prover on invalid input has low acceptance probability.
-  Uses an output language `langOut` to specify which verifier outputs are considered valid.
-- **Knowledge soundness**: like soundness, but an extractor must recover a
-  valid input witness from any accepting execution.
-- **Claim tree**: recursive soundness witness for round-by-round analysis.
-- **Knowledge claim tree**: augmented claim tree with backward extraction for
-  round-by-round knowledge soundness.
+- **Random challenger** (`randomChallenger`): builds a `Counterpart ProbComp`
+  that samples at receiver nodes, using a generic sampler
+  `sample : (T : Type) → ProbComp T`.
+- **Completeness** (`Reduction.completeness`): honest execution on valid input
+  yields valid output with probability at least `1 - ε`.
+- **Soundness** (`Reduction.soundness`): any prover on invalid input has
+  acceptance probability at most `ε`. Uses an output language `langOut` to
+  specify which verifier outputs are considered valid.
+- **Knowledge soundness** (`Reduction.knowledgeSoundness`): like soundness,
+  but an `Extractor.Straightline` must recover a valid input witness from any
+  accepting execution.
 
-The claim tree approach (adapted from the `iop-refactor` branch) provides a
-structural induction principle for proving soundness of multi-round protocols.
-At prover-message (sender) nodes, bad claims must stay bad. At verifier-challenge
-(receiver) nodes, a bad claim may flip to good with probability at most `error`.
-The main theorem `ClaimTree.IsSound.bound_terminalProb` bounds the probability
-of reaching a good terminal claim from a bad root.
+## Composition theorems
+
+- `Reduction.completeness_comp` / `perfectCompleteness_comp` — completeness
+  composes along `Reduction.Continuation.comp`.
+- `Reduction.soundness_comp` — soundness composes with additive error.
+
+## Round-by-round analysis
+
+- **Claim tree** (`ClaimTree`): recursive soundness witness for round-by-round
+  analysis. At prover-message (sender) nodes, bad claims must stay bad. At
+  verifier-challenge (receiver) nodes, a bad claim may flip to good with
+  probability at most `error`.
+- **Knowledge claim tree** (`KnowledgeClaimTree`): augmented claim tree with
+  backward extraction for round-by-round knowledge soundness.
+- `ClaimTree.IsSound.bound_terminalProb` bounds the probability of reaching a
+  good terminal claim from a bad root.
+
+## See also
+
+- `Reduction.lean` — protocol participants and execution
+- `OracleSecurity.lean` — oracle-aware security definitions
 -/
 
 noncomputable section

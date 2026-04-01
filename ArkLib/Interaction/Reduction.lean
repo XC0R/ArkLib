@@ -10,7 +10,12 @@ import ArkLib.Interaction.TwoParty.Compose
 # Provers, Verifiers, and Reductions
 
 Interactive protocol participants and their composition, built on `Spec` with
-a `RoleDecoration`. The type architecture uses:
+a `RoleDecoration`. This module replaces the old `OracleReduction/Basic.lean`
+flat-list model with one natively built on the W-type interaction tree.
+
+## Type architecture
+
+The type parameters shared across all definitions are:
 
 - `StatementIn` — the input statement type
 - `WitnessIn` — the input witness type (plain, no dependency on `StatementIn`)
@@ -18,6 +23,10 @@ a `RoleDecoration`. The type architecture uses:
 - `Roles : (s : StatementIn) → RoleDecoration (Context s)` — roles per statement
 - `StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type`
 - `WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type`
+
+`WitnessIn` is intentionally not statement-dependent; statement/witness
+compatibility is expressed in the security relations (see `Security.lean`)
+rather than baked into the types.
 
 Input and output are represented as:
 - **Input**: `StatementIn × WitnessIn`
@@ -35,10 +44,21 @@ Input and output are represented as:
 Both `Prover` and `Verifier` are `abbrev`s (transparent type aliases) for
 the underlying function types.
 
+## Composition
+
+`Reduction.Continuation` supports transcript-indexed second-stage composition:
+the second protocol may depend on the first-phase transcript, but both parties
+agree on the transcript while carrying private local state. `Continuation.comp`
+composes two continuations; `Continuation.stateChainComp` iterates over a
+state chain.
+
 ## Running a reduction
 
 `Reduction.execute` runs the prover's strategy against the verifier (via
 `Strategy.runWithRoles`), returning the transcript plus both outputs.
+
+See `Security.lean` for completeness, soundness, and knowledge soundness
+definitions built on this execution model.
 -/
 
 universe u v w

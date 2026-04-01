@@ -24,7 +24,20 @@ builds a chain from `(σ, step, next, s₀)` and then forgets `σ`.
 * `Chain.replicate` — constant rounds (recovers `Spec.replicate`).
 * `Chain.ofStateMachine` — build from a state machine (recovers `Spec.stateChain`).
 
-## Toy example
+## Three composition mechanisms
+
+| Mechanism | State? | Transcript-dependent? | Use when |
+|---|---|---|---|
+| `Spec.replicate` | No | No | Uniform rounds (same spec, independent) |
+| `Spec.stateChain` | Yes (`Stage i`) | Yes | State machine with explicit state type |
+| `Spec.Chain` | No (baked in) | Yes | Continuation-style, no external state |
+
+`Chain` is the most fundamental: it requires no external state type, yet
+supports full transcript dependence. `stateChain` is a specialization
+(recovered by `Chain.ofStateMachine`), and `replicate` is a further
+specialization (recovered by `Chain.replicate`).
+
+## Toy examples
 
 The `GrowingMessages` section builds a protocol whose message type grows
 at each step (`Fin 1`, `Fin 2`, …) without mentioning any state type.

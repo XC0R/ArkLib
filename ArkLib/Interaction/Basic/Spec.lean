@@ -19,6 +19,21 @@ moves are computed. Those concerns are separated into companion modules:
 * `Strategy` — one-player strategies with monadic effects
 * `Append`, `Replicate`, `Chain` — sequential composition and iteration
 
+This is the foundation of the entire `Interaction` layer, which replaces
+the old flat `ProtocolSpec n` model with a dependent-type-native design.
+The key advantage is that later rounds can depend on earlier moves, which
+is mathematically forced in protocols like sumcheck and FRI.
+
+## Module map
+
+- `Basic/` — spec, transcript, decoration, strategy, composition (this layer)
+- `TwoParty/` — sender/receiver roles, `withRoles`, `Counterpart`
+- `Reduction.lean` — prover, verifier, reduction
+- `Oracle/` — oracle decoration, path-dependent oracle access
+- `Security.lean` / `OracleSecurity.lean` — security definitions
+- `Boundary/` — same-transcript interface adaptation
+- `Multiparty.lean` — N-party interactions via party decoration
+
 ## References
 
 * Hancock–Setzer (2000), recursion over interaction interfaces

@@ -220,7 +220,8 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
               next xc.2)
   exact go spec roles fP fC strat cpt
 
-/-- `withRoles` using the monad attached at each node (from `MonadDecoration`). -/
+/-- `withRoles` using the monad attached at each node (from `MonadDecoration`).
+See `Counterpart.withMonads` for the dual. -/
 def Strategy.withRolesAndMonads :
     (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec →
     (Transcript spec → Type u) → Type u
@@ -230,7 +231,15 @@ def Strategy.withRolesAndMonads :
         (fun x => withRolesAndMonads (rest x) (rRest x) (mRest x)
           (fun p => Output ⟨x, p⟩))
 
-/-- Counterpart with per-node monads and transcript-dependent output. -/
+/-- Counterpart with per-node monads and transcript-dependent output.
+
+This is the primary type for oracle verifiers: `OracleCounterpart` (in
+`Oracle/Core.lean`) is defined as `Counterpart.withMonads` with a
+`MonadDecoration` computed from the oracle decoration via `toMonadDecoration`.
+At sender nodes the monad is `Id` (pure observation); at receiver nodes it is
+`OracleComp` with the accumulated oracle access. All generic
+`Counterpart.withMonads` composition combinators (e.g., `withMonads.append`,
+`withMonads.stateChainComp`) therefore apply directly to oracle counterparts. -/
 def Counterpart.withMonads :
     (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec →
     (Transcript spec → Type u) → Type u

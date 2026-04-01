@@ -4,17 +4,19 @@ import ArkLib.Interaction.Security
 /-!
 # Interaction-Native Boundaries: Plain Security Transport
 
-This file records the basic operational and security consequences of pulling
-back a verifier or reduction along a plain `Boundary.Statement` or
-`Boundary.Context`.
+This file records the operational and security consequences of pulling back a
+plain verifier or reduction along a boundary.
 
-The guiding pattern is:
+The key point of the projection-first boundary split is that the outer output
+families remain explicit in theorem binders. This keeps the dense dependent
+types visible in the statement, rather than hiding them behind record fields.
 
-- run or execute the pulled-back outer protocol;
-- observe that this is just the inner protocol run on projected inputs;
-- lift the resulting outputs back across the boundary;
-- transport completeness or soundness hypotheses through the compatibility
-  predicates from `Boundary.Compatibility`.
+## Main results
+
+- `Verifier.run_pullback`
+- `Verifier.probAccept_pullback_le`
+- `Reduction.execute_pullback`
+- `Reduction.completeness_pullback`
 -/
 
 namespace Interaction
@@ -23,32 +25,45 @@ namespace Boundary
 namespace Verifier
 
 /-- Running a pulled-back verifier is the same as running the original inner
-verifier on the projected outer input and then lifting only the final plain
-statement output through the boundary. -/
+verifier on the projected input and then lifting only the final plain statement
+output through the boundary. -/
 theorem run_pullback
     {m : Type _ → Type _} [Monad m] [LawfulMonad m]
     {OuterStmtIn InnerStmtIn : Type}
-    {Context : InnerStmtIn → Spec}
-    {Roles : (s : InnerStmtIn) → RoleDecoration (Context s)}
-    {StmtOut : (s : InnerStmtIn) → Spec.Transcript (Context s) → Type}
-    (boundary : Statement OuterStmtIn InnerStmtIn Context StmtOut)
-    (verifier : Interaction.Verifier m InnerStmtIn Context Roles StmtOut)
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (boundary : Statement projection InnerStmtOut OuterStmtOut)
+    (verifier :
+      Interaction.Verifier m
+        InnerStmtIn
+        InnerSpec
+        InnerRoles
+        InnerStmtOut)
     (outer : OuterStmtIn)
-    {OutputP : Spec.Transcript (Context (boundary.proj outer)) → Type}
+    {OutputP : Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     (prover :
       Spec.Strategy.withRoles m
-        (Context (boundary.proj outer))
-        (Roles (boundary.proj outer))
+        (InnerSpec (projection.proj outer))
+        (InnerRoles (projection.proj outer))
         OutputP) :
-    Interaction.Verifier.run (pullback boundary verifier) outer prover =
+    Interaction.Verifier.run
+        (pullback boundary verifier)
+        outer
+        prover =
       (fun z => ⟨z.1, z.2.1, boundary.lift outer z.1 z.2.2⟩) <$>
-        Interaction.Verifier.run verifier (boundary.proj outer) prover := by
+        Interaction.Verifier.run verifier (projection.proj outer) prover := by
   simpa [Interaction.Verifier.run, pullback] using
     (Spec.Strategy.runWithRoles_mapOutputWithRoles_mapOutput
       (fP := fun _ out => out)
       (fC := fun tr stmtOut => boundary.lift outer tr stmtOut)
       prover
-      (verifier (boundary.proj outer)))
+      (verifier (projection.proj outer)))
 
 /-- Soundness for a pulled-back verifier reduces to soundness of the inner
 verifier once accepting outer outputs are known to satisfy the boundary
@@ -56,25 +71,35 @@ compatibility predicate. -/
 theorem probAccept_pullback_le
     {m : Type _ → Type _} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
     {OuterStmtIn InnerStmtIn : Type}
-    {Context : InnerStmtIn → Spec}
-    {Roles : (s : InnerStmtIn) → RoleDecoration (Context s)}
-    {StmtOut : (s : InnerStmtIn) → Spec.Transcript (Context s) → Type}
-    (boundary : Statement OuterStmtIn InnerStmtIn Context StmtOut)
-    (verifier : Interaction.Verifier m InnerStmtIn Context Roles StmtOut)
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (boundary : Statement projection InnerStmtOut OuterStmtOut)
+    (verifier :
+      Interaction.Verifier m
+        InnerStmtIn
+        InnerSpec
+        InnerRoles
+        InnerStmtOut)
     (outerLangIn : Set OuterStmtIn)
     (innerLangIn : Set InnerStmtIn)
     (outerLangOut :
       (outer : OuterStmtIn) →
-        (tr : Spec.Transcript (Context (boundary.proj outer))) →
-        Set (boundary.StmtOut outer tr))
+        (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+        Set (OuterStmtOut outer tr))
     (innerLangOut :
       (inner : InnerStmtIn) →
-        (tr : Spec.Transcript (Context inner)) →
-        Set (StmtOut inner tr))
+        (tr : Spec.Transcript (InnerSpec inner)) →
+        Set (InnerStmtOut inner tr))
     (compat :
       (outer : OuterStmtIn) →
-        (tr : Spec.Transcript (Context (boundary.proj outer))) →
-        StmtOut (boundary.proj outer) tr →
+        (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+        InnerStmtOut (projection.proj outer) tr →
         Prop)
     [boundarySound :
       Statement.IsSound
@@ -87,18 +112,18 @@ theorem probAccept_pullback_le
     (compatOfAccept :
       ∀ outer tr innerStmtOut,
         boundary.lift outer tr innerStmtOut ∈ outerLangOut outer tr →
-        compat outer tr innerStmtOut)
+          compat outer tr innerStmtOut)
     (outer : OuterStmtIn)
-    {OutputP : Spec.Transcript (Context (boundary.proj outer)) → Type}
+    {OutputP : Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     (prover :
       Spec.Strategy.withRoles m
-        (Context (boundary.proj outer))
-        (Roles (boundary.proj outer))
+        (InnerSpec (projection.proj outer))
+        (InnerRoles (projection.proj outer))
         OutputP) :
     Pr[fun z => z.2.2 ∈ outerLangOut outer z.1 |
       Interaction.Verifier.run (pullback boundary verifier) outer prover] ≤
-      Pr[fun z => z.2.2 ∈ innerLangOut (boundary.proj outer) z.1 |
-        Interaction.Verifier.run verifier (boundary.proj outer) prover] := by
+      Pr[fun z => z.2.2 ∈ innerLangOut (projection.proj outer) z.1 |
+        Interaction.Verifier.run verifier (projection.proj outer) prover] := by
   rw [run_pullback, probEvent_map]
   apply probEvent_mono
   intro z hz hOuter
@@ -120,40 +145,49 @@ namespace Reduction
 
 It says that whenever an honest outer input is valid and the inner execution
 produces an output satisfying the inner relation, the boundary-specific
-compatibility predicate also holds.  The final completeness theorem then
-combines this with `Boundary.Context.IsComplete`. -/
+compatibility predicate also holds. -/
 private abbrev CompletenessCompat
     {OuterStmtIn InnerStmtIn : Type}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {StmtOut WitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
-    (boundary :
-      Boundary.Context OuterStmtIn InnerStmtIn
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    {InnerWitOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    (_boundary :
+      Boundary.Context projection
         OuterWitIn InnerWitIn
-        InnerContext StmtOut WitOut)
+        InnerStmtOut OuterStmtOut
+        InnerWitOut OuterWitOut)
     (outerRelIn : Set (OuterStmtIn × OuterWitIn))
     (innerRelOut :
       (inner : InnerStmtIn) →
-        (tr : Spec.Transcript (InnerContext inner)) →
-        StmtOut inner tr →
-        WitOut inner tr →
+        (tr : Spec.Transcript (InnerSpec inner)) →
+        InnerStmtOut inner tr →
+        InnerWitOut inner tr →
         Prop)
     (compat :
       (outer : OuterStmtIn) →
         OuterWitIn →
-        (tr : Spec.Transcript (InnerContext (boundary.stmt.proj outer))) →
-        StmtOut (boundary.stmt.proj outer) tr →
-        WitOut (boundary.stmt.proj outer) tr →
+        (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+        InnerStmtOut (projection.proj outer) tr →
+        InnerWitOut (projection.proj outer) tr →
         Prop) : Prop :=
   (outerStmt : OuterStmtIn) →
     (outerWit : OuterWitIn) →
     (outerStmt, outerWit) ∈ outerRelIn →
-    (tr : Spec.Transcript (InnerContext (boundary.stmt.proj outerStmt))) →
-    (innerStmtOut : StmtOut (boundary.stmt.proj outerStmt) tr) →
-    (innerWitOut : WitOut (boundary.stmt.proj outerStmt) tr) →
+    (tr : Spec.Transcript (InnerSpec (projection.proj outerStmt))) →
+    (innerStmtOut : InnerStmtOut (projection.proj outerStmt) tr) →
+    (innerWitOut : InnerWitOut (projection.proj outerStmt) tr) →
     innerRelOut
-      (boundary.stmt.proj outerStmt)
+      (projection.proj outerStmt)
       tr
       innerStmtOut
       innerWitOut →
@@ -166,26 +200,45 @@ theorem execute_pullback
     {m : Type _ → Type _} [Monad m] [LawfulMonad m]
     {OuterStmtIn InnerStmtIn : Type}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {Roles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
-    {StmtOut WitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    {InnerWitOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
     (boundary :
-      Boundary.Context OuterStmtIn InnerStmtIn
+      Boundary.Context projection
         OuterWitIn InnerWitIn
-        InnerContext StmtOut WitOut)
+        InnerStmtOut OuterStmtOut
+        InnerWitOut OuterWitOut)
     (reduction :
       Interaction.Reduction m
-        InnerStmtIn InnerWitIn InnerContext Roles StmtOut WitOut)
+        InnerStmtIn
+        InnerWitIn
+        InnerSpec
+        InnerRoles
+        InnerStmtOut
+        InnerWitOut)
     (outerStmt : OuterStmtIn)
     (outerWit : OuterWitIn) :
-    Interaction.Reduction.execute (pullback boundary reduction) outerStmt outerWit =
+    Interaction.Reduction.execute
+        (pullback boundary reduction)
+        outerStmt
+        outerWit =
       (fun z =>
         let out :=
           boundary.lift outerStmt outerWit z.1 z.2.1.stmt z.2.1.wit
         ⟨z.1, out, boundary.stmt.lift outerStmt z.1 z.2.2⟩) <$>
-        Interaction.Reduction.execute reduction
-          (boundary.stmt.proj outerStmt)
+        Interaction.Reduction.execute
+          reduction
+          (projection.proj outerStmt)
           (boundary.wit.proj outerStmt outerWit) := by
   simp [Interaction.Reduction.execute, pullback, Prover.pullback, Verifier.pullback,
     Spec.Strategy.runWithRoles_mapOutputWithRoles_mapOutput]
@@ -196,41 +249,56 @@ variable
     {m : Type _ → Type _} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
     {OuterStmtIn InnerStmtIn : Type}
     {OuterWitIn InnerWitIn : Type}
-    {InnerContext : InnerStmtIn → Spec}
-    {Roles : (s : InnerStmtIn) → RoleDecoration (InnerContext s)}
-    {StmtOut WitOut :
-      (s : InnerStmtIn) → Spec.Transcript (InnerContext s) → Type}
+    {InnerSpec : InnerStmtIn → Spec}
+    {projection : StatementProjection OuterStmtIn InnerStmtIn InnerSpec}
+    {InnerRoles : (s : InnerStmtIn) → RoleDecoration (InnerSpec s)}
+    {InnerStmtOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterStmtOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
+    {InnerWitOut :
+      (s : InnerStmtIn) → Spec.Transcript (InnerSpec s) → Type}
+    {OuterWitOut :
+      (outer : OuterStmtIn) →
+        Spec.Transcript (InnerSpec (projection.proj outer)) → Type}
 
 variable
     (boundary :
-      Boundary.Context OuterStmtIn InnerStmtIn
+      Boundary.Context projection
         OuterWitIn InnerWitIn
-        InnerContext StmtOut WitOut)
+        InnerStmtOut OuterStmtOut
+        InnerWitOut OuterWitOut)
     (reduction :
       Interaction.Reduction m
-        InnerStmtIn InnerWitIn InnerContext Roles StmtOut WitOut)
+        InnerStmtIn
+        InnerWitIn
+        InnerSpec
+        InnerRoles
+        InnerStmtOut
+        InnerWitOut)
     (outerRelIn : Set (OuterStmtIn × OuterWitIn))
     (innerRelIn : Set (InnerStmtIn × InnerWitIn))
 
 variable
     (outerRelOut :
       (outer : OuterStmtIn) →
-        (tr : Spec.Transcript (InnerContext (boundary.stmt.proj outer))) →
-        boundary.StmtOut outer tr →
-        boundary.WitOut outer tr →
+        (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+        OuterStmtOut outer tr →
+        OuterWitOut outer tr →
         Prop)
     (innerRelOut :
       (inner : InnerStmtIn) →
-        (tr : Spec.Transcript (InnerContext inner)) →
-        StmtOut inner tr →
-        WitOut inner tr →
+        (tr : Spec.Transcript (InnerSpec inner)) →
+        InnerStmtOut inner tr →
+        InnerWitOut inner tr →
         Prop)
     (compat :
       (outer : OuterStmtIn) →
         OuterWitIn →
-        (tr : Spec.Transcript (InnerContext (boundary.stmt.proj outer))) →
-        StmtOut (boundary.stmt.proj outer) tr →
-        WitOut (boundary.stmt.proj outer) tr →
+        (tr : Spec.Transcript (InnerSpec (projection.proj outer))) →
+        InnerStmtOut (projection.proj outer) tr →
+        InnerWitOut (projection.proj outer) tr →
         Prop)
 
 variable
@@ -239,10 +307,8 @@ variable
 /-- Completeness transports across a context boundary once:
 
 - valid outer inputs project to valid inner inputs,
-- successful inner outputs can be lifted back to successful outer outputs via
-  `Boundary.Context.IsComplete`, and
-- the compatibility witness required by that lifting is available from
-  `CompletenessCompat`. -/
+- successful inner outputs can be lifted back to successful outer outputs, and
+- the compatibility witness required by that lifting is available. -/
 theorem completeness_pullback
     (boundaryComplete :
       Boundary.Context.IsComplete
@@ -262,40 +328,42 @@ theorem completeness_pullback
       eps := by
   intro outerStmt outerWit hOuterIn
   have hInnerIn :
-      (boundary.stmt.proj outerStmt,
+      (projection.proj outerStmt,
         boundary.wit.proj outerStmt outerWit) ∈ innerRelIn :=
     boundaryComplete.proj_complete outerStmt outerWit hOuterIn
   let innerGood :
-      ((tr : Spec.Transcript (InnerContext (boundary.stmt.proj outerStmt))) ×
+      ((tr : Spec.Transcript (InnerSpec (projection.proj outerStmt))) ×
         HonestProverOutput
-          (StmtOut (boundary.stmt.proj outerStmt) tr)
-          (WitOut (boundary.stmt.proj outerStmt) tr) ×
-        StmtOut (boundary.stmt.proj outerStmt) tr) →
+          (InnerStmtOut (projection.proj outerStmt) tr)
+          (InnerWitOut (projection.proj outerStmt) tr) ×
+        InnerStmtOut (projection.proj outerStmt) tr) →
       Prop :=
     fun z =>
       z.2.1.stmt = z.2.2 ∧
         innerRelOut
-          (boundary.stmt.proj outerStmt)
+          (projection.proj outerStmt)
           z.1
           z.2.2
           z.2.1.wit
   let outerGood :
-      ((tr : Spec.Transcript (InnerContext (boundary.stmt.proj outerStmt))) ×
+      ((tr : Spec.Transcript (InnerSpec (projection.proj outerStmt))) ×
         HonestProverOutput
-          (boundary.StmtOut outerStmt tr)
-          (boundary.WitOut outerStmt tr) ×
-        boundary.StmtOut outerStmt tr) →
+          (OuterStmtOut outerStmt tr)
+          (OuterWitOut outerStmt tr) ×
+        OuterStmtOut outerStmt tr) →
       Prop :=
     fun z =>
       z.2.1.stmt = z.2.2 ∧
         outerRelOut outerStmt z.1 z.2.2 z.2.1.wit
   have hmono :
       Pr[innerGood |
-        Interaction.Reduction.execute reduction
-          (boundary.stmt.proj outerStmt)
+        Interaction.Reduction.execute
+          reduction
+          (projection.proj outerStmt)
           (boundary.wit.proj outerStmt outerWit)] ≤
         Pr[outerGood |
-          Interaction.Reduction.execute (pullback boundary reduction)
+          Interaction.Reduction.execute
+            (pullback boundary reduction)
             outerStmt
             outerWit] := by
     rw [execute_pullback]
@@ -321,15 +389,17 @@ theorem completeness_pullback
   calc
     1 - eps ≤
         Pr[innerGood |
-          Interaction.Reduction.execute reduction
-            (boundary.stmt.proj outerStmt)
+          Interaction.Reduction.execute
+            reduction
+            (projection.proj outerStmt)
             (boundary.wit.proj outerStmt outerWit)] :=
       hComplete
-        (boundary.stmt.proj outerStmt)
+        (projection.proj outerStmt)
         (boundary.wit.proj outerStmt outerWit)
         hInnerIn
     _ ≤ Pr[outerGood |
-          Interaction.Reduction.execute (pullback boundary reduction)
+          Interaction.Reduction.execute
+            (pullback boundary reduction)
             outerStmt
             outerWit] :=
       hmono

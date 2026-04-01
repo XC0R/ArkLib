@@ -39,7 +39,14 @@ to a single-argument family on the combined transcript of `s₁.append s₂`.
 
 Crucially, `liftAppend s₁ s₂ F (Transcript.append s₁ s₂ tr₁ tr₂)` reduces
 **definitionally** to `F tr₁ tr₂`, which makes this the right combinator for
-stage-dependent composition (see `Strategy.comp` and `Transcript.stateChainFamily`). -/
+stage-dependent composition. Without this property, every composition combinator
+would need explicit casts between the two-argument and single-argument views.
+
+This combinator propagates up through the entire stack:
+- `Transcript.stateChainFamily` uses it at each stage of a state chain
+- `Chain.outputFamily` uses it at each round of a continuation chain
+- `Strategy.comp` / `Strategy.compWithRoles` use it for the output type
+- All security composition theorems factor through it -/
 def Transcript.liftAppend :
     (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
     ((tr₁ : Transcript s₁) → Transcript (s₂ tr₁) → Type u) →
