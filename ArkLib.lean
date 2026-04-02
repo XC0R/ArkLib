@@ -87,6 +87,8 @@ import ArkLib.Interaction.Basic.Decoration
 import ArkLib.Interaction.Basic.MonadDecoration
 import ArkLib.Interaction.Basic.Replicate
 import ArkLib.Interaction.Basic.Spec
+import ArkLib.Interaction.Basic.Shape
+import ArkLib.Interaction.Basic.Interaction
 import ArkLib.Interaction.Basic.StateChain
 import ArkLib.Interaction.Basic.Strategy
 import ArkLib.Interaction.Multiparty

@@ -15,7 +15,9 @@ through a `Spec` — a concrete move at every node from root to leaf.
 On its own, a `Spec` says nothing about *who* makes each move or *how*
 moves are computed. Those concerns are separated into companion modules:
 
-* `Decoration` — per-node metadata (labels, roles, oracles, …)
+* `Decoration` — concrete per-node metadata on a fixed protocol tree
+* `ShapeOver` / `InteractionOver` — generic local syntax and local execution
+  laws over decorated protocol trees
 * `Strategy` — one-player strategies with monadic effects
 * `Append`, `Replicate`, `Chain` — sequential composition and iteration
 
@@ -26,7 +28,8 @@ is mathematically forced in protocols like sumcheck and FRI.
 
 ## Module map
 
-- `Basic/` — spec, transcript, decoration, strategy, composition (this layer)
+- `Basic/` — spec, transcript, decoration, generic shapes, strategy,
+  composition (this layer)
 - `TwoParty/` — sender/receiver roles, `withRoles`, `Counterpart`
 - `Reduction.lean` — prover, verifier, reduction
 - `Oracle/` — oracle decoration, path-dependent oracle access
@@ -46,10 +49,21 @@ universe u
 namespace Interaction
 
 /-- A `Spec` describes the shape of a sequential interaction as a tree.
-Each internal node specifies a type of moves that can be played; the rest
-of the protocol may depend on which move is chosen. A `Spec` is agnostic
-about *who* plays each move and *how* — those aspects are layered on via
-`Decoration`, `RoleDecoration`, and `Strategy`. -/
+Each internal node specifies a move space `Moves`, and the rest of the
+protocol may depend on the chosen move `x : Moves`.
+
+On its own, a `Spec` is intentionally minimal:
+it records only the branching structure of the interaction.
+It does **not** say
+* who controls a node,
+* what local data is attached to that node,
+* what kind of participant object lives there, or
+* how a collection of participants executes the node.
+
+Those additional layers are supplied separately by:
+* `Spec.Decoration`, for concrete nodewise metadata;
+* `Spec.ShapeOver`, for local participant syntax over such metadata;
+* `Spec.InteractionOver`, for local execution laws over such syntax. -/
 inductive Spec : Type (u + 1) where
   | /-- Terminal node: the interaction is over. -/
     done : Spec

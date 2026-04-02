@@ -8,8 +8,19 @@ import ArkLib.Interaction.Basic.Spec
 /-!
 # Decorations and displayed decorations (`Refine`)
 
-A `Spec.Decoration S spec` attaches `S`-structure at each internal node. `Decoration.Refine` is the
-dependent (displayed) variant: fibers may depend on the label drawn from an existing decoration.
+`Spec.Decoration S spec` is concrete nodewise metadata attached to a fixed
+protocol tree `spec`. If a node of `spec` has move space `X`, then a
+decoration provides one value of type `S X` at that node, and recursively
+decorates every continuation subtree.
+
+This is the basic way to say "the same protocol tree, but with extra data at
+each node". Typical examples include:
+* `RoleDecoration`, recording who controls a node;
+* monad decorations, recording which monad a local action uses at a node;
+* oracle decorations, recording what oracle interface is available there.
+
+`Decoration.Refine` is the dependent (displayed) variant:
+its fibers may depend on the label drawn from an existing decoration.
 
 Functorial `map` / `map_id` / `map_comp` for both layers are in this file. Composition along
 `Spec.append` is in `ArkLib.Interaction.Basic.Append`.
@@ -22,7 +33,16 @@ namespace Spec
 
 variable {S : Type u → Type v} {T : Type u → Type w} {L : Type u → Type v}
 
-/-- Decorate each internal node with `S X` at the node labeled by move type `X`. -/
+/-- `Decoration S spec` is concrete nodewise metadata on the fixed protocol
+tree `spec`.
+
+If a node of `spec` has move space `X`, then the decoration stores one value of
+type `S X` at that node, and recursively stores decorations on every subtree.
+
+This is different from `Spec.ShapeOver`:
+* a decoration is **data on a tree**;
+* a shape is a **schema for local participant objects** that consumes such
+  data. -/
 def Decoration (S : Type u → Type v) : Spec → Type (max u v)
   | .done => PUnit
   | .node X rest => S X × (∀ x, Decoration S (rest x))
