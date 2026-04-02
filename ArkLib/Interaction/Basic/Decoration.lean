@@ -46,6 +46,12 @@ In particular, if a schema is built as `(Spec.Node.Schema.singleton Γ).extend A
 then `Decoration.equivOver A spec` is exactly the statement that a decoration
 of that schema's realized context is the same as a base decoration by `Γ`
 plus one displayed layer over it.
+
+The file concludes by lifting this one-step bridge recursively to arbitrary
+schemas: `Spec.Decoration.Schema.View` is the staged telescope view of a
+decoration by `S.toContext`, and `Spec.Decoration.Schema.equivView`
+identifies that staged view with an ordinary decoration of the realized
+context.
 -/
 
 universe u v w w₂
@@ -74,7 +80,7 @@ def Decoration (Γ : Node.Context.{u, v}) : Spec → Type (max u v)
 
 /-- Natural transformation between per-node decorations, applied recursively. -/
 def Decoration.map {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}}
-    (f : ∀ X, Γ X → Δ X) :
+    (f : Interaction.Spec.Node.ContextHom Γ Δ) :
     (spec : Spec) → Decoration Γ spec → Decoration Δ spec
   | .done, _ => ⟨⟩
   | .node X rest, ⟨s, dRest⟩ => ⟨f X s, fun x => Decoration.map f (rest x) (dRest x)⟩
@@ -82,17 +88,17 @@ def Decoration.map {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}}
 @[simp, grind =]
 theorem Decoration.map_id {Γ : Node.Context.{u, v}} :
     (spec : Spec) → (d : Decoration Γ spec) →
-    Decoration.map (fun X (s : Γ X) => s) spec d = d
+    Decoration.map (Node.ContextHom.id Γ) spec d = d
   | .done, ⟨⟩ => rfl
   | .node _ rest, ⟨s, dRest⟩ => by
       simp only [Decoration.map]; congr 1; funext x; exact map_id (rest x) (dRest x)
 
 theorem Decoration.map_comp
     {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}} {Λ : Node.Context.{u, w₂}}
-    (g : ∀ X, Δ X → Λ X) (f : ∀ X, Γ X → Δ X) :
+    (g : Node.ContextHom Δ Λ) (f : Node.ContextHom Γ Δ) :
     (spec : Spec) → (d : Decoration Γ spec) →
     Decoration.map g spec (Decoration.map f spec d) =
-      Decoration.map (fun X => g X ∘ f X) spec d
+      Decoration.map (Node.ContextHom.comp g f) spec d
   | .done, ⟨⟩ => rfl
   | .node _ rest, ⟨s, dRest⟩ => by
       simp only [Decoration.map]; congr 1; funext x
@@ -225,6 +231,121 @@ def Decoration.equivOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w)
   intro x
   cases x with
   | mk d r => exact Decoration.toOver_ofOver A spec d r
+
+/--
+Transport a one-step `Decoration.Over` layer across an equivalence on base
+decorations.
+
+This is the generic step used to turn `Decoration.equivOver` into a recursive
+schema-level decomposition theorem.
+-/
+private def sigmaOverCongr {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type v)
+    {T : Type (max u v)} (spec : Spec) (e : Decoration Γ spec ≃ T) :
+    (Sigma fun d : Decoration Γ spec => Decoration.Over A spec d) ≃
+      (Sigma fun t : T => Decoration.Over A spec (e.symm t)) := by
+  refine
+    { toFun := ?_
+      invFun := ?_
+      left_inv := ?_
+      right_inv := ?_ }
+  · intro x
+    refine ⟨e x.1, cast (by simp) x.2⟩
+  · intro x
+    refine ⟨e.symm x.1, cast (by simp) x.2⟩
+  · intro x
+    cases x with
+    | mk d r =>
+        simp
+  · intro x
+    cases x with
+    | mk t r =>
+        simp
+
+namespace Decoration
+namespace Schema
+
+/--
+`Decoration.Schema.telescope S spec` packages the staged telescope view of
+decorations for schema `S`, together with an equivalence from ordinary
+decorations by the realized context `S.toContext`.
+
+The resulting type is the recursively decomposed form of a decoration:
+each `snoc` in the schema contributes one more displayed `Decoration.Over`
+layer.
+-/
+def telescope :
+    {Γ : Node.Context.{u, v}} → (S : Node.Schema Γ) → (spec : Spec) →
+    Sigma fun T : Type (max u v) => Decoration Γ spec ≃ T
+  | _, .nil, spec => ⟨Decoration Node.Context.empty spec, Equiv.refl _⟩
+  | _, .singleton A, spec => ⟨Decoration A spec, Equiv.refl _⟩
+  | _, .snoc S A, spec =>
+      let recView := telescope S spec
+      ⟨Sigma fun t : recView.1 => Decoration.Over A spec (recView.2.symm t),
+        (Decoration.equivOver A spec).trans (sigmaOverCongr A spec recView.2)⟩
+
+/--
+`Decoration.Schema.View S spec` is the staged telescope view carried by the
+recursive schema decomposition theorem `Decoration.Schema.telescope`.
+-/
+abbrev View {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec) :
+    Type (max u v) :=
+  (telescope S spec).1
+
+/--
+Unpack an ordinary decoration into the staged telescope view determined by a
+schema.
+-/
+abbrev unpack {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec) :
+    Decoration Γ spec → View S spec :=
+  (telescope S spec).2.toFun
+
+/--
+Pack a staged schema-decoration view back into an ordinary decoration of the
+realized context.
+-/
+abbrev pack {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec) :
+    View S spec → Decoration Γ spec :=
+  (telescope S spec).2.invFun
+
+@[simp]
+theorem pack_unpack {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec)
+    (d : Decoration Γ spec) :
+    pack S spec (unpack S spec d) = d :=
+  (telescope S spec).2.left_inv d
+
+@[simp]
+theorem unpack_pack {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec)
+    (d : View S spec) :
+    unpack S spec (pack S spec d) = d :=
+  (telescope S spec).2.right_inv d
+
+namespace Prefix
+
+/--
+Project decorations along a syntactic schema prefix.
+
+This is the tree-level forgetting map induced by `Node.Schema.Prefix.toContextHom`.
+-/
+abbrev map
+    {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (p : Node.Schema.Prefix S T) :
+    (spec : Spec) → Decoration T.toContext spec → Decoration S.toContext spec :=
+  Decoration.map p.toContextHom
+
+end Prefix
+
+/--
+Equivalence between an ordinary decoration by the realized context of `S` and
+its staged telescope view.
+
+This is the recursive schema-level form of `Decoration.equivOver`.
+-/
+abbrev equivView {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec) :
+    Decoration Γ spec ≃ View S spec :=
+  (telescope S spec).2
+
+end Schema
+end Decoration
 
 end Spec
 end Interaction

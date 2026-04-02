@@ -32,6 +32,10 @@ The rest of the interaction core consumes realized node contexts, not schemas:
   context `Γ`;
 * `Spec.ShapeOver` and `Spec.InteractionOver` define syntax and execution over
   those realized contexts.
+* `Spec.Node.ContextHom` records structure-preserving maps between realized
+  contexts, so forgetting or repackaging metadata can be expressed explicitly.
+* `Spec.Node.Schema.Prefix` records syntactic schema-prefix inclusions, which
+  induce canonical forgetful maps on realized contexts.
 
 Worked example:
 if we previously thought of node metadata in two stages,
@@ -43,7 +47,7 @@ so a single decoration by that context packages the old staged view into one
 semantic object.
 -/
 
-universe u v w
+universe u v w w₂ w₃
 
 namespace Interaction
 namespace Spec
@@ -59,6 +63,23 @@ This is the semantic object consumed by the rest of the interaction core.
 Contexts may be written directly, or assembled in stages via `Node.Schema`.
 -/
 abbrev Context := Type u → Type v
+
+/--
+`ContextHom Γ Δ` is a nodewise map from context `Γ` to context `Δ`.
+
+At each move space `X`, it turns a `Γ X`-value into a `Δ X`-value. This is the
+right notion of morphism for realized node contexts, and it is what
+`Spec.Decoration.map` consumes.
+-/
+abbrev ContextHom (Γ : Type u → Type v) (Δ : Type u → Type w) := ∀ X, Γ X → Δ X
+
+/-- Identity morphism on a realized node context. -/
+def ContextHom.id (Γ : Context) : ContextHom Γ Γ := fun _ x => x
+
+/-- Composition of realized node-context morphisms. -/
+def ContextHom.comp {Γ : Type u → Type v} {Δ : Type u → Type w} {Λ : Type u → Type w₂}
+    (g : ContextHom Δ Λ) (f : ContextHom Γ Δ) : ContextHom Γ Λ :=
+  fun X => g X ∘ f X
 
 /--
 The empty node context, carrying no information at any node.
@@ -81,6 +102,29 @@ one fixed universe parameter for its staged fields.
 -/
 def Context.extend (Γ : Type u → Type v) (A : ∀ X, Γ X → Type w) : Type u → Type (max v w) :=
   fun X => Σ γ : Γ X, A X γ
+
+/--
+Forget the most recently added field of an extended node context.
+
+This is the canonical projection from `Context.extend Γ A` back to its base
+context `Γ`.
+-/
+def Context.extendFst (Γ : Type u → Type v) (A : ∀ X, Γ X → Type w) :
+    ContextHom (Context.extend Γ A) Γ :=
+  fun _ => Sigma.fst
+
+/--
+Map one extended node context to another by:
+* mapping the base context with `f`, and
+* mapping the new dependent field with `g`.
+-/
+def Context.extendMap
+    {Γ : Type u → Type v} {Δ : Type u → Type w}
+    {A : ∀ X, Γ X → Type w₂} {B : ∀ X, Δ X → Type w₃}
+    (f : ContextHom Γ Δ)
+    (g : ∀ X γ, A X γ → B X (f X γ)) :
+    ContextHom (Context.extend Γ A) (Context.extend Δ B) :=
+  fun X ⟨γ, a⟩ => ⟨f X γ, g X γ a⟩
 
 /--
 `Schema Γ` is a telescope whose realized node context is `Γ`.
@@ -129,6 +173,44 @@ because a schema is a descriptive telescope, while a context is the semantic
 family it determines.
 -/
 abbrev Schema.toContext {Γ : Context} (_ : Schema Γ) : Context := Γ
+
+namespace Schema
+
+/--
+`Prefix S T` means that `S` is a syntactic prefix of the schema `T`.
+
+Each `snoc` step adds one new field on the right, so a prefix determines a
+canonical forgetful map from the realized context of `T` back to the realized
+context of `S`.
+
+This is intentionally a syntactic notion, not merely a semantic one: two
+schemas may realize equivalent node contexts without one being a prefix of the
+other.
+-/
+inductive Prefix :
+    {Γ Δ : Context.{u, v}} →
+    Schema Γ → Schema Δ → Type (max (u + 2) (v + 2)) where
+  /-- Every schema is a prefix of itself. -/
+  | refl {Γ : Context.{u, v}} (S : Schema Γ) : Schema.Prefix S S
+  /-- If `S` is a prefix of `T`, then it is also a prefix of any one-field
+  extension of `T`. -/
+  | snoc {Γ Δ : Context.{u, v}} {S : Schema Γ} {T : Schema Δ}
+      (p : Schema.Prefix S T) (A : ∀ X, Δ X → Type v) :
+      Schema.Prefix S (T.extend A)
+
+/--
+The realized context morphism induced by a schema prefix.
+
+This forgets exactly the fields appended after the prefix `S`.
+-/
+def Prefix.toContextHom :
+    {Γ Δ : Context.{u, v}} → {S : Schema Γ} → {T : Schema Δ} →
+    Schema.Prefix S T → ContextHom T.toContext S.toContext
+  | _, _, _, _, .refl _ => ContextHom.id _
+  | _, _, _, _, .snoc p A =>
+      ContextHom.comp (Prefix.toContextHom p) (Context.extendFst _ A)
+
+end Schema
 
 end Node
 end Spec

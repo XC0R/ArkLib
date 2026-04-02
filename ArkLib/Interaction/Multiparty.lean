@@ -56,7 +56,8 @@ theorem PartyDecoration.toRoles_comp {Party Party' : Type} {spec : Spec}
     (resolve : Party → Role) (f : Party' → Party) (parties : PartyDecoration Party' spec) :
     PartyDecoration.toRoles (resolve ∘ f) parties =
       PartyDecoration.toRoles resolve (Spec.Decoration.map (fun _ => f) spec parties) := by
-  simp only [PartyDecoration.toRoles, Spec.Decoration.map_comp]
+  simpa [PartyDecoration.toRoles, Spec.Node.ContextHom.comp] using
+    (Spec.Decoration.map_comp (g := fun _ => resolve) (f := fun _ => f) spec parties).symm
 
 /-! ## Three-Party Knowledge Soundness Example
 
