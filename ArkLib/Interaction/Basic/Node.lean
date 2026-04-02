@@ -200,6 +200,14 @@ abbrev SchemaMap {Γ Δ : Context} (S : Schema Γ) (T : Schema Δ) :=
 def SchemaMap.id {Γ : Context} (S : Schema Γ) : SchemaMap S S :=
   ContextHom.id _
 
+/--
+Treat a realized context morphism as a schema morphism between any schemas
+presenting those contexts.
+-/
+abbrev SchemaMap.ofContextHom
+    {Γ Δ : Context} {S : Schema Γ} {T : Schema Δ}
+    (f : ContextHom Γ Δ) : SchemaMap S T := f
+
 /-- Composition of schema morphisms. -/
 def SchemaMap.comp {Γ Δ Λ : Context}
     {S : Schema Γ} {T : Schema Δ} {U : Schema Λ}
@@ -212,6 +220,55 @@ the underlying realized context morphism.
 -/
 abbrev SchemaMap.toContextHom {Γ Δ : Context} {S : Schema Γ} {T : Schema Δ}
     (f : SchemaMap S T) : ContextHom S.toContext T.toContext := f
+
+/--
+Extend a schema morphism by one further dependent field.
+
+If `f : SchemaMap S T` maps the base contexts and `g` maps the newly added
+field over each base value, then `SchemaMap.extend f g` is the induced schema
+morphism between the corresponding one-step schema extensions.
+-/
+def SchemaMap.extend
+    {Γ Δ : Context}
+    {S : Schema Γ} {T : Schema Δ}
+    {A : ∀ X, Γ X → Type v} {B : ∀ X, Δ X → Type v}
+    (f : SchemaMap S T)
+    (g : ∀ X γ, A X γ → B X (f X γ)) :
+    SchemaMap (S.extend A) (T.extend B) :=
+  Context.extendMap f g
+
+@[simp]
+theorem SchemaMap.extend_id
+    {Γ : Context} {S : Schema Γ} {A : ∀ X, Γ X → Type v} :
+    SchemaMap.extend (SchemaMap.id S) (fun _ _ x => x) = SchemaMap.id (S.extend A) := by
+  funext X x
+  cases x
+  rfl
+
+theorem SchemaMap.extend_comp
+    {Γ Δ Λ : Context}
+    {S : Schema Γ} {T : Schema Δ} {U : Schema Λ}
+    {A : ∀ X, Γ X → Type v}
+    {B : ∀ X, Δ X → Type v}
+    {C : ∀ X, Λ X → Type v}
+    (g : SchemaMap T U) (f : SchemaMap S T)
+    (fOver : ∀ X γ, A X γ → B X (f X γ))
+    (gOver : ∀ X δ, B X δ → C X (g X δ)) :
+    SchemaMap.comp (SchemaMap.extend g gOver) (SchemaMap.extend f fOver) =
+      SchemaMap.extend (SchemaMap.comp g f)
+        (fun X γ => gOver X (f X γ) ∘ fOver X γ) := by
+  funext X x
+  cases x
+  rfl
+
+/--
+Forget the most recently added field of a schema extension.
+-/
+abbrev SchemaMap.fst
+    {Γ : Context} {S : Schema Γ}
+    (A : ∀ X, Γ X → Type v) :
+    SchemaMap (S.extend A) S :=
+  Context.extendFst _ A
 
 /--
 `Prefix S T` means that `S` is a syntactic prefix of the schema `T`.

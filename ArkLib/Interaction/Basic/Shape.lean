@@ -149,6 +149,16 @@ def ShapeOver.comap {Δ : Node.Context}
   Node agent X γ Cont := shape.Node agent X (f X γ) Cont
   map h := shape.map h
 
+/--
+Reindex a local syntax object contravariantly along a schema morphism, using
+the underlying realized context morphism.
+-/
+abbrev ShapeOver.comapSchema
+    {Δ : Node.Context} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (shape : ShapeOver Agent Δ) (f : Node.Schema.SchemaMap S T) :
+    ShapeOver Agent Γ :=
+  shape.comap f.toContextHom
+
 @[simp]
 theorem ShapeOver.comap_id
     (shape : ShapeOver Agent Γ) :
@@ -249,6 +259,15 @@ theorem ShapeOver.family_comap {Δ : Node.Context}
       funext x
       exact family_comap shape f (agent := agent) (ctxs := ctxs x)
         (Out := fun tr => Out ⟨x, tr⟩)
+
+theorem ShapeOver.family_comapSchema
+    {Δ : Node.Context} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (shape : ShapeOver Agent Δ) (f : Node.Schema.SchemaMap S T) :
+    {agent : Agent} → {spec : Spec} → (ctxs : Decoration Γ spec) →
+    {Out : Transcript spec → Type w} →
+    ShapeOver.Family (shape.comapSchema f) agent spec ctxs Out =
+      ShapeOver.Family shape agent spec (Decoration.Schema.map f spec ctxs) Out :=
+  ShapeOver.family_comap shape f.toContextHom
 
 end Spec
 end Interaction

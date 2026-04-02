@@ -151,6 +151,65 @@ theorem Decoration.Over.map_comp {Γ : Node.Context.{u, v}}
       exact map_comp g f (rest x) (dRest x) (rr x)
 
 /--
+Transport a dependent decoration across a map of base contexts.
+
+Given:
+* a base-context morphism `f : Γ → Δ`, and
+* a fiberwise map `g` from `A X γ` to `B X (f X γ)`,
+
+this sends a displayed decoration over `d : Decoration Γ spec` to a displayed
+decoration over `Decoration.map f spec d`.
+-/
+def Decoration.Over.mapBase
+    {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}}
+    {A : ∀ X, Γ X → Type w₂} {B : ∀ X, Δ X → Type w₂}
+    (f : Node.ContextHom Γ Δ)
+    (g : ∀ X γ, A X γ → B X (f X γ)) :
+    (spec : Spec) → (d : Decoration Γ spec) →
+    Decoration.Over A spec d →
+    Decoration.Over B spec (Decoration.map f spec d)
+  | .done, _, _ => ⟨⟩
+  | .node X rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ =>
+      ⟨g X γ a, fun x => Over.mapBase f g (rest x) (dRest x) (rRest x)⟩
+
+theorem Decoration.Over.mapBase_id
+    {Γ : Node.Context.{u, v}} {A : ∀ X, Γ X → Type w} :
+    (spec : Spec) → (d : Decoration Γ spec) → (r : Decoration.Over A spec d) →
+    HEq (Decoration.Over.mapBase (Node.ContextHom.id Γ) (fun _ _ x => x) spec d r) r
+  | .done, ⟨⟩, ⟨⟩ => HEq.rfl
+  | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ => by
+      simp only [Decoration.Over.mapBase]
+      refine prod_mk_heq ?_
+      refine Function.hfunext rfl ?_
+      intro x y hxy
+      cases hxy
+      exact mapBase_id (rest x) (dRest x) (rRest x)
+
+theorem Decoration.Over.mapBase_comp
+    {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}} {Λ : Node.Context.{u, w₂}}
+    {A : ∀ X, Γ X → Type w₂}
+    {B : ∀ X, Δ X → Type w₂}
+    {C : ∀ X, Λ X → Type w₂}
+    (f : Node.ContextHom Γ Δ)
+    (g : Node.ContextHom Δ Λ)
+    (fOver : ∀ X γ, A X γ → B X (f X γ))
+    (gOver : ∀ X δ, B X δ → C X (g X δ)) :
+    (spec : Spec) → (d : Decoration Γ spec) → (r : Decoration.Over A spec d) →
+    HEq
+      (Decoration.Over.mapBase g gOver spec (Decoration.map f spec d)
+        (Decoration.Over.mapBase f fOver spec d r))
+      (Decoration.Over.mapBase (Node.ContextHom.comp g f)
+        (fun X γ => gOver X (f X γ) ∘ fOver X γ) spec d r)
+  | .done, ⟨⟩, ⟨⟩ => HEq.rfl
+  | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ => by
+      simp only [Decoration.Over.mapBase]
+      refine prod_mk_heq ?_
+      refine Function.hfunext rfl ?_
+      intro x y hxy
+      cases hxy
+      exact mapBase_comp f g fOver gOver (rest x) (dRest x) (rRest x)
+
+/--
 Pack a base decoration and one dependent `Over` layer into a decoration of the
 extended context `Γ.extend A`.
 
@@ -162,6 +221,23 @@ def Decoration.ofOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w) :
   | .done, _, _ => ⟨⟩
   | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ =>
       ⟨⟨γ, a⟩, fun x => ofOver A (rest x) (dRest x) (rRest x)⟩
+
+theorem Decoration.map_ofOver
+    {Γ : Node.Context.{u, v}} {Δ : Node.Context.{u, w}}
+    {A : ∀ X, Γ X → Type w₂} {B : ∀ X, Δ X → Type w₂}
+    (f : Node.ContextHom Γ Δ)
+    (g : ∀ X γ, A X γ → B X (f X γ)) :
+    (spec : Spec) → (d : Decoration Γ spec) → (r : Decoration.Over A spec d) →
+    Decoration.map (Node.Context.extendMap f g) spec (Decoration.ofOver A spec d r) =
+      Decoration.ofOver B spec
+        (Decoration.map f spec d)
+        (Decoration.Over.mapBase f g spec d r)
+  | .done, ⟨⟩, ⟨⟩ => rfl
+  | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ => by
+      simp only [Decoration.map, Decoration.ofOver, Decoration.Over.mapBase]
+      congr 1
+      funext x
+      exact map_ofOver f g (rest x) (dRest x) (rRest x)
 
 /--
 Unpack a decoration of the extended context `Γ.extend A` into:
@@ -296,6 +372,20 @@ theorem map_comp
     Decoration.Schema.map g spec (Decoration.Schema.map f spec d) =
       Decoration.Schema.map (Node.Schema.SchemaMap.comp g f) spec d :=
   Decoration.map_comp g f
+
+theorem map_ofOver
+    {Γ Δ : Node.Context.{u, v}}
+    {S : Node.Schema Γ} {T : Node.Schema Δ}
+    {A : ∀ X, Γ X → Type v} {B : ∀ X, Δ X → Type v}
+    (f : Node.Schema.SchemaMap S T)
+    (g : ∀ X γ, A X γ → B X (f X γ)) :
+    (spec : Spec) → (d : Decoration Γ spec) → (r : Decoration.Over A spec d) →
+    Decoration.Schema.map (Node.Schema.SchemaMap.extend (S := S) (T := T) f g) spec
+        (Decoration.ofOver A spec d r) =
+      Decoration.ofOver B spec
+        (Decoration.Schema.map f spec d)
+        (Decoration.Over.mapBase f g spec d r)
+  | spec, d, r => Decoration.map_ofOver f g spec d r
 
 /--
 `Decoration.Schema.telescope S spec` packages the staged telescope view of

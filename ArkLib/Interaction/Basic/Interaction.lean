@@ -120,6 +120,18 @@ def InteractionOver.comap {Δ : Node.Context} {shape : ShapeOver Agent Δ}
     InteractionOver Agent Γ (shape.comap f) m where
   interact profile k := I.interact profile k
 
+/--
+Reindex a local execution law contravariantly along a schema morphism, using
+the underlying realized context morphism.
+-/
+abbrev InteractionOver.comapSchema
+    {Δ : Node.Context} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    {shape : ShapeOver Agent Δ}
+    {m : Type w → Type w}
+    (I : InteractionOver Agent Δ shape m) (f : Node.Schema.SchemaMap S T) :
+    InteractionOver Agent Γ (ShapeOver.comapSchema shape f) m :=
+  I.comap f.toContextHom
+
 @[simp]
 theorem InteractionOver.comap_id
     {shape : ShapeOver Agent Γ}
