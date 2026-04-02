@@ -15,9 +15,10 @@ through a `Spec` — a concrete move at every node from root to leaf.
 On its own, a `Spec` says nothing about *who* makes each move or *how*
 moves are computed. Those concerns are separated into companion modules:
 
+* `Node` — realized node contexts and telescope-style node schemas
 * `Decoration` — concrete per-node metadata on a fixed protocol tree
 * `ShapeOver` / `InteractionOver` — generic local syntax and local execution
-  laws over decorated protocol trees
+  laws over realized node contexts
 * `Strategy` — one-player strategies with monadic effects
 * `Append`, `Replicate`, `Chain` — sequential composition and iteration
 
@@ -28,7 +29,7 @@ is mathematically forced in protocols like sumcheck and FRI.
 
 ## Module map
 
-- `Basic/` — spec, transcript, decoration, generic shapes, strategy,
+- `Basic/` — spec, node contexts, decoration, generic shapes, strategy,
   composition (this layer)
 - `TwoParty/` — sender/receiver roles, `withRoles`, `Counterpart`
 - `Reduction.lean` — prover, verifier, reduction
@@ -61,8 +62,10 @@ It does **not** say
 * how a collection of participants executes the node.
 
 Those additional layers are supplied separately by:
+* `Spec.Node.Context` / `Spec.Node.Schema`, for node-local semantic contexts
+  and their telescope-style descriptions;
 * `Spec.Decoration`, for concrete nodewise metadata;
-* `Spec.ShapeOver`, for local participant syntax over such metadata;
+* `Spec.ShapeOver`, for local participant syntax over realized node contexts;
 * `Spec.InteractionOver`, for local execution laws over such syntax. -/
 inductive Spec : Type (u + 1) where
   | /-- Terminal node: the interaction is over. -/
