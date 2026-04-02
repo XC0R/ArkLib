@@ -508,33 +508,34 @@ def Decoration.append {S : Type u → Type v}
       ⟨s, fun x => Decoration.append (dRest x)
         (fun p => d₂ ⟨x, p⟩)⟩
 
-/-- Concatenate refinement layers along `Spec.append`, over appended base decorations. -/
-def Decoration.Refine.append {L : Type u → Type v} {F : ∀ X, L X → Type w}
+/-- Concatenate dependent decoration layers along `Spec.append`, over appended
+base decorations. -/
+def Decoration.Over.append {L : Type u → Type v} {F : ∀ X, L X → Type w}
     {s₁ : Spec} {s₂ : Transcript s₁ → Spec}
     {d₁ : Decoration L s₁}
     {d₂ : (tr₁ : Transcript s₁) → Decoration L (s₂ tr₁)}
-    (r₁ : Decoration.Refine F s₁ d₁)
-    (r₂ : (tr₁ : Transcript s₁) → Decoration.Refine F (s₂ tr₁) (d₂ tr₁)) :
-    Decoration.Refine F (s₁.append s₂) (d₁.append d₂) :=
+    (r₁ : Decoration.Over F s₁ d₁)
+    (r₂ : (tr₁ : Transcript s₁) → Decoration.Over F (s₂ tr₁) (d₂ tr₁)) :
+    Decoration.Over F (s₁.append s₂) (d₁.append d₂) :=
   match s₁, d₁, r₁ with
   | .done, _, _ => r₂ ⟨⟩
   | .node _ _, ⟨_, _⟩, ⟨fData, rRest⟩ =>
-      ⟨fData, fun x => Refine.append (rRest x) (fun p => r₂ ⟨x, p⟩)⟩
+      ⟨fData, fun x => Over.append (rRest x) (fun p => r₂ ⟨x, p⟩)⟩
 
-/-- `Decoration.Refine.map` commutes with `Refine.append`. -/
-theorem Decoration.Refine.map_append {L : Type u → Type v} {F G : ∀ X, L X → Type w}
+/-- `Decoration.Over.map` commutes with `Over.append`. -/
+theorem Decoration.Over.map_append {L : Type u → Type v} {F G : ∀ X, L X → Type w}
     (η : ∀ X l, F X l → G X l) :
     (s₁ : Spec) → (s₂ : Transcript s₁ → Spec) →
     (d₁ : Decoration L s₁) →
     (d₂ : (tr₁ : Transcript s₁) → Decoration L (s₂ tr₁)) →
-    (r₁ : Decoration.Refine F s₁ d₁) →
-    (r₂ : (tr₁ : Transcript s₁) → Decoration.Refine F (s₂ tr₁) (d₂ tr₁)) →
-    Decoration.Refine.map η (s₁.append s₂) (d₁.append d₂) (Refine.append r₁ r₂) =
-      Refine.append (Refine.map η s₁ d₁ r₁)
-        (fun tr₁ => Refine.map η (s₂ tr₁) (d₂ tr₁) (r₂ tr₁))
+    (r₁ : Decoration.Over F s₁ d₁) →
+    (r₂ : (tr₁ : Transcript s₁) → Decoration.Over F (s₂ tr₁) (d₂ tr₁)) →
+    Decoration.Over.map η (s₁.append s₂) (d₁.append d₂) (Over.append r₁ r₂) =
+      Over.append (Over.map η s₁ d₁ r₁)
+        (fun tr₁ => Over.map η (s₂ tr₁) (d₂ tr₁) (r₂ tr₁))
   | .done, _, _, _, r₁, r₂ => rfl
   | .node X rest, s₂, ⟨l, dRest⟩, d₂, ⟨fData, rRest⟩, r₂ => by
-      simp only [Spec.append, Decoration.append, Decoration.Refine.append, Decoration.Refine.map]
+      simp only [Spec.append, Decoration.append, Decoration.Over.append, Decoration.Over.map]
       congr 1; funext x
       exact map_append η (rest x) (fun p => s₂ ⟨x, p⟩) (dRest x) (fun p => d₂ ⟨x, p⟩)
         (rRest x) (fun p => r₂ ⟨x, p⟩)

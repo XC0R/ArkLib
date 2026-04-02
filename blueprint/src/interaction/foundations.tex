@@ -165,19 +165,19 @@ Decorations admit a natural transformation $\mathsf{map} :
 (\forall\,X,\; S\;X \to T\;X) \to \mathsf{Decoration}\;S \to
 \mathsf{Decoration}\;T$ satisfying the expected functoriality laws.
 
-\begin{definition}[Displayed Decoration (Refine)]
-  \label{int:decoration-refine}
-  A \emph{displayed decoration} or \emph{refinement}
-  $\mathsf{Decoration.Refine}\;F\;\mathit{spec}\;d$ is a decoration fibered
+\begin{definition}[Dependent Decoration (Over)]
+  \label{int:decoration-over}
+  A \emph{dependent decoration}
+  $\mathsf{Decoration.Over}\;F\;\mathit{spec}\;d$ is a decoration fibered
   over an existing decoration~$d$: at each node with label $l : L\;X$ from~$d$,
   it attaches data in $F\;X\;l$.
-  \lean{Interaction.Spec.Decoration.Refine}
+  \lean{Interaction.Spec.Decoration.Over}
   \uses{int:decoration}
 \end{definition}
 
 The key benefit is practical.  Because roles, oracle interfaces, and other
 metadata are all instances of $\mathsf{Decoration}$ (or
-$\mathsf{Decoration.Refine}$), every operation on $\mathsf{Spec}$---transcripts,
+$\mathsf{Decoration.Over}$), every operation on $\mathsf{Spec}$---transcripts,
 append, replicate, state chains---is defined \emph{once} and then reused at
 every metadata layer.
 

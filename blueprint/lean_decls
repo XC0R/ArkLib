@@ -43,7 +43,7 @@ Interaction.Spec.Chain
 Interaction.Spec
 Interaction.Spec.Transcript
 Interaction.Spec.Decoration
-Interaction.Spec.Decoration.Refine
+Interaction.Spec.Decoration.Over
 Interaction.Spec.Strategy
 Interaction.OracleDecoration
 Interaction.OracleDecoration.QueryHandle

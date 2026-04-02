@@ -17,6 +17,12 @@ continue the interaction.
 
 The role-based prover/verifier runners used elsewhere in the library are
 specializations of this more general notion.
+
+Naming note:
+`InteractionOver` keeps the suffix form for the same reason as `ShapeOver`:
+it is the primary generalized execution notion, while `Interaction` is its
+trivial-data specialization rather than a base value that `InteractionOver`
+depends on.
 -/
 
 universe u a vTag vData w
@@ -26,7 +32,7 @@ namespace Spec
 
 variable {Agent : Type a}
 variable {Tag : Type u → Type vTag}
-variable {Data : Agent → Type u → Type vData}
+variable {Data : Agent → ∀ X, Tag X → Type vData}
 
 /--
 `InteractionOver Agent Tag Data shape m` is the most general local execution
@@ -52,7 +58,7 @@ synchronize, and how effects in `m` are used.
 structure InteractionOver
     (Agent : Type a)
     (Tag : Type u → Type vTag)
-    (Data : Agent → Type u → Type vData)
+    (Data : Agent → ∀ X, Tag X → Type vData)
     (shape : ShapeOver Agent Tag Data)
     (m : Type w → Type w) where
   /--
@@ -61,7 +67,7 @@ structure InteractionOver
   Inputs:
   * a move space `X`;
   * a shared node tag `tag : Tag X`;
-  * agent-local data `data : (a : Agent) → Data a X`;
+  * agent-local data `data : (a : Agent) → Data a X tag`;
   * for each agent `a`, a local node object
     `shape.Node a X tag (data a) (Cont a)`;
   * a continuation `k` explaining how to proceed once a move `x : X` has been
@@ -76,7 +82,7 @@ structure InteractionOver
   interact :
     {X : Type u} →
     {tag : Tag X} →
-    {data : (agent : Agent) → Data agent X} →
+    {data : (agent : Agent) → Data agent X tag} →
     {Cont : Agent → X → Type w} →
     {Result : Type w} →
     ((agent : Agent) → shape.Node agent X tag (data agent) (Cont agent)) →
@@ -88,20 +94,20 @@ structure InteractionOver
 no agent-local per-node data.
 
 This is the right facade when the only node metadata is the shared tag `Tag`.
-Equivalently, it is `InteractionOver Agent Tag (fun _ _ => PUnit) shape m`.
+Equivalently, it is `InteractionOver Agent Tag (fun _ _ _ => PUnit) shape m`.
 -/
 abbrev Interaction
     (Agent : Type a)
     (Tag : Type u → Type vTag)
     (shape : Shape Agent Tag)
     (m : Type w → Type w) :=
-  InteractionOver Agent Tag (fun _ _ => PUnit) shape m
+  InteractionOver Agent Tag (fun _ _ _ => PUnit) shape m
 
 section Run
 
 variable {Agent : Type u}
 variable {Tag : Type u → Type u}
-variable {Data : Agent → Type u → Type u}
+variable {Data : Agent → ∀ X, Tag X → Type u}
 variable {shape : ShapeOver Agent Tag Data}
 variable {m : Type u → Type u}
 
@@ -111,8 +117,8 @@ Execute a whole protocol tree using the local one-step law `interact`.
 Inputs:
 * `spec` is the underlying interaction tree;
 * `tags : Decoration Tag spec` supplies the shared node tag at each node;
-* `datas : (a : Agent) → Decoration (Data a) spec` supplies each agent's
-  local node data at each node;
+* `datas : (a : Agent) → Decoration.Over (fun X tag => Data a X tag) spec tags`
+  supplies each agent's local node data over those shared tags;
 * `Out : Agent → Transcript spec → Type u` is the final output family for each
   agent;
 * `profile` supplies, for every agent, that agent's whole-tree participant
@@ -136,7 +142,8 @@ def InteractionOver.run
     (I : InteractionOver Agent Tag Data shape m) [Monad m]
     {spec : Spec}
     (tags : Decoration Tag spec)
-    (datas : (agent : Agent) → Decoration (Data agent) spec)
+    (datas : (agent : Agent) →
+      Decoration.Over (fun X tag => Data agent X tag) spec tags)
     {Out : Agent → Transcript spec → Type u}
     (profile :
       (agent : Agent) →

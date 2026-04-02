@@ -17,7 +17,7 @@ function of
 * the agent,
 * the move space at that node,
 * a shared node tag,
-* optional agent-local node data, and
+* optional agent-local node data depending on that shared tag, and
 * the continuation family after each possible move.
 
 The existing two-party and role-based notions are specializations of this more
@@ -26,6 +26,12 @@ general pattern:
 * `Counterpart`, `PublicCoinCounterpart`, and `withRoles` are specific shapes;
 * the corresponding execution laws are introduced separately in
   `Basic/Interaction`.
+
+Naming note:
+`ShapeOver` keeps the suffix form because it is the primary generalized syntax
+notion, with plain `Shape` recovered as the trivial-data specialization. This
+differs from `Decoration.Over`, which is literally dependent data over a fixed
+base decoration value.
 -/
 
 universe u a vTag vData w
@@ -35,7 +41,7 @@ namespace Spec
 
 variable {Agent : Type a}
 variable {Tag : Type u → Type vTag}
-variable {Data : Agent → Type u → Type vData}
+variable {Data : Agent → ∀ X, Tag X → Type vData}
 
 /--
 `ShapeOver Agent Tag Data` is the most general local-syntax object in the
@@ -46,7 +52,7 @@ It answers the following question:
 > Suppose we are standing at one protocol node whose move space is `X`.
 > The node carries a shared tag `tag : Tag X`.
 > For a given agent `a`, it also carries agent-specific local data
-> `data : Data a X`.
+> `data : Data a X tag`.
 > If the protocol continues with family `Cont : X → Type w`, what is the type
 > of the local object that agent `a` stores at this node?
 
@@ -67,7 +73,8 @@ The separation between `Tag` and `Data` is intentional:
   Every agent sees the same tag at that node.
   Examples: owner of the node, kind of round, public protocol phase.
 
-* `Data a X` is **agent-local metadata** for agent `a` at that node.
+* `Data a X tag` is **agent-local metadata** for agent `a` at that node,
+  allowed to depend on the shared tag.
   Examples: the monad used by that agent at that node, local privileges,
   agent-specific capabilities, or auxiliary bookkeeping needed only on that
   side.
@@ -76,18 +83,18 @@ This is the most general local syntax layer because:
 * binary and multiparty interaction are both recovered by the choice of
   `Agent`;
 * role-based interaction is recovered by taking `Tag X = Role`;
-* the undecorated case is recovered by taking `Data a X = PUnit`.
+* the undecorated case is recovered by taking `Data a X tag = PUnit`.
 -/
 structure ShapeOver
     (Agent : Type a)
     (Tag : Type u → Type vTag)
-    (Data : Agent → Type u → Type vData) where
+    (Data : Agent → ∀ X, Tag X → Type vData) where
   /--
   `Node a X tag data Cont` is the type of the local object held by agent `a`
   at a node with:
   * move space `X`,
   * shared tag `tag : Tag X`,
-  * agent-local data `data : Data a X`,
+  * agent-local data `data : Data a X tag`,
   * continuation family `Cont : X → Type w`.
 
   The continuation is indexed by the next move `x : X`, because after choosing
@@ -97,8 +104,8 @@ structure ShapeOver
   Node :
     (agent : Agent) →
     (X : Type u) →
-    Tag X →
-    Data agent X →
+    (tag : Tag X) →
+    Data agent X tag →
     (X → Type w) →
     Type w
 
@@ -124,7 +131,7 @@ structure ShapeOver
     {agent : Agent} →
     {X : Type u} →
     {tag : Tag X} →
-    {data : Data agent X} →
+    {data : Data agent X tag} →
     {A B : X → Type w} →
     (∀ x, A x → B x) →
     Node agent X tag data A →
@@ -136,12 +143,12 @@ per-node data.
 
 This is the right facade when the only metadata that matters is the shared node
 tag `Tag`, and every agent carries no additional local annotation.
-Equivalently, it is `ShapeOver Agent Tag (fun _ _ => PUnit)`.
+Equivalently, it is `ShapeOver Agent Tag (fun _ _ _ => PUnit)`.
 -/
 abbrev Shape
     (Agent : Type a)
     (Tag : Type u → Type vTag) :=
-  ShapeOver Agent Tag (fun _ _ => PUnit)
+  ShapeOver Agent Tag (fun _ _ _ => PUnit)
 
 /--
 `ShapeOver.Family shape a spec tags data Out` is the whole-tree participant
@@ -150,8 +157,8 @@ type for agent `a` induced by the local syntax `shape`.
 Inputs:
 * `spec` is the underlying protocol tree;
 * `tags : Decoration Tag spec` assigns a shared tag to each node;
-* `data : Decoration (Data a) spec` assigns agent-`a`'s local data to each
-  node;
+* `data : Decoration.Over (fun X tag => Data a X tag) spec tags` assigns
+  agent-`a`'s local data over those shared tags;
 * `Out : Transcript spec → Type w` is the final output family at leaves.
 
 The result is obtained by structural recursion on `spec`:
@@ -166,8 +173,8 @@ def ShapeOver.Family
     (shape : ShapeOver Agent Tag Data) :
     (agent : Agent) →
     (spec : Spec) →
-    Decoration Tag spec →
-    Decoration (Data agent) spec →
+    (tags : Decoration Tag spec) →
+    Decoration.Over (fun X tag => Data agent X tag) spec tags →
     (Transcript spec → Type w) →
     Type w
   | _, .done, _, _, Out => Out ⟨⟩
@@ -189,7 +196,7 @@ def ShapeOver.mapOutput
     {agent : Agent}
     {spec : Spec}
     (tags : Decoration Tag spec)
-    (data : Decoration (Data agent) spec)
+    (data : Decoration.Over (fun X tag => Data agent X tag) spec tags)
     :
     {A B : Transcript spec → Type w} →
     (∀ tr, A tr → B tr) →
@@ -203,6 +210,9 @@ def ShapeOver.mapOutput
     | .node X next, ⟨tag, tags⟩, ⟨nodeData, datas⟩ =>
         intro A B f node
         exact shape.map
+          (agent := agent)
+          (tag := tag)
+          (data := nodeData)
           (fun x =>
             mapOutput shape
               (agent := agent)

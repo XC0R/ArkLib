@@ -6,7 +6,7 @@ Authors: Quang Dao
 import ArkLib.Interaction.Basic.Spec
 
 /-!
-# Decorations and displayed decorations (`Refine`)
+# Decorations and dependent decorations (`Over`)
 
 `Spec.Decoration S spec` is concrete nodewise metadata attached to a fixed
 protocol tree `spec`. If a node of `spec` has move space `X`, then a
@@ -19,8 +19,14 @@ each node". Typical examples include:
 * monad decorations, recording which monad a local action uses at a node;
 * oracle decorations, recording what oracle interface is available there.
 
-`Decoration.Refine` is the dependent (displayed) variant:
+`Decoration.Over` is the dependent (displayed) variant:
 its fibers may depend on the label drawn from an existing decoration.
+
+Naming note:
+`Decoration.Over` is nested because it is literally a decoration over a fixed
+base decoration value. By contrast, `ShapeOver` and `InteractionOver` keep the
+suffix form because they are the primary generalized syntax and semantics
+layers, not dependent objects over a fixed base `Shape` or `Interaction`.
 
 Functorial `map` / `map_id` / `map_comp` for both layers are in this file. Composition along
 `Spec.append` is in `ArkLib.Interaction.Basic.Append`.
@@ -72,42 +78,44 @@ theorem Decoration.map_comp {S : Type u → Type v} {T : Type u → Type w} {U :
       simp only [Decoration.map]; congr 1; funext x
       exact map_comp g f (rest x) (dRest x)
 
-/-- Refined decoration over `d : Decoration L spec`: at each node, data in `F X l` where `l` is
-the label from `d`, plus recursive refinements on subtrees. -/
-def Decoration.Refine {L : Type u → Type v} (F : ∀ X, L X → Type w) :
+/-- Dependent decoration over `d : Decoration L spec`: at each node, data in
+`F X l` where `l` is the label from `d`, plus recursive decorations on
+subtrees. -/
+def Decoration.Over {L : Type u → Type v} (F : ∀ X, L X → Type w) :
     (spec : Spec) → Decoration L spec → Type (max u w)
   | .done, _ => PUnit
   | .node X rest, ⟨l, dRest⟩ =>
-      F X l × (∀ x, Decoration.Refine F (rest x) (dRest x))
+      F X l × (∀ x, Decoration.Over F (rest x) (dRest x))
 
-/-- Fiberwise map between refinement type families over the same base decoration. -/
-def Decoration.Refine.map {L : Type u → Type v}
+/-- Fiberwise map between dependent decoration families over the same base
+decoration. -/
+def Decoration.Over.map {L : Type u → Type v}
     {F : ∀ X, L X → Type w} {G : ∀ X, L X → Type w}
     (f : ∀ X l, F X l → G X l) :
     (spec : Spec) → (d : Decoration L spec) →
-    Decoration.Refine F spec d → Decoration.Refine G spec d
+    Decoration.Over F spec d → Decoration.Over G spec d
   | .done, _, _ => ⟨⟩
   | .node X rest, ⟨l, dRest⟩, ⟨fData, rRest⟩ =>
-      ⟨f X l fData, fun x => Refine.map f (rest x) (dRest x) (rRest x)⟩
+      ⟨f X l fData, fun x => Over.map f (rest x) (dRest x) (rRest x)⟩
 
 @[simp, grind =]
-theorem Decoration.Refine.map_id {L : Type u → Type v} {F : ∀ X, L X → Type w} :
-    (spec : Spec) → (d : Decoration L spec) → (r : Decoration.Refine F spec d) →
-    Decoration.Refine.map (fun _ _ x => x) spec d r = r
+theorem Decoration.Over.map_id {L : Type u → Type v} {F : ∀ X, L X → Type w} :
+    (spec : Spec) → (d : Decoration L spec) → (r : Decoration.Over F spec d) →
+    Decoration.Over.map (fun _ _ x => x) spec d r = r
   | .done, _, _ => rfl
   | .node _ rest, ⟨l, dRest⟩, ⟨fd, rr⟩ => by
-      simp only [Decoration.Refine.map]; congr 1; funext x
+      simp only [Decoration.Over.map]; congr 1; funext x
       exact map_id (rest x) (dRest x) (rr x)
 
-theorem Decoration.Refine.map_comp {L : Type u → Type v}
+theorem Decoration.Over.map_comp {L : Type u → Type v}
     {F G H : ∀ X, L X → Type w}
     (g : ∀ X l, G X l → H X l) (f : ∀ X l, F X l → G X l) :
-    (spec : Spec) → (d : Decoration L spec) → (r : Decoration.Refine F spec d) →
-    Decoration.Refine.map g spec d (Decoration.Refine.map f spec d r) =
-      Decoration.Refine.map (fun X l => g X l ∘ f X l) spec d r
+    (spec : Spec) → (d : Decoration L spec) → (r : Decoration.Over F spec d) →
+    Decoration.Over.map g spec d (Decoration.Over.map f spec d r) =
+      Decoration.Over.map (fun X l => g X l ∘ f X l) spec d r
   | .done, _, _ => rfl
   | .node _ rest, ⟨l, dRest⟩, ⟨fd, rr⟩ => by
-      simp only [Decoration.Refine.map]; congr 1; funext x
+      simp only [Decoration.Over.map]; congr 1; funext x
       exact map_comp g f (rest x) (dRest x) (rr x)
 
 end Spec

@@ -104,14 +104,14 @@ counterparts.
   $\mathsf{Role.Refine}\;S\;\mathit{spec}\;\mathit{roles}$ is a
   ``sender-only'' decoration: it carries $S\;X$ at sender nodes and recurses
   directly at receiver nodes, with no padding data.  This avoids the
-  $\mathsf{PUnit}$ junk that $\mathsf{Decoration.Refine}$ would introduce at
+  $\mathsf{PUnit}$ junk that $\mathsf{Decoration.Over}$ would introduce at
   receiver nodes.
   \lean{Interaction.Role.Refine}
-  \uses{int:role-decoration, int:decoration-refine}
+  \uses{int:role-decoration, int:decoration-over}
 \end{definition}
 
 $\mathsf{Role.Refine}$ is equivalent to
-$\mathsf{Decoration.Refine}\;(\lambda\,X\;r.\;\mathsf{SenderData}\;S\;X\;r)$
+$\mathsf{Decoration.Over}\;(\lambda\,X\;r.\;\mathsf{SenderData}\;S\;X\;r)$
 via an explicit $\mathsf{Equiv}$.  This is the type used for
 $\mathsf{OracleDecoration}$ (Section~\ref{sec:interaction-oracle}).
 

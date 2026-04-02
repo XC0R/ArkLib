@@ -203,45 +203,46 @@ def Decoration.stateChain {S : Type u → Type v}
       Decoration.append (deco i s)
         (fun tr => Decoration.stateChain deco n (i + 1) (advance i s tr))
 
-/-- Refinement layer along a state chain, fibered over `Decoration.stateChain`. -/
-def Decoration.Refine.stateChain {L : Type u → Type v} {F : ∀ X, L X → Type w}
+/-- Dependent decoration layer along a state chain, fibered over
+`Decoration.stateChain`. -/
+def Decoration.Over.stateChain {L : Type u → Type v} {F : ∀ X, L X → Type w}
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Transcript (spec i s) → Stage (i + 1)}
     {deco : (i : Nat) → (s : Stage i) → Decoration L (spec i s)}
-    (rDeco : (i : Nat) → (s : Stage i) → Decoration.Refine F (spec i s) (deco i s)) :
+    (rDeco : (i : Nat) → (s : Stage i) → Decoration.Over F (spec i s) (deco i s)) :
     (n : Nat) → (i : Nat) → (s : Stage i) →
-    Decoration.Refine F (Spec.stateChain Stage spec advance n i s)
+    Decoration.Over F (Spec.stateChain Stage spec advance n i s)
       (Decoration.stateChain deco n i s)
   | 0, _, _ => ⟨⟩
   | n + 1, i, s =>
-      Refine.append (rDeco i s)
-        (fun tr => Refine.stateChain rDeco n (i + 1) (advance i s tr))
+      Over.append (rDeco i s)
+        (fun tr => Over.stateChain rDeco n (i + 1) (advance i s tr))
 
-/-- `Refine.map` commutes with `Refine.stateChain`. -/
-theorem Decoration.Refine.map_stateChain {L : Type u → Type v} {F G : ∀ X, L X → Type w}
+/-- `Over.map` commutes with `Over.stateChain`. -/
+theorem Decoration.Over.map_stateChain {L : Type u → Type v} {F G : ∀ X, L X → Type w}
     (η : ∀ X l, F X l → G X l)
     {Stage : Nat → Type u} {spec : (i : Nat) → Stage i → Spec}
     {advance : (i : Nat) → (s : Stage i) → Transcript (spec i s) → Stage (i + 1)}
     {deco : (i : Nat) → (s : Stage i) → Decoration L (spec i s)}
-    (rDeco : (i : Nat) → (s : Stage i) → Decoration.Refine F (spec i s) (deco i s)) :
+    (rDeco : (i : Nat) → (s : Stage i) → Decoration.Over F (spec i s) (deco i s)) :
     (n : Nat) → (i : Nat) → (s : Stage i) →
-    Decoration.Refine.map η (Spec.stateChain Stage spec advance n i s)
-        (Decoration.stateChain deco n i s) (Decoration.Refine.stateChain rDeco n i s) =
-      Decoration.Refine.stateChain (fun j t => Decoration.Refine.map η (spec j t) (deco j t)
+    Decoration.Over.map η (Spec.stateChain Stage spec advance n i s)
+        (Decoration.stateChain deco n i s) (Decoration.Over.stateChain rDeco n i s) =
+      Decoration.Over.stateChain (fun j t => Decoration.Over.map η (spec j t) (deco j t)
         (rDeco j t)) n i s
   | 0, _, _ => rfl
   | n + 1, i, s => by
-      simp only [stateChain_succ, Decoration.stateChain, Decoration.Refine.stateChain]
-      rw [Decoration.Refine.map_append η (spec i s)
+      simp only [stateChain_succ, Decoration.stateChain, Decoration.Over.stateChain]
+      rw [Decoration.Over.map_append η (spec i s)
             (fun tr => Spec.stateChain Stage spec advance n (i + 1) (advance i s tr))
             (deco i s)
             (fun tr => Decoration.stateChain deco n (i + 1) (advance i s tr))
             (rDeco i s)
-            (fun tr => Decoration.Refine.stateChain rDeco n (i + 1) (advance i s tr))]
-      refine congrArg (Decoration.Refine.append (Decoration.Refine.map η (spec i s) (deco i s)
+            (fun tr => Decoration.Over.stateChain rDeco n (i + 1) (advance i s tr))]
+      refine congrArg (Decoration.Over.append (Decoration.Over.map η (spec i s) (deco i s)
             (rDeco i s))) ?_
       funext tr
-      exact Decoration.Refine.map_stateChain η rDeco n (i + 1) (advance i s tr)
+      exact Decoration.Over.map_stateChain η rDeco n (i + 1) (advance i s tr)
 
 /-! ## State chain families -/
 
