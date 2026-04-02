@@ -6,6 +6,8 @@ Authors: Quang Dao
 import ArkLib.Interaction.Basic.Spec
 import ArkLib.Interaction.Basic.Decoration
 import ArkLib.Interaction.Basic.Strategy
+import ArkLib.Interaction.Basic.Shape
+import ArkLib.Interaction.Basic.Interaction
 import ArkLib.Interaction.Basic.MonadDecoration
 import ArkLib.Interaction.TwoParty.Decoration
 
@@ -36,6 +38,58 @@ namespace Interaction
 namespace Spec
 
 variable {m : Type u → Type u}
+
+private inductive Participant where
+  | focal
+  | counterpart
+
+private def roleShape (m : Type u → Type u) [Functor m] :
+    ShapeOver Participant (fun _ => Role) where
+  Node
+    | .focal, X, role, Cont => role.Action m X Cont
+    | .counterpart, X, role, Cont => role.Dual m X Cont
+  map {agent} {X} {γ} {A} {B} f :=
+    match agent, γ with
+    | .focal, .sender => fun ⟨x, cont⟩ => ⟨x, f x <$> cont⟩
+    | .focal, .receiver => fun respond x => f x <$> respond x
+    | .counterpart, .sender => fun observe x => f x (observe x)
+    | .counterpart, .receiver =>
+        fun sample => (fun ⟨x, cont⟩ => ⟨x, f x cont⟩) <$> sample
+
+private def roleInteraction (m : Type u → Type u) [Monad m] :
+    InteractionOver Participant (fun _ => Role) (roleShape m) m where
+  interact {X} {γ} {Cont} {Result} profile k :=
+    Role.interact γ (profile .focal) (profile .counterpart)
+      (fun x aCont dCont =>
+        k x (fun
+          | .focal => aCont
+          | .counterpart => dCont))
+
+private def monadicShape :
+    ShapeOver Participant (Node.Context.extend (fun _ => Role) (fun _ _ => BundledMonad)) where
+  Node
+    | .focal, X, ⟨role, bm⟩, Cont => role.Action bm.M X Cont
+    | .counterpart, X, ⟨.sender, bm⟩, Cont => (x : X) → bm.M (Cont x)
+    | .counterpart, X, ⟨.receiver, bm⟩, Cont => bm.M ((x : X) × Cont x)
+  map {agent} {X} {γ} {A} {B} f :=
+    match agent, γ with
+    | .focal, ⟨.sender, bm⟩ => fun ⟨x, cont⟩ => ⟨x, f x <$> cont⟩
+    | .focal, ⟨.receiver, bm⟩ => fun respond x => f x <$> respond x
+    | .counterpart, ⟨.sender, bm⟩ => fun observe x => f x <$> observe x
+    | .counterpart, ⟨.receiver, bm⟩ =>
+        fun sample => (fun ⟨x, cont⟩ => ⟨x, f x cont⟩) <$> sample
+
+private def monadDecorationOver :
+    (spec : Spec) → (roles : RoleDecoration spec) → (md : MonadDecoration spec) →
+    Decoration.Over (fun _ _ => BundledMonad) spec roles
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨_, rRest⟩, ⟨bm, mRest⟩ =>
+      ⟨bm, fun x => monadDecorationOver (rest x) (rRest x) (mRest x)⟩
+
+private def packedRoleMonads {spec : Spec}
+    (roles : RoleDecoration spec) (md : MonadDecoration spec) :
+    Decoration (Node.Context.extend (fun _ => Role) (fun _ _ => BundledMonad)) spec :=
+  Decoration.ofOver (fun _ _ => BundledMonad) spec roles (monadDecorationOver spec roles md)
 
 /-- Focal strategy: `Role.Action` at each decorated node (choose vs. respond). -/
 def Strategy.withRoles (m : Type u → Type u) :
