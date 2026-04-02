@@ -150,15 +150,8 @@ theorem completeness_relOut_mono {ε : ℝ≥0} {relOut' : Set (StmtOut × WitOu
     (hrelOut : relOut ⊆ relOut') :
       completeness init impl relIn relOut reduction ε →
         completeness init impl relIn relOut' reduction ε := by
-  sorry
-  -- intro h
-  -- dsimp [completeness] at h ⊢
-  -- intro stmtIn witIn hstmtIn
-  -- refine ge_trans ?_ (h stmtIn witIn hstmtIn)
-  -- stop
-  -- refine probEvent_mono ?_
-  -- rintro _ _ ⟨h1, h2⟩
-  -- exact ⟨hrelOut h1, h2⟩
+  intro h stmtIn witIn hIn
+  exact ge_trans (probEvent_mono fun _ _ ⟨h1, h2⟩ => ⟨hrelOut h1, h2⟩) (h stmtIn witIn hIn)
 
 /-- Perfect completeness means that the probability of the reduction outputting a valid
   statement-witness pair is _exactly_ 1 (instead of at least `1 - 0`). -/
@@ -171,11 +164,10 @@ theorem perfectCompleteness_eq_prob_one :
       Pr[fun ⟨⟨_, (prvStmtOut, witOut)⟩, stmtOut⟩ =>
           ((stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut)
         | OptionT.mk do (simulateQ pImpl (reduction.run stmtIn witIn)).run' (← init)] = 1 := by
-  sorry
-  -- stop
-  -- refine forall_congr' fun stmtIn => forall_congr' fun stmtOut => forall_congr' fun _ => ?_
-  -- rw [ENNReal.coe_zero, tsub_zero, ge_iff_le, OracleComp.one_le_probEvent_iff,
-  --   probEvent_eq_one_iff, Prod.forall]
+  simp only [perfectCompleteness, completeness, ENNReal.coe_zero, tsub_zero]
+  exact forall_congr' fun _ => forall_congr' fun _ => imp_congr_right fun _ =>
+    ⟨fun h => le_antisymm probEvent_le_one (ge_iff_le.mp h),
+     fun h => ge_of_eq h⟩
 
 -- /-- For a reduction without shared oracles (i.e. `oSpec = []ₒ`), perfect completeness occurs
 --   when the reduction produces satisfying statement-witness pairs for all possible challenges. -/
@@ -493,9 +485,41 @@ section Trivial
 @[simp]
 theorem Reduction.id_perfectCompleteness {rel : Set (StmtIn × WitIn)} :
     (Reduction.id : Reduction oSpec _ _ _ _ _).perfectCompleteness init impl rel rel := by
-  sorry
-  -- simp
-  -- aesop
+  simp only [perfectCompleteness, completeness, ENNReal.coe_zero, tsub_zero]
+  intro stmtIn witIn hIn
+  simp only [Reduction.id_run]
+  rw [ge_iff_le, one_le_probEvent_iff, probEvent_eq_one_iff]
+  refine ⟨?_, ?_⟩
+  · -- Pr[⊥ | OptionT.mk ...] = 0
+    rw [OptionT.probFailure_eq, OptionT.run_mk]
+    simp only [probFailure_eq_zero, zero_add]
+    apply probOutput_eq_zero_of_not_mem_support
+    simp only [support_bind, Set.mem_iUnion, not_exists]
+    intro s _
+    change none ∈ support
+      (StateT.run' (simulateQ _ (pure (some ((default, stmtIn, witIn), stmtIn)) :
+        OracleComp _ _)) s) → False
+    rw [simulateQ_pure]
+    change none ∈ support
+      (Prod.fst <$> (pure (some ((default, stmtIn, witIn), stmtIn)) :
+        StateT σ ProbComp _).run s) → False
+    rw [StateT.run_pure]; simp [map_pure]
+  · -- ∀ x ∈ support, event x
+    intro x hx
+    rw [OptionT.mem_support_iff] at hx
+    simp only [OptionT.run_mk, support_bind, Set.mem_iUnion] at hx
+    obtain ⟨s, _, hx⟩ := hx
+    change some x ∈ support
+      (StateT.run' (simulateQ _ (pure (some ((default, stmtIn, witIn), stmtIn)) :
+        OracleComp _ _)) s) at hx
+    rw [simulateQ_pure] at hx
+    change some x ∈ support
+      (Prod.fst <$> (pure (some ((default, stmtIn, witIn), stmtIn)) :
+        StateT σ ProbComp _).run s) at hx
+    rw [StateT.run_pure] at hx
+    simp [map_pure, support_pure] at hx
+    cases hx
+    exact ⟨hIn, rfl⟩
 
 /-- The identity / trivial verifier is perfectly sound. -/
 @[simp]
@@ -532,8 +556,8 @@ theorem OracleReduction.id_perfectCompleteness
     {rel : Set ((StmtIn × ∀ i, OStmtIn i) × WitIn)} :
     (OracleReduction.id : OracleReduction oSpec _ _ _ _ _ _ _).perfectCompleteness
       init impl rel rel := by
-  sorry
-  -- simp [perfectCompleteness]
+  unfold OracleReduction.perfectCompleteness
+  simp only [OracleReduction.id_toReduction, Reduction.id_perfectCompleteness]
 
 /-- The identity / trivial verifier is perfectly sound. -/
 @[simp, grind .]
