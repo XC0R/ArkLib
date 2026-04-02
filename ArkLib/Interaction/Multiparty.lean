@@ -133,16 +133,16 @@ receive extraction. -/
 example : Spec.Strategy.withRoles m (ksSpec Msg Chal WitOut Decision ExtractedWit)
     ((ksPartyDeco Msg Chal WitOut Decision ExtractedWit).toRoles
       (ThreeParty.resolveFor .prover)) (fun _ => α)
-    = ((_ : Msg) × m ((_ : Chal) → m ((_ : WitOut) × m
-        ((_ : Decision) → m ((_ : ExtractedWit) → m α))))) := rfl
+    = m ((_ : Msg) × ((_ : Chal) → m (m ((_ : WitOut) ×
+        ((_ : Decision) → m ((_ : ExtractedWit) → m α)))))) := rfl
 
 /-- **Verifier** sees: receive msg, choose chal, receive witOut, choose decision,
 receive extraction. -/
 example : Spec.Strategy.withRoles m (ksSpec Msg Chal WitOut Decision ExtractedWit)
     ((ksPartyDeco Msg Chal WitOut Decision ExtractedWit).toRoles
       (ThreeParty.resolveFor .verifier)) (fun _ => α)
-    = ((_ : Msg) → m ((_ : Chal) × m ((_ : WitOut) → m
-        ((_ : Decision) × m ((_ : ExtractedWit) → m α))))) := rfl
+    = ((_ : Msg) → m (m ((_ : Chal) × ((_ : WitOut) → m
+        (m ((_ : Decision) × ((_ : ExtractedWit) → m α))))))) := rfl
 
 /-- **Extractor** sees: receive msg, receive chal, receive witOut, receive decision,
 choose extraction. -/
@@ -150,7 +150,7 @@ example : Spec.Strategy.withRoles m (ksSpec Msg Chal WitOut Decision ExtractedWi
     ((ksPartyDeco Msg Chal WitOut Decision ExtractedWit).toRoles
       (ThreeParty.resolveFor .extractor)) (fun _ => α)
     = ((_ : Msg) → m ((_ : Chal) → m ((_ : WitOut) → m
-        ((_ : Decision) → m ((_ : ExtractedWit) × m α))))) := rfl
+        ((_ : Decision) → m (m ((_ : ExtractedWit) × α)))))) := rfl
 
 /-- **Prover's environment** (verifier + extractor combined): observe msg,
 sample chal, observe witOut, sample decision, sample extraction. -/

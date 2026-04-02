@@ -7,8 +7,9 @@ Authors: Quang Dao
 /-!
 # Sender / receiver roles
 
-`Interaction.Role` marks which side of a two-party protocol acts at each node. `Action` and `Dual`
-package the Σ/Π pattern for strategies vs. environments; `interact` runs one round.
+`Interaction.Role` marks which side of a two-party protocol acts at each node.
+`Action` and `Dual` package the active/passive node shapes for the focal side
+and its environment; `interact` runs one round.
 -/
 
 universe u
@@ -27,10 +28,11 @@ def swap : Role → Role
   | .sender => .receiver
   | .receiver => .sender
 
-/-- Focal party's action type: sender chooses (Σ), receiver responds to any move (Π). -/
+/-- Focal party's action type: when acting, the focal party may use effects to
+choose the next move itself; when observing, it responds to any received move. -/
 def Action (role : Role) (m : Type u → Type u) (X : Type u) (Cont : X → Type u) : Type u :=
   match role with
-  | .sender => (x : X) × m (Cont x)
+  | .sender => m ((x : X) × Cont x)
   | .receiver => (x : X) → m (Cont x)
 
 /-- Environment / dual view: sender branch is observation (Π); receiver branch samples (Σ). -/
@@ -44,8 +46,8 @@ def interact {m : Type u → Type u} [Monad m] {X : Type u}
     {ACont DCont : X → Type u} {Result : Type u} :
     (role : Role) → role.Action m X ACont → role.Dual m X DCont →
     ((x : X) → ACont x → DCont x → m Result) → m Result
-  | .sender, ⟨x, mCont⟩, dualFn, k => do
-      let cont ← mCont
+  | .sender, mAction, dualFn, k => do
+      let ⟨x, cont⟩ ← mAction
       k x cont (dualFn x)
   | .receiver, recvFn, mDual, k => do
       let ⟨x, dualCont⟩ ← mDual

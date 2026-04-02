@@ -28,7 +28,7 @@ private def exRoles : RoleDecoration (exSpec T U) :=
   ⟨.sender, fun _ => ⟨.receiver, fun _ => ⟨⟩⟩⟩
 
 example : Spec.Strategy.withRoles m (exSpec T U) (exRoles T U) (fun _ => α)
-    = ((_ : T) × m ((_ : U) → m α)) := rfl
+    = m ((_ : T) × ((_ : U) → m α)) := rfl
 
 example : Spec.Counterpart m (exSpec T U) (exRoles T U) (fun _ => α)
     = ((_ : T) → m ((_ : U) × α)) := rfl

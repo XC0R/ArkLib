@@ -58,8 +58,8 @@ def Strategy.runWithReplayOracle {m : Type u → Type u} [Monad m] :
     m ((msgs : MessagesOnly spec roles rho) ×
        Output (MessagesOnly.deriveTranscript spec roles rho msgs))
   | .done, _, _, _, output => pure ⟨⟨⟩, output⟩
-  | .node _X rest, ⟨.sender, rRest⟩, rho, _, ⟨x, cont⟩ => do
-      let next ← cont
+  | .node _X rest, ⟨.sender, rRest⟩, rho, _, send => do
+      let ⟨x, next⟩ ← send
       let ⟨msgs, out⟩ ← runWithReplayOracle (rest x) (rRest x)
         (rho.afterMessage x) next
       return ⟨⟨x, msgs⟩, out⟩
@@ -135,7 +135,7 @@ def Prover.fiatShamir
     let strategy ← P s wit
     let ⟨msgs, out⟩ ←
       Strategy.runWithReplayOracle (Context s) (Roles s) rho strategy
-    return ⟨msgs, pure out⟩
+    pure <| pure ⟨msgs, out⟩
 
 /-- The verifier-side basic Fiat-Shamir transform for a public-coin verifier.
 

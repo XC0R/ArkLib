@@ -53,7 +53,7 @@ def honestProverStep (m : Type → Type) [Monad m]
     (computeNext : CDegreeLE R deg → R → NextState) :
     Spec.Strategy.withRoles m (roundSpec R deg) (roundRoles R deg)
       (fun _ => NextState) :=
-  ⟨poly, pure fun chal => pure (computeNext poly chal)⟩
+  pure ⟨poly, fun chal => pure (computeNext poly chal)⟩
 
 /-- The verifier step for a single round of sum-check.
 

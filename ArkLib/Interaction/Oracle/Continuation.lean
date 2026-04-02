@@ -160,8 +160,8 @@ def runWithOracleCounterpart
   | .done, _, _, _, _, _, _, _, output, cOutput =>
       pure ⟨⟨⟩, output, cOutput⟩
   | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩, _, accSpec, accImpl, OutputP, OutputC,
-      ⟨x, cont⟩, dualFn => do
-      let next ← cont
+      send, dualFn => do
+      let ⟨x, next⟩ ← send
       let implX : QueryImpl (@OracleInterface.spec _ oi) Id := fun q => (oi.toOC.impl q).run x
       let z ← runWithOracleCounterpart inputImpl
         (rest x) (rRest x) (odRest x) (accSpec + @OracleInterface.spec _ oi)
@@ -330,31 +330,27 @@ theorem runWithOracleCounterpart_mapOutputWithRoles
         cases od
         simp [runWithOracleCounterpart, Spec.Strategy.mapOutputWithRoles]
     | .node _ rest, ⟨.sender, rRest⟩, ⟨oi, odRest⟩ =>
-        cases strat with
-        | mk x cont =>
-            simp only [Spec.Strategy.mapOutputWithRoles]
-            simp only [runWithOracleCounterpart, bind_pure_comp, bind_map_left, map_bind,
-              Functor.map_map]
-            refine congrArg (fun k => cont >>= k) ?_
-            funext next
-            let addPrefix :
-                ((tr : Spec.Transcript (rest x)) ×
-                  (fun tr => OutputP' ⟨x, tr⟩) tr ×
-                  (fun tr => OutputC ⟨x, tr⟩) tr) →
-                ((tr : Spec.Transcript (Spec.node _ rest)) × OutputP' tr × OutputC tr) :=
-              fun a => ⟨⟨x, a.1⟩, a.2.1, a.2.2⟩
-            simpa [bind_assoc, addPrefix] using
-              congrArg (fun z => addPrefix <$> z)
-                (go (rest x) (rRest x) (odRest x)
-                  (accSpec + @OracleInterface.spec _ oi)
-                  (QueryImpl.add accImpl (fun q => (oi.toOC.impl q).run x))
-                  (fun tr => fP ⟨x, tr⟩)
-                  next
-                  (cpt x))
+        simp only [Spec.Strategy.mapOutputWithRoles, Spec.Counterpart.mapReceiver,
+          runWithOracleCounterpart, bind_pure_comp, bind_map_left, map_bind, Functor.map_map]
+        refine congrArg (fun k => strat >>= k) ?_
+        funext xc
+        let addPrefix :
+            ((tr : Spec.Transcript (rest xc.1)) ×
+              (fun tr => OutputP' ⟨xc.1, tr⟩) tr ×
+              (fun tr => OutputC ⟨xc.1, tr⟩) tr) →
+            ((tr : Spec.Transcript (Spec.node _ rest)) × OutputP' tr × OutputC tr) :=
+          fun a => ⟨⟨xc.1, a.1⟩, a.2.1, a.2.2⟩
+        simpa [bind_assoc, addPrefix] using
+          congrArg (fun z => addPrefix <$> z)
+            (go (rest xc.1) (rRest xc.1) (odRest xc.1)
+              (accSpec + @OracleInterface.spec _ oi)
+              (QueryImpl.add accImpl (fun q => (oi.toOC.impl q).run xc.1))
+              (fun tr => fP ⟨xc.1, tr⟩)
+              xc.2
+              (cpt xc.1))
     | .node _ rest, ⟨.receiver, rRest⟩, odFn =>
-        rw [runWithOracleCounterpart.eq_3, runWithOracleCounterpart.eq_3]
-        simp only [Spec.Strategy.mapOutputWithRoles, bind_pure_comp, bind_map_left,
-          map_bind, Functor.map_map]
+        simp only [runWithOracleCounterpart, Spec.Strategy.mapOutputWithRoles, bind_pure_comp,
+          bind_map_left, map_bind, Functor.map_map]
         let routeImpl :
             QueryImpl ((oSpec + [OStmtIn]ₒ) + accSpec) (OracleComp oSpec) :=
           fun

@@ -241,7 +241,7 @@ private def foldPhaseProverStepAux {ι : Type} {oSpec : OracleSpec ι}
         round.succ nextPoly
     let nextChallenges :=
       recordChallenge (F := F) (k := k) roundIdx challenges α
-    pure ⟨nextCodeword, pure <|
+    pure <| pure ⟨nextCodeword,
       FoldPhaseProverState.mk
         (F := F) (D := D) (n := n) (x := x) (s := s) (d := d) (k := k)
         (hround := nextStateEq (k := k) hround)

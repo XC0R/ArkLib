@@ -52,7 +52,7 @@ def finalFoldContinuation {SharedIn : Type} {ι : Type} {oSpec : OracleSpec ι}
         honestFinalPolynomial (F := F) (s := s) (d := d) witness α
       let stmtOut : FinalStatement (F := F) (k := k) (d := d) :=
         ⟨toFoldChallenges _ sWithOracles.stmt, α, finalPoly⟩
-      pure ⟨finalPoly, pure ⟨⟨stmtOut, sWithOracles.oracleStmt⟩, PUnit.unit⟩⟩
+      pure <| pure ⟨finalPoly, ⟨⟨stmtOut, sWithOracles.oracleStmt⟩, PUnit.unit⟩⟩
   verifier shared {_} _accSpec stmt := do
     let α ← sampleChallenge shared
     pure ⟨α, fun finalPoly => ⟨toFoldChallenges shared stmt, α, finalPoly⟩⟩
