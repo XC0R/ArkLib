@@ -6,8 +6,7 @@ Authors: Quang Dao
 import ArkLib.Interaction.Basic.Spec
 import ArkLib.Interaction.Basic.Decoration
 import ArkLib.Interaction.Basic.Strategy
-import ArkLib.Interaction.Basic.Shape
-import ArkLib.Interaction.Basic.Interaction
+import ArkLib.Interaction.Basic.Syntax
 import ArkLib.Interaction.Basic.MonadDecoration
 import ArkLib.Interaction.TwoParty.Decoration
 
@@ -39,45 +38,33 @@ namespace Spec
 
 variable {m : Type u → Type u}
 
-private inductive Participant where
-  | focal
-  | counterpart
+private def strategySyntax (m : Type u → Type u) :
+    SyntaxOver.{u, 0, u, 0} PUnit (fun _ => Role) where
+  Node _ (X : Type u) (role : Role) (Cont : X → Type u) := role.Action m X Cont
 
-private def roleShape (m : Type u → Type u) [Functor m] :
-    ShapeOver Participant (fun _ => Role) where
-  Node
-    | .focal, X, role, Cont => role.Action m X Cont
-    | .counterpart, X, role, Cont => role.Dual m X Cont
-  map {agent} {X} {γ} {A} {B} f :=
-    match agent, γ with
-    | .focal, .sender => fun ⟨x, cont⟩ => ⟨x, f x <$> cont⟩
-    | .focal, .receiver => fun respond x => f x <$> respond x
-    | .counterpart, .sender => fun observe x => f x (observe x)
-    | .counterpart, .receiver =>
-        fun sample => (fun ⟨x, cont⟩ => ⟨x, f x cont⟩) <$> sample
+private def counterpartFamilySyntax
+    (Receiver : (X : Type u) → (X → Type u) → Type u) :
+    SyntaxOver.{u, 0, u, 0} PUnit (fun _ => Role) where
+  Node _ (X : Type u) (role : Role) (Cont : X → Type u) :=
+    match role with
+    | .sender => (x : X) → Cont x
+    | .receiver => Receiver X Cont
 
-private def roleInteraction (m : Type u → Type u) [Monad m] :
-    InteractionOver Participant (fun _ => Role) (roleShape m) m where
-  interact {X} {γ} {Cont} {Result} profile k :=
-    Role.interact γ (profile .focal) (profile .counterpart)
-      (fun x aCont dCont =>
-        k x (fun
-          | .focal => aCont
-          | .counterpart => dCont))
+private def roleMonadContext :=
+  Node.Context.extend (fun _ => Role) (fun (_ : Type u) (_ : Role) => BundledMonad.{u, u})
 
-private def monadicShape :
-    ShapeOver Participant (Node.Context.extend (fun _ => Role) (fun _ _ => BundledMonad)) where
-  Node
-    | .focal, X, ⟨role, bm⟩, Cont => role.Action bm.M X Cont
-    | .counterpart, X, ⟨.sender, bm⟩, Cont => (x : X) → bm.M (Cont x)
-    | .counterpart, X, ⟨.receiver, bm⟩, Cont => bm.M ((x : X) × Cont x)
-  map {agent} {X} {γ} {A} {B} f :=
-    match agent, γ with
-    | .focal, ⟨.sender, bm⟩ => fun ⟨x, cont⟩ => ⟨x, f x <$> cont⟩
-    | .focal, ⟨.receiver, bm⟩ => fun respond x => f x <$> respond x
-    | .counterpart, ⟨.sender, bm⟩ => fun observe x => f x <$> observe x
-    | .counterpart, ⟨.receiver, bm⟩ =>
-        fun sample => (fun ⟨x, cont⟩ => ⟨x, f x cont⟩) <$> sample
+private def strategyMonadicSyntax :
+    SyntaxOver.{u, 0, u, u + 1} PUnit roleMonadContext where
+  Node _ (X : Type u) γ (Cont : X → Type u) :=
+    match γ with
+    | ⟨role, bm⟩ => role.Action bm.M X Cont
+
+private def counterpartMonadicSyntax :
+    SyntaxOver.{u, 0, u, u + 1} PUnit roleMonadContext where
+  Node _ (X : Type u) γ (Cont : X → Type u) :=
+    match γ with
+    | ⟨.sender, bm⟩ => (x : X) → bm.M (Cont x)
+    | ⟨.receiver, bm⟩ => bm.M ((x : X) × Cont x)
 
 private def monadDecorationOver :
     (spec : Spec) → (roles : RoleDecoration spec) → (md : MonadDecoration spec) →
@@ -88,16 +75,13 @@ private def monadDecorationOver :
 
 private def packedRoleMonads {spec : Spec}
     (roles : RoleDecoration spec) (md : MonadDecoration spec) :
-    Decoration (Node.Context.extend (fun _ => Role) (fun _ _ => BundledMonad)) spec :=
+    Decoration roleMonadContext spec :=
   Decoration.ofOver (fun _ _ => BundledMonad) spec roles (monadDecorationOver spec roles md)
 
 /-- Focal strategy: `Role.Action` at each decorated node (choose vs. respond). -/
-def Strategy.withRoles (m : Type u → Type u) :
-    (spec : Spec) → RoleDecoration spec → (Transcript spec → Type u) → Type u
-  | .done, _, Output => Output ⟨⟩
-  | .node X rest, ⟨role, dRest⟩, Output =>
-      role.Action m X (fun x => withRoles m (rest x) (dRest x)
-        (fun p => Output ⟨x, p⟩))
+abbrev Strategy.withRoles (m : Type u → Type u)
+    (spec : Spec) (roles : RoleDecoration spec) (Output : Transcript spec → Type u) :=
+  SyntaxOver.Family (strategySyntax m) PUnit.unit spec roles Output
 
 /-- Non-dependent-output variant of `withRoles`. -/
 abbrev Strategy.withRoles' (m : Type u → Type u) (spec : Spec)
@@ -113,16 +97,10 @@ by the supplied `Receiver` family.
 
 Both ordinary `Counterpart` and replayable `PublicCoinCounterpart` are
 specializations of this single recursion. -/
-def CounterpartFamily
-    (Receiver : (X : Type u) → (X → Type u) → Type u) :
-    (spec : Spec) → RoleDecoration spec → (Transcript spec → Type u) → Type u
-  | .done, _, Output => Output ⟨⟩
-  | .node X rest, ⟨.sender, rRest⟩, Output =>
-      (x : X) → CounterpartFamily Receiver (rest x) (rRest x)
-        (fun tr => Output ⟨x, tr⟩)
-  | .node X rest, ⟨.receiver, rRest⟩, Output =>
-      Receiver X (fun x => CounterpartFamily Receiver (rest x) (rRest x)
-        (fun tr => Output ⟨x, tr⟩))
+abbrev CounterpartFamily
+    (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (spec : Spec) (roles : RoleDecoration spec) (Output : Transcript spec → Type u) :=
+  SyntaxOver.Family (counterpartFamilySyntax Receiver) PUnit.unit spec roles Output
 
 /-- Functorial output map for a generic counterpart family. The sender-side
 observation structure is unchanged; only the continuation outputs are mapped. -/
@@ -407,14 +385,10 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
 
 /-- `withRoles` using the monad attached at each node (from `MonadDecoration`).
 See `Counterpart.withMonads` for the dual. -/
-def Strategy.withRolesAndMonads :
-    (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec →
-    (Transcript spec → Type u) → Type u
-  | .done, _, _, Output => Output ⟨⟩
-  | .node X rest, ⟨role, rRest⟩, ⟨bm, mRest⟩, Output =>
-      role.Action bm.M X
-        (fun x => withRolesAndMonads (rest x) (rRest x) (mRest x)
-          (fun p => Output ⟨x, p⟩))
+abbrev Strategy.withRolesAndMonads
+    (spec : Spec.{u}) (roles : RoleDecoration spec) (md : MonadDecoration spec)
+    (Output : Transcript spec → Type u) :=
+  SyntaxOver.Family strategyMonadicSyntax PUnit.unit spec (packedRoleMonads roles md) Output
 
 /-- Counterpart with per-node monads and transcript-dependent output.
 
@@ -425,16 +399,10 @@ At sender nodes the monad is `Id` (pure observation); at receiver nodes it is
 `OracleComp` with the accumulated oracle access. All generic
 `Counterpart.withMonads` composition combinators (e.g., `withMonads.append`,
 `withMonads.stateChainComp`) therefore apply directly to oracle counterparts. -/
-def Counterpart.withMonads :
-    (spec : Spec.{u}) → RoleDecoration spec → MonadDecoration spec →
-    (Transcript spec → Type u) → Type u
-  | .done, _, _, Output => Output ⟨⟩
-  | .node X rest, ⟨.sender, rRest⟩, ⟨bm, mRest⟩, Output =>
-      (x : X) → bm.M (withMonads (rest x) (rRest x) (mRest x)
-        (fun p => Output ⟨x, p⟩))
-  | .node X rest, ⟨.receiver, rRest⟩, ⟨bm, mRest⟩, Output =>
-      bm.M ((x : X) × withMonads (rest x) (rRest x) (mRest x)
-        (fun p => Output ⟨x, p⟩))
+abbrev Counterpart.withMonads
+    (spec : Spec.{u}) (roles : RoleDecoration spec) (md : MonadDecoration spec)
+    (Output : Transcript spec → Type u) :=
+  SyntaxOver.Family counterpartMonadicSyntax PUnit.unit spec (packedRoleMonads roles md) Output
 
 /-- Run `withRolesAndMonads` vs. `Counterpart.withMonads`, lifting both sides into
 one monad `m`. Returns transcript, prover output, and counterpart output. -/
