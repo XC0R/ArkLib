@@ -12,9 +12,22 @@ import ArkLib.Interaction.TwoParty.Decoration
 /-!
 # Role-dependent strategies and counterparts
 
-`Spec.Strategy.withRoles` is the prover / focal party: Σ at own nodes, Π at the other's.
-`Spec.Counterpart` is the dual type. `withRolesAndMonads` and `runWithRolesAndMonads` extend this
-with per-node `BundledMonad` data from `MonadDecoration`.
+`Spec.Strategy.withRoles` is the prover / focal party: Σ at own nodes, Π at the
+other's. `Spec.Counterpart` is the dual type. `withRolesAndMonads` and
+`runWithRolesAndMonads` extend this with per-node `BundledMonad` data from
+`MonadDecoration`.
+
+This module also contains the public-coin specialization needed for
+verifier-side Fiat-Shamir. The ordinary `Counterpart` type is the right shape
+for execution, but at receiver nodes it hides the continuation behind an
+opaque monadic sample. `Spec.PublicCoinCounterpart` refines that node shape to
+expose:
+
+- `sample : m X` — how the next public challenge is chosen
+- `next : (x : X) → ...` — how the rest of the verifier depends on that challenge
+
+This makes transcript replay definable without changing the core two-party
+interaction model.
 -/
 
 universe u
@@ -37,15 +50,56 @@ abbrev Strategy.withRoles' (m : Type u → Type u) (spec : Spec)
     (roles : RoleDecoration spec) (α : Type u) :=
   Strategy.withRoles m spec roles (fun _ => α)
 
+/-- A generic counterpart family parameterized by the representation of receiver
+nodes.
+
+Sender nodes are always plain observations: the environment learns the sender's
+move and continues in the corresponding subtree. Receiver nodes are represented
+by the supplied `Receiver` family.
+
+Both ordinary `Counterpart` and replayable `PublicCoinCounterpart` are
+specializations of this single recursion. -/
+def CounterpartFamily
+    (Receiver : (X : Type u) → (X → Type u) → Type u) :
+    (spec : Spec) → RoleDecoration spec → (Transcript spec → Type u) → Type u
+  | .done, _, Output => Output ⟨⟩
+  | .node X rest, ⟨.sender, rRest⟩, Output =>
+      (x : X) → CounterpartFamily Receiver (rest x) (rRest x)
+        (fun tr => Output ⟨x, tr⟩)
+  | .node X rest, ⟨.receiver, rRest⟩, Output =>
+      Receiver X (fun x => CounterpartFamily Receiver (rest x) (rRest x)
+        (fun tr => Output ⟨x, tr⟩))
+
+/-- Functorial output map for a generic counterpart family. The sender-side
+observation structure is unchanged; only the continuation outputs are mapped. -/
+def CounterpartFamily.mapOutput
+    (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (mapReceiver :
+      {X : Type u} → {A B : X → Type u} →
+      (∀ x, A x → B x) → Receiver X A → Receiver X B) :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {A B : Transcript spec → Type u} →
+    (∀ tr, A tr → B tr) →
+    CounterpartFamily Receiver spec roles A →
+    CounterpartFamily Receiver spec roles B
+  | .done, _, _, _, f, a => f ⟨⟩ a
+  | .node _ _, ⟨.sender, _⟩, _, _, f, observe =>
+      fun x => mapOutput Receiver mapReceiver (fun p => f ⟨x, p⟩) (observe x)
+  | .node _ _, ⟨.receiver, _⟩, _, _, f, receive =>
+      mapReceiver
+        (fun x => mapOutput Receiver mapReceiver (fun p => f ⟨x, p⟩))
+        receive
+
 /-- Counterpart / environment type with transcript-dependent output: dual actions at
 each node, producing `Output ⟨⟩` at `.done`. For a no-output counterpart (the old
 behavior), use `Counterpart m spec roles (fun _ => PUnit)`. -/
-def Counterpart (m : Type u → Type u) :
-    (spec : Spec) → RoleDecoration spec → (Transcript spec → Type u) → Type u
-  | .done, _, Output => Output ⟨⟩
-  | .node X rest, ⟨role, dRest⟩, Output =>
-      role.Dual m X (fun x => Counterpart m (rest x) (dRest x)
-        (fun p => Output ⟨x, p⟩))
+abbrev Counterpart (m : Type u → Type u) :=
+  CounterpartFamily (fun X Cont => m ((x : X) × Cont x))
+
+private def Counterpart.mapReceiver {m : Type u → Type u} [Functor m] :
+    {X : Type u} → {A B : X → Type u} →
+    (∀ x, A x → B x) → m ((x : X) × A x) → m ((x : X) × B x)
+  | _, _, _, f, sample => (fun ⟨x, c⟩ => ⟨x, f x c⟩) <$> sample
 
 /-- Functorial output map for role-dependent strategies. -/
 def Strategy.mapOutputWithRoles {m : Type u → Type u} [Functor m] :
@@ -97,12 +151,71 @@ theorem Strategy.mapOutputWithRoles_id {m : Type u → Type u} [Functor m] [Lawf
 def Counterpart.mapOutput {m : Type u → Type u} [Functor m] :
     {spec : Spec.{u}} → {roles : RoleDecoration spec} →
     {A B : Transcript spec → Type u} →
-    (∀ tr, A tr → B tr) → Counterpart m spec roles A → Counterpart m spec roles B
-  | .done, _, _, _, f, a => f ⟨⟩ a
-  | .node _ _, ⟨.sender, _⟩, _, _, f, observe =>
-      fun x => mapOutput (fun p => f ⟨x, p⟩) (observe x)
-  | .node _ _, ⟨.receiver, _⟩, _, _, f, sample =>
-      (fun ⟨x, c⟩ => ⟨x, mapOutput (fun p => f ⟨x, p⟩) c⟩) <$> sample
+    (∀ tr, A tr → B tr) → Counterpart m spec roles A → Counterpart m spec roles B :=
+  CounterpartFamily.mapOutput _ Counterpart.mapReceiver
+
+/-- A verifier counterpart with replayable public-coin receiver nodes.
+
+An ordinary `Counterpart m` represents a receiver node as an opaque monadic
+action returning both the sampled challenge and the continuation. That is the
+right shape for execution, but it is too weak for verifier-side Fiat-Shamir:
+given a prescribed challenge `x`, there is no way to recover the continuation
+for `x` unless that continuation is exposed separately.
+
+`PublicCoinCounterpart` factors each receiver node into:
+- `sample : m X` — how the verifier samples the next public challenge
+- `next : (x : X) → ...` — how the rest of the verifier depends on that challenge
+
+This is exactly the extra structure needed to replay a prescribed transcript
+through the verifier. -/
+abbrev PublicCoinCounterpart (m : Type u → Type u) :=
+  CounterpartFamily (fun X Cont => m X × ((x : X) → Cont x))
+
+namespace PublicCoinCounterpart
+
+private def mapReceiver {m : Type u → Type u} :
+    {X : Type u} → {A B : X → Type u} →
+    (∀ x, A x → B x) → (m X × ((x : X) → A x)) → (m X × ((x : X) → B x))
+  | _, _, _, f, ⟨sample, next⟩ => ⟨sample, fun x => f x (next x)⟩
+
+/-- Functorial output map for public-coin counterparts. The challenge samplers
+are unchanged; only the terminal output carried by continuations is mapped. -/
+def mapOutput {m : Type u → Type u} :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {A B : Transcript spec → Type u} →
+    (∀ tr, A tr → B tr) →
+    PublicCoinCounterpart m spec roles A →
+    PublicCoinCounterpart m spec roles B :=
+  CounterpartFamily.mapOutput _ mapReceiver
+
+/-- Forget the public-coin factorization and recover the ordinary executable
+counterpart. -/
+def toCounterpart {m : Type u → Type u} [Monad m] :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {Output : Transcript spec → Type u} →
+    PublicCoinCounterpart m spec roles Output → Counterpart m spec roles Output
+  | .done, _, _, c => c
+  | .node _ _, ⟨.sender, _⟩, _, observe =>
+      fun x => toCounterpart (observe x)
+  | .node _ _, ⟨.receiver, _⟩, _, ⟨sample, next⟩ => do
+      let x ← sample
+      pure ⟨x, toCounterpart (next x)⟩
+
+/-- Replay a prescribed transcript through a public-coin counterpart. Sender
+messages are read from the transcript; receiver samplers are ignored and the
+stored continuation family is followed at the recorded challenge. -/
+def replay {m : Type u → Type u} :
+    {spec : Spec.{u}} → {roles : RoleDecoration spec} →
+    {Output : Transcript spec → Type u} →
+    PublicCoinCounterpart m spec roles Output →
+    (tr : Transcript spec) → Output tr
+  | .done, _, _, c, _ => c
+  | .node _ _, ⟨.sender, _⟩, _, observe, ⟨x, tr⟩ =>
+      replay (observe x) tr
+  | .node _ _, ⟨.receiver, _⟩, _, ⟨_, next⟩, ⟨x, tr⟩ =>
+      replay (next x) tr
+
+end PublicCoinCounterpart
 
 /-- Pointwise identity on outputs is the identity on counterparts. -/
 @[simp]
@@ -113,7 +226,7 @@ theorem Counterpart.mapOutput_id {m : Type u → Type u} [Functor m] [LawfulFunc
   match spec, roles with
   | .done, roles =>
       cases roles
-      rfl
+      simp [Counterpart.mapOutput, CounterpartFamily.mapOutput]
   | .node _ rest, ⟨.sender, rRest⟩ =>
       funext x
       exact @Counterpart.mapOutput_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) (c x)
@@ -130,10 +243,26 @@ theorem Counterpart.mapOutput_id {m : Type u → Type u} [Functor m] [LawfulFunc
         | mk x c' =>
             simp only [F, Counterpart.mapOutput_id]
             rfl
-      rw [Counterpart.mapOutput]
+      rw [Counterpart.mapOutput, CounterpartFamily.mapOutput, Counterpart.mapReceiver]
       change F <$> c = c
       rw [hpair]
       exact LawfulFunctor.id_map c
+
+/-- Lift a deterministic counterpart (`Counterpart Id`) into any monad.
+
+At sender nodes the observational branch structure is unchanged. At receiver
+nodes the chosen move and continuation are simply wrapped in `pure`. This is a
+generic utility for reusing deterministic environments inside monadic execution
+machinery such as `runWithRoles`. -/
+def Counterpart.liftId {m : Type u → Type u} [Monad m] :
+    {spec : Spec} → {roles : RoleDecoration spec} →
+    {Output : Transcript spec → Type u} →
+    Counterpart Id spec roles Output → Counterpart m spec roles Output
+  | .done, _, _, c => c
+  | .node _ _, ⟨.sender, _⟩, _, observe =>
+      fun x => liftId (observe x)
+  | .node _ _, ⟨.receiver, _⟩, _, ⟨x, c⟩ =>
+      pure ⟨x, liftId c⟩
 
 /-- Execute `withRoles` against a `Counterpart`, producing transcript, prover output,
 and counterpart output. -/
@@ -183,11 +312,12 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
     match spec, roles with
     | .done, roles =>
         cases roles
-        simp [Strategy.mapOutputWithRoles, Counterpart.mapOutput, Strategy.runWithRoles.eq_1]
+        simp [Strategy.mapOutputWithRoles, Counterpart.mapOutput, CounterpartFamily.mapOutput,
+          Strategy.runWithRoles.eq_1]
     | .node _ rest, ⟨.sender, rRest⟩ =>
         cases strat with
         | mk x cont =>
-            simp only [mapOutputWithRoles, Counterpart.mapOutput]
+            simp only [mapOutputWithRoles, Counterpart.mapOutput, CounterpartFamily.mapOutput]
             rw [Strategy.runWithRoles.eq_2, Strategy.runWithRoles.eq_2]
             simp only [bind_pure_comp, bind_map_left, map_bind, Functor.map_map]
             refine congrArg (fun k => cont >>= k) ?_
@@ -202,7 +332,8 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
                 (go (rest x) (rRest x) (fun tr => fP ⟨x, tr⟩) (fun tr => fC ⟨x, tr⟩)
                   next (cpt x))
     | .node _ rest, ⟨.receiver, rRest⟩ =>
-        simp only [mapOutputWithRoles, Counterpart.mapOutput]
+        simp only [mapOutputWithRoles, Counterpart.mapOutput, CounterpartFamily.mapOutput,
+          Counterpart.mapReceiver]
         rw [Strategy.runWithRoles.eq_3, Strategy.runWithRoles.eq_3]
         simp only [bind_pure_comp, bind_map_left, map_bind, Functor.map_map]
         refine congrArg (fun k => cpt >>= k) ?_

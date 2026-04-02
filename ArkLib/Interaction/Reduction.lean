@@ -39,7 +39,12 @@ Input and output are represented as:
 - **Verifier**: a statement-indexed `Counterpart` with `StatementOut` at
   `.done`. No `OptionT` — acceptance semantics (if needed) are chosen by the
   caller through the `StatementOut` type (e.g., `StatementOut = fun _ _ => Option Bool`).
+- **PublicCoinVerifier**: a stronger verifier surface whose receiver nodes are
+  replayable public-coin continuations (`Spec.PublicCoinCounterpart`), used by
+  the interaction-native Fiat-Shamir transform.
 - **Reduction**: pairs a prover with a verifier for the same protocol spec.
+- **PublicCoinReduction**: pairs a prover with a public-coin verifier; forgetting
+  the extra verifier structure recovers an ordinary `Reduction`.
 
 Both `Prover` and `Verifier` are `abbrev`s (transparent type aliases) for
 the underlying function types.
@@ -109,6 +114,49 @@ abbrev Verifier (m : Type u → Type u)
   (s : StatementIn) → Spec.Counterpart m (Context s) (Roles s)
     (fun tr => StatementOut s tr)
 
+/-- A verifier whose receiver nodes are public-coin in the strong replayable
+sense captured by `Spec.PublicCoinCounterpart`.
+
+An ordinary `Verifier` is enough to execute a protocol, but not enough to
+replay a prescribed receiver transcript: at a verifier node, the continuation
+is hidden inside an opaque monadic sample. `PublicCoinVerifier` keeps the same
+overall interface while strengthening receiver nodes so they expose both a
+challenge sampler and a challenge-indexed continuation family. Forgetting this
+extra structure recovers an ordinary `Verifier`. -/
+abbrev PublicCoinVerifier (m : Type u → Type u)
+    (StatementIn : Type v)
+    (Context : StatementIn → Spec)
+    (Roles : (s : StatementIn) → RoleDecoration (Context s))
+    (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) :=
+  (s : StatementIn) →
+    Spec.PublicCoinCounterpart m (Context s) (Roles s)
+      (fun tr => StatementOut s tr)
+
+namespace PublicCoinVerifier
+
+/-- Forget that a verifier is public-coin and view it as an ordinary verifier. -/
+def toVerifier {m : Type u → Type u} [Monad m]
+    {StatementIn : Type v}
+    {Context : StatementIn → Spec}
+    {Roles : (s : StatementIn) → RoleDecoration (Context s)}
+    {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
+    (verifier : PublicCoinVerifier m StatementIn Context Roles StatementOut) :
+    Verifier m StatementIn Context Roles StatementOut :=
+  fun s => (verifier s).toCounterpart
+
+/-- Replay a full transcript through a public-coin verifier. -/
+def replay {m : Type u → Type u}
+    {StatementIn : Type v}
+    {Context : StatementIn → Spec}
+    {Roles : (s : StatementIn) → RoleDecoration (Context s)}
+    {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
+    (verifier : PublicCoinVerifier m StatementIn Context Roles StatementOut)
+    (s : StatementIn) (tr : Spec.Transcript (Context s)) :
+    StatementOut s tr :=
+  Spec.PublicCoinCounterpart.replay (verifier s) tr
+
+end PublicCoinVerifier
+
 /-- A reduction pairs a prover with a verifier for the same protocol. -/
 structure Reduction (m : Type u → Type u)
     (StatementIn : Type v) (WitnessIn : Type w)
@@ -118,6 +166,36 @@ structure Reduction (m : Type u → Type u)
     (WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) where
   prover : Prover m StatementIn WitnessIn Context Roles StatementOut WitnessOut
   verifier : Verifier m StatementIn Context Roles StatementOut
+
+/-- A reduction whose verifier is public-coin in the replayable sense of
+`PublicCoinVerifier`. The prover is unchanged; only the verifier carries the
+extra structure needed by verifier-side Fiat-Shamir. -/
+structure PublicCoinReduction (m : Type u → Type u)
+    (StatementIn : Type v) (WitnessIn : Type w)
+    (Context : StatementIn → Spec)
+    (Roles : (s : StatementIn) → RoleDecoration (Context s))
+    (StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u)
+    (WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u) where
+  prover : Prover m StatementIn WitnessIn Context Roles StatementOut WitnessOut
+  verifier : PublicCoinVerifier m StatementIn Context Roles StatementOut
+
+namespace PublicCoinReduction
+
+/-- Forget that a reduction is public-coin and recover the underlying ordinary
+interactive reduction. -/
+def toReduction {m : Type u → Type u} [Monad m]
+    {StatementIn : Type v} {WitnessIn : Type w}
+    {Context : StatementIn → Spec}
+    {Roles : (s : StatementIn) → RoleDecoration (Context s)}
+    {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
+    {WitnessOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
+    (reduction :
+      PublicCoinReduction m StatementIn WitnessIn Context Roles StatementOut WitnessOut) :
+    Reduction m StatementIn WitnessIn Context Roles StatementOut WitnessOut where
+  prover := reduction.prover
+  verifier := reduction.verifier.toVerifier
+
+end PublicCoinReduction
 
 /-- A proof system is a reduction where the prover does not forward any
 witness to the next stage (`WitnessOut = PUnit`). Accept/reject semantics

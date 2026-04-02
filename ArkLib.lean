@@ -99,6 +99,8 @@ import ArkLib.Interaction.Boundary.Reification
 import ArkLib.Interaction.Boundary.Compatibility
 import ArkLib.Interaction.Boundary.Security
 import ArkLib.Interaction.Boundary.OracleSecurity
+import ArkLib.Interaction.FiatShamir.Basic
+import ArkLib.Interaction.FiatShamir.Transform
 import ArkLib.Interaction.Reduction
 import ArkLib.Interaction.Security
 import ArkLib.Interaction.TwoParty.Compose
