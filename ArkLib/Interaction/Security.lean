@@ -69,7 +69,7 @@ def randomChallenger (sample : (T : Type) → ProbComp T) :
     Spec.Counterpart ProbComp spec roles (fun _ => PUnit)
   | .done, _ => ⟨⟩
   | .node _X rest, ⟨.sender, rRest⟩ =>
-      fun x => randomChallenger sample (rest x) (rRest x)
+      fun x => pure <| randomChallenger sample (rest x) (rRest x)
   | .node X rest, ⟨.receiver, rRest⟩ => do
       let x ← sample X
       return ⟨x, randomChallenger sample (rest x) (rRest x)⟩
@@ -149,7 +149,7 @@ def Reduction.Continuation.perfectCompleteness
 the second stage is complete up to `ε₂` whenever the first stage succeeds, then
 the composed reduction is complete up to `ε₁ + ε₂`. -/
 theorem Reduction.completeness_comp
-    {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
+    {m : Type u → Type u} [Monad m] [Spec.LawfulCommMonad m] [HasEvalSPMF m]
     {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
@@ -355,7 +355,7 @@ theorem Reduction.completeness_comp
 
 /-- Perfect completeness composes. -/
 theorem Reduction.perfectCompleteness_comp
-    {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
+    {m : Type u → Type u} [Monad m] [Spec.LawfulCommMonad m] [HasEvalSPMF m]
     {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}
@@ -422,7 +422,7 @@ second-stage verifier reaches the output language with probability at most `ε�
 then the composed verifier reaches the output language with probability at most
 `ε₁ + ε₂`. -/
 theorem Reduction.soundness_comp
-    {m : Type u → Type u} [Monad m] [LawfulMonad m] [HasEvalSPMF m]
+    {m : Type u → Type u} [Monad m] [Spec.LawfulCommMonad m] [HasEvalSPMF m]
     {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}

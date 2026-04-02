@@ -141,7 +141,8 @@ def Prover.fiatShamir
 
 The verifier receives a messages-only proof, reconstructs the corresponding
 interactive transcript using the replay oracle bundled in the statement, and
-then replays that transcript through the original public-coin verifier. -/
+then replays that transcript through the original public-coin verifier inside
+the verifier monad. -/
 def PublicCoinVerifier.fiatShamir
     (V : PublicCoinVerifier m StatementIn Context Roles StatementOut) :
     Verifier m (FSStatement StatementIn Context Roles) (fsContext Context Roles)
@@ -153,7 +154,7 @@ def PublicCoinVerifier.fiatShamir
 
 The prover is run against the replay oracle to produce a messages-only proof,
 and the verifier replays the reconstructed transcript through the original
-public-coin verifier. -/
+public-coin verifier monadically. -/
 def PublicCoinReduction.fiatShamir
     (R : PublicCoinReduction m StatementIn WitnessIn Context Roles StatementOut WitnessOut) :
     Reduction m (FSStatement StatementIn Context Roles) WitnessIn

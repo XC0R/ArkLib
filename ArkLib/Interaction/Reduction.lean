@@ -145,14 +145,14 @@ def toVerifier {m : Type u → Type u} [Monad m]
   fun s => (verifier s).toCounterpart
 
 /-- Replay a full transcript through a public-coin verifier. -/
-def replay {m : Type u → Type u}
+def replay {m : Type u → Type u} [Monad m]
     {StatementIn : Type v}
     {Context : StatementIn → Spec}
     {Roles : (s : StatementIn) → RoleDecoration (Context s)}
     {StatementOut : (s : StatementIn) → Spec.Transcript (Context s) → Type u}
     (verifier : PublicCoinVerifier m StatementIn Context Roles StatementOut)
     (s : StatementIn) (tr : Spec.Transcript (Context s)) :
-    StatementOut s tr :=
+    m (StatementOut s tr) :=
   Spec.PublicCoinCounterpart.replay (verifier s) tr
 
 end PublicCoinVerifier
@@ -488,7 +488,7 @@ def Reduction.comp {m : Type u → Type u} [Monad m]
 /-- Executing a sequentially composed reduction factors into first executing the
 prefix reduction and then the suffix interaction induced by its outputs. -/
 theorem Reduction.execute_comp
-    {m : Type u → Type u} [Monad m] [LawfulMonad m]
+    {m : Type u → Type u} [Monad m] [Spec.LawfulCommMonad m]
     {StatementIn : Type v} {WitnessIn : Type w}
     {ctx₁ : StatementIn → Spec}
     {roles₁ : (s : StatementIn) → RoleDecoration (ctx₁ s)}

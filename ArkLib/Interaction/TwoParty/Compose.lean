@@ -29,6 +29,28 @@ namespace Spec
 
 variable {m : Type u → Type u}
 
+/-- A lawful monad whose independent effects may be swapped.
+
+This is the exact extra structure needed for the sequential-composition
+execution theorems once both sides may perform effects after a sender move is
+observed: the composed prover may prepare suffix state before the counterpart
+finishes its sender-side observation, so proving the usual factorization law
+requires commuting those independent effects. -/
+class LawfulCommMonad (m : Type u → Type u) [Monad m] extends LawfulMonad m where
+  bind_comm :
+    {α β γ : Type u} →
+    (ma : m α) →
+    (mb : m β) →
+    (k : α → β → m γ) →
+    (do
+      let a ← ma
+      let b ← mb
+      k a b) =
+    (do
+      let b ← mb
+      let a ← ma
+      k a b)
+
 /-- Compose role-aware strategies along `Spec.append` with a two-argument output family
 lifted through `Transcript.liftAppend`. The continuation receives the first phase's
 output and produces a second-phase strategy. -/
@@ -192,7 +214,9 @@ def Counterpart.append {m : Type u → Type u} [Monad m]
   match s₁, r₁ with
   | .done, _ => fun out₁ c₂ => c₂ ⟨⟩ out₁
   | .node _ _, ⟨.sender, _⟩ => fun c₁ c₂ =>
-      fun x => Counterpart.append (c₁ x) (fun p o => c₂ ⟨x, p⟩ o)
+      fun x => do
+        let cRest ← c₁ x
+        pure <| Counterpart.append cRest (fun p o => c₂ ⟨x, p⟩ o)
   | .node _ _, ⟨.receiver, _⟩ => fun c₁ c₂ => do
       let ⟨x, cRest⟩ ← c₁
       return ⟨x, Counterpart.append cRest (fun p o => c₂ ⟨x, p⟩ o)⟩
@@ -213,7 +237,9 @@ def Counterpart.appendFlat {m : Type u → Type u} [Monad m]
   match s₁, r₁ with
   | .done, _ => fun out₁ c₂ => c₂ ⟨⟩ out₁
   | .node _ _, ⟨.sender, _⟩ => fun c₁ c₂ =>
-      fun x => Counterpart.appendFlat (c₁ x) (fun p o => c₂ ⟨x, p⟩ o)
+      fun x => do
+        let cRest ← c₁ x
+        pure <| Counterpart.appendFlat cRest (fun p o => c₂ ⟨x, p⟩ o)
   | .node _ _, ⟨.receiver, _⟩ => fun c₁ c₂ => do
       let ⟨x, cRest⟩ ← c₁
       return ⟨x, Counterpart.appendFlat cRest (fun p o => c₂ ⟨x, p⟩ o)⟩
@@ -240,7 +266,11 @@ theorem Counterpart.append_eq_appendFlat_mapOutput
         Transcript.packAppend, Counterpart.mapOutput_id]
   | .node _ rest, _, ⟨.sender, rRest⟩, _, _, _, c₁, c₂ => by
       funext x
-      exact append_eq_appendFlat_mapOutput (c₁ x) (fun p o => c₂ ⟨x, p⟩ o)
+      refine congrArg (fun k => c₁ x >>= k) ?_
+      funext cRest
+      simpa [bind_assoc] using
+        congrArg pure
+          (append_eq_appendFlat_mapOutput cRest (fun p o => c₂ ⟨x, p⟩ o))
   | .node _ rest, _, ⟨.receiver, rRest⟩, _, _, _, c₁, c₂ => by
       simp only [Counterpart.append, Counterpart.appendFlat]
       congr 1; funext ⟨x, cRest⟩; congr 1
@@ -287,7 +317,7 @@ def Strategy.runWithRolesAppend {m : Type u → Type u} [Monad m]
 /-- Executing a flat composed strategy/counterpart factors into first executing
 the prefix interaction and then executing the suffix continuation. -/
 theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
-    {m : Type u → Type u} [Monad m] [LawfulMonad m]
+    {m : Type u → Type u} [Monad m] [LawfulCommMonad m]
     {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
     {r₁ : RoleDecoration s₁}
     {r₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)}
@@ -351,17 +381,93 @@ theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
               (fun tr => OutputP ⟨xc.1, tr⟩) tr × (fun tr => OutputC ⟨xc.1, tr⟩) tr) →
             ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) × OutputP tr × OutputC tr) :=
           fun a => ⟨⟨xc.1, a.1⟩, a.2.1, a.2.2⟩
-        simpa [bind_assoc, Spec.Transcript.append, addPrefix] using
-          congrArg (fun z => addPrefix <$> z)
-            (go (rest xc.1) (rRest xc.1)
-              (s₂ := fun tr₁ => s₂ ⟨xc.1, tr₁⟩)
-              (r₂ := fun tr₁ => r₂ ⟨xc.1, tr₁⟩)
-              (OutputP := fun tr => OutputP ⟨xc.1, tr⟩)
-              (OutputC := fun tr => OutputC ⟨xc.1, tr⟩)
-              xc.2
-              (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
-              (cpt₁ xc.1)
-              (fun tr₁ out₁ => cpt₂ ⟨xc.1, tr₁⟩ out₁))
+        let lhsSwap :
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) × OutputP tr × OutputC tr) := do
+              let strat₂ ← Strategy.compWithRolesFlat xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+              let cNext ← cpt₁ xc.1
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.appendFlat cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))
+        let rhsSwap :
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) × OutputP tr × OutputC tr) := do
+              let cNext ← cpt₁ xc.1
+              let strat₂ ← Strategy.compWithRolesFlat xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.appendFlat cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))
+        have hswap :=
+          LawfulCommMonad.bind_comm
+            (ma := Strategy.compWithRolesFlat xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid))
+            (mb := cpt₁ xc.1)
+            (k := fun strat₂ cNext =>
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.appendFlat cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o)))
+        have hswap' : lhsSwap = rhsSwap := by
+          simpa [lhsSwap, rhsSwap, bind_assoc] using hswap
+        have hrhs :
+            rhsSwap =
+              cpt₁ xc.1 >>= fun cNext =>
+                addPrefix <$>
+                  (do
+                    let strat₂ ←
+                      Strategy.compWithRolesFlat xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                    Strategy.runWithRoles
+                      ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                      ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                      strat₂
+                      (Counterpart.appendFlat cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))) := by
+          simp [rhsSwap]
+        let lhsBody :
+            (pairedSyntax m).Family Participant.counterpart (rest xc.1) (rRest xc.1)
+              (fun tr => MidC ⟨xc.1, tr⟩) →
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) × OutputP tr × OutputC tr) :=
+          fun cNext =>
+            addPrefix <$>
+              (do
+                let strat₂ ←
+                  Strategy.compWithRolesFlat xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.appendFlat cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o)))
+        let rhsBody :
+            (pairedSyntax m).Family Participant.counterpart (rest xc.1) (rRest xc.1)
+              (fun tr => MidC ⟨xc.1, tr⟩) →
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) × OutputP tr × OutputC tr) :=
+          fun cNext =>
+            do
+              let ⟨tr₁, mid, out₁⟩ ← Strategy.runWithRoles (rest xc.1) (rRest xc.1) xc.2 cNext
+              let strat₂ ← f ⟨xc.1, tr₁⟩ mid
+              let ⟨tr₂, outP, outC⟩ ←
+                Strategy.runWithRoles (s₂ ⟨xc.1, tr₁⟩) (r₂ ⟨xc.1, tr₁⟩) strat₂ (cpt₂ ⟨xc.1, tr₁⟩ out₁)
+              pure ⟨⟨xc.1, Spec.Transcript.append (rest xc.1) (fun p => s₂ ⟨xc.1, p⟩) tr₁ tr₂⟩,
+                outP, outC⟩
+        have hbody : lhsBody = rhsBody := by
+          funext cNext
+          simpa [lhsBody, rhsBody, bind_assoc, Spec.Transcript.append, addPrefix] using
+            congrArg (fun z => addPrefix <$> z)
+              (go (rest xc.1) (rRest xc.1)
+                (s₂ := fun tr₁ => s₂ ⟨xc.1, tr₁⟩)
+                (r₂ := fun tr₁ => r₂ ⟨xc.1, tr₁⟩)
+                (OutputP := fun tr => OutputP ⟨xc.1, tr⟩)
+                (OutputC := fun tr => OutputC ⟨xc.1, tr⟩)
+                xc.2
+                (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                cNext
+                (fun tr₁ out₁ => cpt₂ ⟨xc.1, tr₁⟩ out₁))
+        simpa [rhsBody, addPrefix, Spec.Transcript.append, bind_assoc] using
+          (hswap'.trans <| hrhs.trans <| congrArg (fun k => cpt₁ xc.1 >>= k) hbody)
     | .node _ rest, ⟨.receiver, rRest⟩ =>
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRolesFlat.eq_3, Counterpart.appendFlat.eq_3]
@@ -416,7 +522,7 @@ theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
 `Counterpart.append`) factors into first executing the prefix interaction and then
 executing the suffix continuation. Outputs are transported via `packAppend`. -/
 theorem Strategy.runWithRoles_compWithRoles_append
-    {m : Type u → Type u} [Monad m] [LawfulMonad m]
+    {m : Type u → Type u} [Monad m] [LawfulCommMonad m]
     {s₁ : Spec} {s₂ : Spec.Transcript s₁ → Spec}
     {r₁ : RoleDecoration s₁}
     {r₂ : (tr₁ : Spec.Transcript s₁) → RoleDecoration (s₂ tr₁)}
@@ -494,18 +600,106 @@ theorem Strategy.runWithRoles_compWithRoles_append
               Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP tr ×
               Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC tr) :=
           fun a => ⟨⟨xc.1, a.1⟩, a.2.1, a.2.2⟩
-        simpa [bind_assoc, Spec.Transcript.append, Spec.Transcript.packAppend,
-          addPrefix] using
-          congrArg (fun z => addPrefix <$> z)
-            (go (rest xc.1) (rRest xc.1)
-              (s₂ := fun tr₁ => s₂ ⟨xc.1, tr₁⟩)
-              (r₂ := fun tr₁ => r₂ ⟨xc.1, tr₁⟩)
-              (FP := fun tr₁ tr₂ => FP ⟨xc.1, tr₁⟩ tr₂)
-              (FC := fun tr₁ tr₂ => FC ⟨xc.1, tr₁⟩ tr₂)
-              xc.2
-              (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
-              (cpt₁ xc.1)
-              (fun tr₁ out₁ => cpt₂ ⟨xc.1, tr₁⟩ out₁))
+        let lhsSwap :
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP tr ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC tr) := do
+              let strat₂ ← Strategy.compWithRoles xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+              let cNext ← cpt₁ xc.1
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.append cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))
+        let rhsSwap :
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP tr ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC tr) := do
+              let cNext ← cpt₁ xc.1
+              let strat₂ ← Strategy.compWithRoles xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.append cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))
+        have hswap :=
+          LawfulCommMonad.bind_comm
+            (ma := Strategy.compWithRoles xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid))
+            (mb := cpt₁ xc.1)
+            (k := fun strat₂ cNext =>
+              addPrefix <$>
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.append cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o)))
+        have hswap' : lhsSwap = rhsSwap := by
+          simpa [lhsSwap, rhsSwap, bind_assoc] using hswap
+        have hrhs :
+            rhsSwap =
+              cpt₁ xc.1 >>= fun cNext =>
+                addPrefix <$>
+                  (do
+                    let strat₂ ←
+                      Strategy.compWithRoles xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                    Strategy.runWithRoles
+                      ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                      ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                      strat₂
+                      (Counterpart.append cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o))) := by
+          simp [rhsSwap]
+        let lhsBody :
+            (pairedSyntax m).Family Participant.counterpart (rest xc.1) (rRest xc.1)
+              (fun tr => MidC ⟨xc.1, tr⟩) →
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP tr ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC tr) :=
+          fun cNext =>
+            addPrefix <$>
+              (do
+                let strat₂ ←
+                  Strategy.compWithRoles xc.2 (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                Strategy.runWithRoles
+                  ((rest xc.1).append fun p => s₂ ⟨xc.1, p⟩)
+                  ((rRest xc.1).append fun p => r₂ ⟨xc.1, p⟩)
+                  strat₂
+                  (Counterpart.append cNext (fun p o => cpt₂ ⟨xc.1, p⟩ o)))
+        let rhsBody :
+            (pairedSyntax m).Family Participant.counterpart (rest xc.1) (rRest xc.1)
+              (fun tr => MidC ⟨xc.1, tr⟩) →
+            m ((tr : Spec.Transcript ((Spec.node _ rest).append s₂)) ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP tr ×
+              Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC tr) :=
+          fun cNext =>
+            do
+              let ⟨tr₁, mid, out₁⟩ ← Strategy.runWithRoles (rest xc.1) (rRest xc.1) xc.2 cNext
+              let strat₂ ← f ⟨xc.1, tr₁⟩ mid
+              let ⟨tr₂, outP, outC⟩ ←
+                Strategy.runWithRoles (s₂ ⟨xc.1, tr₁⟩) (r₂ ⟨xc.1, tr₁⟩) strat₂ (cpt₂ ⟨xc.1, tr₁⟩ out₁)
+              pure ⟨⟨xc.1, Spec.Transcript.append (rest xc.1) (fun p => s₂ ⟨xc.1, p⟩) tr₁ tr₂⟩,
+                Spec.Transcript.packAppend (rest xc.1) (fun p => s₂ ⟨xc.1, p⟩)
+                  (fun tr₁ tr₂ => FP ⟨xc.1, tr₁⟩ tr₂) tr₁ tr₂ outP,
+                Spec.Transcript.packAppend (rest xc.1) (fun p => s₂ ⟨xc.1, p⟩)
+                  (fun tr₁ tr₂ => FC ⟨xc.1, tr₁⟩ tr₂) tr₁ tr₂ outC⟩
+        have hbody : lhsBody = rhsBody := by
+          funext cNext
+          simpa [lhsBody, rhsBody, bind_assoc, Spec.Transcript.append,
+            Spec.Transcript.packAppend, addPrefix] using
+            congrArg (fun z => addPrefix <$> z)
+              (go (rest xc.1) (rRest xc.1)
+                (s₂ := fun tr₁ => s₂ ⟨xc.1, tr₁⟩)
+                (r₂ := fun tr₁ => r₂ ⟨xc.1, tr₁⟩)
+                (FP := fun tr₁ tr₂ => FP ⟨xc.1, tr₁⟩ tr₂)
+                (FC := fun tr₁ tr₂ => FC ⟨xc.1, tr₁⟩ tr₂)
+                xc.2
+                (fun tr₁ mid => f ⟨xc.1, tr₁⟩ mid)
+                cNext
+                (fun tr₁ out₁ => cpt₂ ⟨xc.1, tr₁⟩ out₁))
+        simpa [rhsBody, addPrefix, Spec.Transcript.append, Spec.Transcript.packAppend,
+          bind_assoc] using
+          (hswap'.trans <| hrhs.trans <| congrArg (fun k => cpt₁ xc.1 >>= k) hbody)
     | .node _ rest, ⟨.receiver, rRest⟩ =>
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRoles.eq_3, Counterpart.append.eq_3]
