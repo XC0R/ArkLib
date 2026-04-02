@@ -343,8 +343,7 @@ theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
     | .node _ rest, ⟨.sender, rRest⟩ =>
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRolesFlat.eq_2, Counterpart.appendFlat.eq_2]
-        simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc, bind_map_left,
-          map_bind, Functor.map_map]
+        simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc]
         refine congrArg (fun k => strat₁ >>= k) ?_
         funext xc
         let addPrefix :
@@ -482,8 +481,7 @@ theorem Strategy.runWithRoles_compWithRoles_append
     | .node _ rest, ⟨.sender, rRest⟩ =>
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRoles.eq_2, Counterpart.append.eq_2]
-        simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc, bind_map_left,
-          map_bind, Functor.map_map]
+        simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc]
         refine congrArg (fun k => strat₁ >>= k) ?_
         funext xc
         let addPrefix :
