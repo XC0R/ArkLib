@@ -34,6 +34,9 @@ The rest of the interaction core consumes realized node contexts, not schemas:
   those realized contexts.
 * `Spec.Node.ContextHom` records structure-preserving maps between realized
   contexts, so forgetting or repackaging metadata can be expressed explicitly.
+* `Spec.Node.Schema.SchemaMap` is the corresponding notion at the schema level: a
+  semantic map between realized contexts presented with their schema sources
+  and targets.
 * `Spec.Node.Schema.Prefix` records syntactic schema-prefix inclusions, which
   induce canonical forgetful maps on realized contexts.
 
@@ -177,6 +180,40 @@ abbrev Schema.toContext {Γ : Context} (_ : Schema Γ) : Context := Γ
 namespace Schema
 
 /--
+`SchemaMap S T` is a semantic morphism from schema `S` to schema `T`.
+
+Unlike `Schema.Prefix`, this is not a syntactic extension relation. It is
+simply a map between the realized node contexts of `S` and `T`, presented with
+the schema source and target so that later constructions can speak directly in
+schema-level terms.
+
+So:
+* `Schema.Prefix` expresses a particular syntactic way one schema sits inside
+  another;
+* `SchemaMap` expresses an arbitrary semantic transformation between their
+  realized contexts.
+-/
+abbrev SchemaMap {Γ Δ : Context} (S : Schema Γ) (T : Schema Δ) :=
+  ContextHom S.toContext T.toContext
+
+/-- Identity schema morphism. -/
+def SchemaMap.id {Γ : Context} (S : Schema Γ) : SchemaMap S S :=
+  ContextHom.id _
+
+/-- Composition of schema morphisms. -/
+def SchemaMap.comp {Γ Δ Λ : Context}
+    {S : Schema Γ} {T : Schema Δ} {U : Schema Λ}
+    (g : SchemaMap T U) (f : SchemaMap S T) : SchemaMap S U :=
+  ContextHom.comp g f
+
+/--
+Forget that a schema morphism was presented at the schema level and view it as
+the underlying realized context morphism.
+-/
+abbrev SchemaMap.toContextHom {Γ Δ : Context} {S : Schema Γ} {T : Schema Δ}
+    (f : SchemaMap S T) : ContextHom S.toContext T.toContext := f
+
+/--
 `Prefix S T` means that `S` is a syntactic prefix of the schema `T`.
 
 Each `snoc` step adds one new field on the right, so a prefix determines a
@@ -209,6 +246,15 @@ def Prefix.toContextHom :
   | _, _, _, _, .refl _ => ContextHom.id _
   | _, _, _, _, .snoc p A =>
       ContextHom.comp (Prefix.toContextHom p) (Context.extendFst _ A)
+
+/--
+View a schema prefix as the corresponding schema morphism that forgets the
+fields added after the prefix.
+-/
+abbrev Prefix.toSchemaMap
+    {Γ Δ : Context.{u, v}} {S : Schema Γ} {T : Schema Δ}
+    (p : Schema.Prefix S T) : SchemaMap T S :=
+  p.toContextHom
 
 end Schema
 

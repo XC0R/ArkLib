@@ -37,6 +37,12 @@ layers, not dependent objects over a fixed base `Shape` or `Interaction`.
 Functorial `map` / `map_id` / `map_comp` for both layers are in this file.
 Composition along `Spec.append` is in `ArkLib.Interaction.Basic.Append`.
 
+Because decorations are concrete tree data, they are covariant in node-local
+contexts: a context morphism `Γ → Δ` induces a map from decorations by `Γ`
+to decorations by `Δ`. The schema-facing API in `Decoration.Schema` packages
+that same idea for realized contexts presented by schemas via
+`Spec.Node.Schema.SchemaMap`.
+
 This file also contains the bridge between the semantic and staged views of
 node metadata: decorating a tree by an extended context `Γ.extend A` is
 equivalent to giving a base decoration by `Γ` together with one dependent
@@ -265,6 +271,17 @@ namespace Decoration
 namespace Schema
 
 /--
+Map decorations along a schema morphism.
+
+This is just `Decoration.map` viewed through schema-level sources and targets.
+-/
+abbrev map
+    {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (f : Node.Schema.SchemaMap S T) :
+    (spec : Spec) → Decoration S.toContext spec → Decoration T.toContext spec :=
+  Decoration.map f
+
+/--
 `Decoration.Schema.telescope S spec` packages the staged telescope view of
 decorations for schema `S`, together with an equivalence from ordinary
 decorations by the realized context `S.toContext`.
@@ -324,13 +341,14 @@ namespace Prefix
 /--
 Project decorations along a syntactic schema prefix.
 
-This is the tree-level forgetting map induced by `Node.Schema.Prefix.toContextHom`.
+This is the tree-level forgetting map induced by the schema morphism
+`Node.Schema.Prefix.toSchemaMap`.
 -/
 abbrev map
     {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
     (p : Node.Schema.Prefix S T) :
     (spec : Spec) → Decoration T.toContext spec → Decoration S.toContext spec :=
-  Decoration.map p.toContextHom
+  Decoration.Schema.map p.toSchemaMap
 
 end Prefix
 

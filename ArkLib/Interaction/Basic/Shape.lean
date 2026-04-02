@@ -25,6 +25,8 @@ general pattern:
 * `Spec.Node.Context` is the semantic family of node-local data;
 * `Spec.Node.Schema` is the telescope-style front-end for building such
   contexts;
+* `Spec.Node.ContextHom` and `ShapeOver.comap` express contravariant
+  reindexing of syntax along context morphisms;
 * `fun _ => Role` is one example of a simple node context;
 * `Counterpart`, `PublicCoinCounterpart`, and `withRoles` are specific shapes;
 * the corresponding execution laws are introduced separately in
@@ -133,6 +135,21 @@ abbrev Shape
   ShapeOver Agent Node.Context.empty
 
 /--
+Reindex a local syntax object contravariantly along a node-context morphism.
+
+If `f : Γ → Δ`, then any shape over `Δ` can be viewed as a shape over `Γ` by
+first translating the local context value `γ : Γ X` into `f X γ : Δ X` and
+then using the original `Δ`-shape there.
+
+So `ShapeOver` is contravariant in its context parameter.
+-/
+def ShapeOver.comap {Δ : Node.Context}
+    (shape : ShapeOver Agent Δ) (f : Node.ContextHom Γ Δ) :
+    ShapeOver Agent Γ where
+  Node agent X γ Cont := shape.Node agent X (f X γ) Cont
+  map h := shape.map h
+
+/--
 `ShapeOver.Family shape a spec ctxs Out` is the whole-tree participant
 type for agent `a` induced by the local syntax `shape`.
 
@@ -199,6 +216,24 @@ def ShapeOver.mapOutput
               (B := fun tr => B ⟨x, tr⟩)
               (fun tr => f ⟨x, tr⟩))
           node
+
+/--
+Whole-tree families for `shape.comap f` are exactly families for `shape`
+evaluated on the mapped decoration `Decoration.map f ctxs`.
+-/
+theorem ShapeOver.family_comap {Δ : Node.Context}
+    (shape : ShapeOver Agent Δ) (f : Node.ContextHom Γ Δ) :
+    {agent : Agent} → {spec : Spec} → (ctxs : Decoration Γ spec) →
+    {Out : Transcript spec → Type w} →
+    ShapeOver.Family (shape.comap f) agent spec ctxs Out =
+      ShapeOver.Family shape agent spec (Decoration.map f spec ctxs) Out
+  | _, .done, _, _ => rfl
+  | agent, .node _ next, ⟨γ, ctxs⟩, Out => by
+      simp only [ShapeOver.Family, ShapeOver.comap, Decoration.map]
+      congr 1
+      funext x
+      exact family_comap shape f (agent := agent) (ctxs := ctxs x)
+        (Out := fun tr => Out ⟨x, tr⟩)
 
 end Spec
 end Interaction

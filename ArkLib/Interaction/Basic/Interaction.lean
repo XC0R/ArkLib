@@ -21,6 +21,10 @@ The role-based prover/verifier runners used elsewhere in the library are
 specializations of this more general notion, obtained by choosing suitable
 node contexts and shapes.
 
+Just as `ShapeOver` reindexes contravariantly along node-context morphisms,
+`InteractionOver.comap` transports a local execution law along the same kind
+of context change.
+
 Naming note:
 `InteractionOver` keeps the suffix form for the same reason as `ShapeOver`:
 it is the primary generalized execution notion, while `Interaction` is its
@@ -101,6 +105,20 @@ abbrev Interaction
     (shape : Shape Agent)
     (m : Type w → Type w) :=
   InteractionOver Agent Node.Context.empty shape m
+
+/--
+Reindex a local execution law contravariantly along a node-context morphism.
+
+If `f : Γ → Δ`, then an execution law for `Δ`-contexts can be reused on
+`Γ`-contexts by first viewing the local syntax through `ShapeOver.comap f`.
+At each node, the translated context value `f X γ` is what the original
+execution law sees.
+-/
+def InteractionOver.comap {Δ : Node.Context} {shape : ShapeOver Agent Δ}
+    {m : Type w → Type w}
+    (I : InteractionOver Agent Δ shape m) (f : Node.ContextHom Γ Δ) :
+    InteractionOver Agent Γ (shape.comap f) m where
+  interact profile k := I.interact profile k
 
 section Run
 
