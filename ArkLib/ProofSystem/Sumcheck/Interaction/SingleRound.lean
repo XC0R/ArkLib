@@ -1,110 +1,194 @@
-/-
-Copyright (c) 2024-2025 ArkLib Contributors. All rights reserved.
+/- 
+Copyright (c) 2024-2026 ArkLib Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
-import ArkLib.ProofSystem.Sumcheck.Interaction.Defs
+import ArkLib.ProofSystem.Sumcheck.Interaction.Oracle
 
 /-!
 # Interaction-Native Sum-Check: Single Round
 
-One round of sum-check expressed as an `Interaction.Spec` with role decorations, together with
-honest prover, verifier, and reduction builders using CompPoly types.
+A single round of sum-check, expressed canonically as an oracle continuation /
+oracle reduction over the **original** polynomial oracle.
 
-## Protocol Description
-
-A single round takes a `RoundClaim R` (the current target sum) and proceeds:
-
-1. **Prover** (sender): sends a univariate polynomial `p : CDegreeLE R deg`.
-   An honest prover sends a polynomial whose evaluations over the summation domain `D` sum
-   to the current target.
-2. **Verifier** (receiver): sends a random field element `r ∈ R`.
-
-After the round, the new claim is `p(r)`.
-
-## Main Definitions
-
-- `honestProverStep`: builds a `Strategy.withRoles` for one round from the prover's polynomial.
-- `verifierStep`: builds a `Counterpart` for one round that checks the sum condition over `D`,
-  samples a challenge, and outputs `Option (RoundClaim R)` — the next claim on success or
-  `none` on rejection.
-- `roundReduction`: packages the prover and verifier steps into a `Reduction`.
+The round is indexed by a prefix transcript of already-sampled verifier
+challenges. From that prefix, the prover derives the current residual
+polynomial, sends the corresponding univariate round polynomial, receives the
+next challenge, and keeps the original oracle statement unchanged.
 -/
 
 namespace Sumcheck
 
-open Interaction CompPoly CPoly
+open Interaction Interaction.OracleDecoration CompPoly CPoly OracleComp OracleSpec
 
 section
 
-variable {R : Type} [BEq R] [CommSemiring R] [LawfulBEq R] {deg : ℕ}
+variable {R : Type} [BEq R] [CommSemiring R] [LawfulBEq R] [Nontrivial R] {deg : ℕ}
 
-/-- The honest prover step for a single round of sum-check.
+/-- The residual polynomial obtained by evaluating the first `prefixLen`
+variables of the original polynomial at the sampled challenge prefix. -/
+def currentResidual {n prefixLen : Nat} (h : prefixLen ≤ n)
+    (vals : Fin prefixLen → R)
+    (poly : Sumcheck.PolyStmt R deg n) :
+    Sumcheck.PolyStmt R deg (n - prefixLen) :=
+  let poly' : CMvPolynomial (prefixLen + (n - prefixLen)) R := by
+    simpa [Nat.add_sub_of_le h] using poly.1
+  let hDeg' :
+      CPoly.CMvPolynomial.IndividualDegreeLE (R := R) deg poly' := by
+    sorry
+  ⟨CMvPolynomial.partialEvalPrefix (k := n - prefixLen) vals poly',
+    CMvPolynomial.partialEvalPrefix_individualDegreeLE
+      (deg := deg) vals poly' hDeg'⟩
 
-Given the prover's polynomial (of degree ≤ `deg`), produces a `Strategy.withRoles` that:
-- Sends the polynomial (sender action)
-- Receives the challenge (receiver action)
-- Outputs the result of `computeNext` applied to the polynomial and challenge.
+/-- The active residual for the round after a prefix of length `prefixLen`. This
+is the residual polynomial in `((n - (prefixLen + 1)) + 1)` variables whose
+round polynomial will be sent next. -/
+def currentRoundResidual {n prefixLen : Nat} (h : prefixLen < n)
+    (prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg prefixLen))
+    (poly : Sumcheck.PolyStmt R deg n) :
+    Sumcheck.PolyStmt R deg ((n - (prefixLen + 1)) + 1) := by
+  let residual :=
+    currentResidual (R := R) (deg := deg) (n := n) (prefixLen := prefixLen)
+      (Nat.le_of_lt h)
+      (Sumcheck.challengePrefix R deg prefixLen prefixTr)
+      poly
+  have hk : n - prefixLen = (n - (prefixLen + 1)) + 1 := by
+    omega
+  simpa [hk] using residual
 
-The `computeNext` callback abstracts how the prover computes its next-round state. -/
-def honestProverStep (m : Type → Type) [Monad m]
+/-- The honest round polynomial computed from the current active residual. -/
+def honestRoundPoly {m_dom : ℕ} (D : Fin m_dom → R)
+    {numVars : ℕ}
+    (poly : Sumcheck.PolyStmt R deg (numVars + 1)) :
+    CDegreeLE R deg :=
+  ⟨CMvPolynomial.roundPoly D numVars poly.1,
+    CMvPolynomial.roundPoly_natDegree_le D poly.1 (fun mono hmono =>
+      poly.2 ⟨0, by omega⟩ mono hmono)⟩
+
+/-- The honest round polynomial sent after the prefix transcript `prefixTr`. -/
+def honestRoundPolyAtPrefix {m_dom : ℕ} (D : Fin m_dom → R)
+    {n prefixLen : ℕ} (h : prefixLen < n)
+    (prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg prefixLen))
+    (poly : Sumcheck.PolyStmt R deg n) :
+    CDegreeLE R deg :=
+  honestRoundPoly (R := R) (deg := deg) D <|
+    currentRoundResidual (R := R) (deg := deg) h prefixTr poly
+
+/-- The honest prover step for one round, specialized to the original
+polynomial and the already-recorded challenge prefix. -/
+def roundProverStep (m : Type → Type) [Monad m]
     {NextState : Type}
-    (poly : CDegreeLE R deg)
-    (computeNext : CDegreeLE R deg → R → NextState) :
+    {m_dom : ℕ} (D : Fin m_dom → R)
+    {n prefixLen : ℕ} (h : prefixLen < n)
+    (prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg prefixLen))
+    (poly : Sumcheck.PolyStmt R deg n)
+    (computeNext : R → NextState) :
     Spec.Strategy.withRoles m (roundSpec R deg) (roundRoles R deg)
       (fun _ => NextState) :=
-  pure ⟨poly, fun chal => pure (computeNext poly chal)⟩
+  let sentPoly := honestRoundPolyAtPrefix (R := R) (deg := deg) D h prefixTr poly
+  pure ⟨sentPoly, fun chal => pure (computeNext chal)⟩
 
-/-- The verifier step for a single round of sum-check.
-
-Given the current claim, a summation domain `D`, and a way to sample a challenge:
-1. Observes the polynomial from the prover (dual of sender).
-2. Checks that the polynomial's evaluations over `D` sum to the target (`roundCheck`).
-3. Samples a random challenge (dual of receiver).
-4. Outputs `some (poly(challenge))` as the next claim if the check passed, or `none` if it
-   failed. -/
-def verifierStep (m : Type → Type) [Monad m]
+/-- Oracle continuation for one live sum-check round after a prefix transcript
+of previously sampled challenges. The original polynomial oracle is preserved
+unchanged. -/
+noncomputable def roundContinuation
+    {ι : Type} {oSpec : OracleSpec ι}
     {m_dom : ℕ} (D : Fin m_dom → R)
-    (sampleChallenge : m R)
-    (target : RoundClaim R) :
-    Spec.Counterpart m (roundSpec R deg) (roundRoles R deg)
-      (fun _ => Option (RoundClaim R)) :=
-  fun poly =>
-    pure <| do
-      let chal ← sampleChallenge
-      if roundCheck R deg D target poly then
-        pure ⟨chal, some (CPolynomial.eval chal poly.1)⟩
-      else
-        pure ⟨chal, none⟩
-
-/-- A single-round sum-check reduction.
-
-- **StatementIn**: the current round claim (`RoundClaim R`).
-- **WitnessIn**: the prover's input state, abstracted as `WitIn`.
-- **Context**: `roundSpec R deg` (two messages: polynomial then challenge).
-- **Roles**: `roundRoles R deg` (sender then receiver).
-- **StatementOut**: `Option (RoundClaim R)` — the next claim on success, `none` on rejection.
-- **WitnessOut**: the prover's next-round state, indexed by transcript.
-
-The prover sends its polynomial and computes the next witness from the challenge.
-The verifier checks the sum condition, samples a challenge, and outputs the next claim. -/
-def roundReduction (m : Type → Type) [Monad m]
-    {WitIn WitOut : Type}
-    {m_dom : ℕ} (D : Fin m_dom → R)
-    (sampleChallenge : m R)
-    (proverSend : RoundClaim R → WitIn → m (CDegreeLE R deg))
-    (proverNext : WitIn → CDegreeLE R deg → R → WitOut) :
-    Reduction m (RoundClaim R) WitIn
+    {n prefixLen : ℕ} (h : prefixLen < n)
+    (prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg prefixLen))
+    (sampleChallenge : OracleComp oSpec R) :
+    OracleReduction.Continuation oSpec PUnit
       (fun _ => roundSpec R deg)
       (fun _ => roundRoles R deg)
+      (fun _ => roundOracleDecoration R deg)
+      (fun _ => RoundClaim R)
+      (fun _ => Sumcheck.PolyFamily R deg n)
+      (fun _ => PUnit)
       (fun _ _ => Option (RoundClaim R))
-      (fun _ _ => WitOut) where
-  prover target witIn := do
-    let poly ← proverSend target witIn
-    pure <| honestProverStep m poly
-      (fun sentPoly chal =>
-        ⟨some (CPolynomial.eval chal sentPoly.1), proverNext witIn sentPoly chal⟩)
-  verifier target := verifierStep m D sampleChallenge target
+      (fun _ _ => Sumcheck.PolyFamily R deg n)
+      (fun _ _ => PUnit) where
+  prover _ sWithOracles _ := do
+    let poly := sWithOracles.oracleStmt ()
+    pure <|
+      roundProverStep (m := OracleComp oSpec) (R := R) (deg := deg) D h prefixTr poly
+        (fun chal =>
+          let nextClaim : Option (RoundClaim R) :=
+            some <|
+              CPolynomial.eval chal
+                (honestRoundPolyAtPrefix (R := R) (deg := deg) D h prefixTr poly).1
+          ⟨⟨nextClaim, sWithOracles.oracleStmt⟩, PUnit.unit⟩)
+  verifier _ {_} accSpec target := by
+    simpa using
+      oracleVerifierStep
+        (R := R) (deg := deg)
+        (Sumcheck.PolyFamily R deg n) accSpec D target sampleChallenge
+  simulate _ _ := fun q => by
+    exact liftM <| query (spec := [Sumcheck.PolyFamily R deg n]ₒ) q
+
+/-- Oracle continuation for one chained sum-check round after a possibly-failed
+claim. The original polynomial oracle is preserved unchanged. -/
+noncomputable def roundContinuationOption
+    {ι : Type} {oSpec : OracleSpec ι}
+    {m_dom : ℕ} (D : Fin m_dom → R)
+    {n prefixLen : ℕ} (h : prefixLen < n)
+    (prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg prefixLen))
+    (sampleChallenge : OracleComp oSpec R) :
+    OracleReduction.Continuation oSpec PUnit
+      (fun _ => roundSpec R deg)
+      (fun _ => roundRoles R deg)
+      (fun _ => roundOracleDecoration R deg)
+      (fun _ => Option (RoundClaim R))
+      (fun _ => Sumcheck.PolyFamily R deg n)
+      (fun _ => PUnit)
+      (fun _ _ => Option (RoundClaim R))
+      (fun _ _ => Sumcheck.PolyFamily R deg n)
+      (fun _ _ => PUnit) where
+  prover _ sWithOracles _ := do
+    let poly := sWithOracles.oracleStmt ()
+    pure <|
+      roundProverStep (m := OracleComp oSpec) (R := R) (deg := deg) D h prefixTr poly
+        (fun chal =>
+          let nextClaim : Option (RoundClaim R) :=
+            match sWithOracles.stmt with
+            | none => none
+            | some _ =>
+                some (CPolynomial.eval chal
+                  (honestRoundPolyAtPrefix (R := R) (deg := deg) D h prefixTr poly).1)
+          ⟨⟨nextClaim, sWithOracles.oracleStmt⟩, PUnit.unit⟩)
+  verifier _ {_} accSpec target := by
+    simpa using
+      oracleVerifierStepOption
+        (R := R) (deg := deg)
+        (Sumcheck.PolyFamily R deg n) accSpec D target sampleChallenge
+  simulate _ _ := fun q => by
+    exact liftM <| query (spec := [Sumcheck.PolyFamily R deg n]ₒ) q
+
+/-- A single-round sum-check oracle reduction. The input oracle statement is the
+original polynomial in `numVars + 1` variables, and it is preserved unchanged
+as the output oracle statement. -/
+noncomputable def roundOracleReduction
+    {ι : Type} {oSpec : OracleSpec ι}
+    {m_dom : ℕ} (D : Fin m_dom → R)
+    (numVars : ℕ)
+    (sampleChallenge : OracleComp oSpec R) :
+    OracleReduction oSpec
+      (RoundClaim R)
+      (Sumcheck.PolyFamily R deg (numVars + 1))
+      PUnit
+      (fun _ => roundSpec R deg)
+      (fun _ => roundRoles R deg)
+      (fun _ => roundOracleDecoration R deg)
+      (fun _ _ => Option (RoundClaim R))
+      (fun _ _ => Sumcheck.PolyFamily R deg (numVars + 1))
+      (fun _ _ => PUnit) :=
+  let prefixTr : Spec.Transcript (Sumcheck.fullSpec R deg 0) := by
+    simpa [Sumcheck.fullSpec] using (show Spec.Transcript ((roundSpec R deg).replicate 0) from ⟨⟩)
+  (roundContinuation (R := R) (deg := deg) D
+    (n := numVars + 1)
+    (prefixLen := 0)
+    (Nat.succ_pos numVars)
+    prefixTr
+    sampleChallenge).fix PUnit.unit
 
 end
 

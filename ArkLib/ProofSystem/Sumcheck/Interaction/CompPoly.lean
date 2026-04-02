@@ -65,6 +65,17 @@ and substitute variable `n` with the constant `a`. -/
 def partialEvalLast (a : R) (p : CMvPolynomial (n + 1) R) : CMvPolynomial n R :=
   bind₁ (Fin.snoc X (C a)) p
 
+/-- Fix the first `i` variables of a polynomial in `i + k` variables to the
+values provided by `vals`, leaving the final `k` variables free. -/
+def partialEvalPrefix : {i k : ℕ} → (Fin i → R) → CMvPolynomial (i + k) R → CMvPolynomial k R
+  | 0, _, _, p => by
+      simpa [Nat.zero_add] using p
+  | i + 1, k, vals, p =>
+      let p' : CMvPolynomial ((i + k) + 1) R := by
+        simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using p
+      partialEvalPrefix (i := i) (k := k) (fun j => vals j.succ)
+        (partialEvalFirst (vals 0) p')
+
 variable {m : ℕ}
 
 /-- Sum out the last variable of a polynomial over domain `D`.
@@ -123,6 +134,27 @@ theorem partialEvalFirst_individualDegreeLE {deg : ℕ} (a : R)
     (hDeg : IndividualDegreeLE (R := R) deg p) :
     IndividualDegreeLE (R := R) deg (partialEvalFirst a p) := by
   sorry
+
+/-- `partialEvalPrefix` preserves individual degree bounds. -/
+theorem partialEvalPrefix_individualDegreeLE {deg : ℕ} :
+    ∀ {i k : ℕ} (vals : Fin i → R) (p : CMvPolynomial (i + k) R),
+      IndividualDegreeLE (R := R) deg p →
+      IndividualDegreeLE (R := R) deg (partialEvalPrefix vals p)
+  | 0, _, _, _, _ => by
+      sorry
+  | i + 1, k, vals, p, hDeg => by
+      let p' : CMvPolynomial ((i + k) + 1) R := by
+        simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using p
+      have hDeg' : IndividualDegreeLE (R := R) deg p' := by
+        sorry
+      simpa [partialEvalPrefix] using
+        partialEvalPrefix_individualDegreeLE
+          (deg := deg)
+          (i := i)
+          (k := k)
+          (fun j => vals j.succ)
+          (partialEvalFirst (vals 0) p')
+          (partialEvalFirst_individualDegreeLE (deg := deg) (vals 0) p' hDeg')
 
 /-! ### Univariate bridge (requires `Nontrivial R`) -/
 

@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Interaction.Basic.Chain
+import ArkLib.Interaction.Basic.Replicate
 import ArkLib.Interaction.TwoParty.Compose
 import ArkLib.Interaction.Reduction
 import ArkLib.ProofSystem.Sumcheck.Interaction.CompPoly
@@ -41,11 +42,25 @@ After round `i`, the target is updated to `p_i(r_i)`. The public *stage state*
 - `roundCheck`: the per-round sum check (computable `Bool`).
 - `RoundCheckProp`: propositional version of `roundCheck`.
 - `fullSum`: the full sum `∑_{x ∈ D^n} poly(x)` that sum-check verifies.
+- `PolyStmt` / `PolyFamily`: the fixed original polynomial oracle statement.
+- `fullSpec` / `fullRoles`: the `n`-round replicated interaction surface.
+- `challengePrefix`: extract the verifier challenges already present in a
+  replicated-round transcript.
 -/
 
 namespace Sumcheck
 
 open Interaction CompPoly CPoly
+
+/-- The fixed polynomial oracle statement with `numVars` variables. -/
+abbrev PolyStmt (R : Type) [BEq R] [CommSemiring R] [LawfulBEq R]
+    (deg : ℕ) (numVars : ℕ) :=
+  CMvDegreeLE R numVars deg
+
+/-- The singleton oracle family carrying the original sum-check polynomial. -/
+abbrev PolyFamily (R : Type) [BEq R] [CommSemiring R] [LawfulBEq R]
+    (deg : ℕ) (numVars : ℕ) : Unit → Type :=
+  fun _ => PolyStmt R deg numVars
 
 section
 
@@ -69,6 +84,14 @@ sends second. -/
 def roundRoles : RoleDecoration (roundSpec R deg) :=
   ⟨.sender, fun _ => ⟨.receiver, fun _ => ⟨⟩⟩⟩
 
+/-- The `n`-round replicated interaction surface for sum-check. -/
+abbrev fullSpec (n : Nat) : Spec :=
+  (roundSpec R deg).replicate n
+
+/-- The role decoration for the `n`-round replicated interaction surface. -/
+abbrev fullRoles (n : Nat) : RoleDecoration (fullSpec R deg n) :=
+  (roundRoles R deg).replicate n
+
 /-- Extract the polynomial from a single-round transcript. -/
 abbrev roundPoly (tr : Spec.Transcript (roundSpec R deg)) :
     CDegreeLE R deg :=
@@ -78,6 +101,18 @@ abbrev roundPoly (tr : Spec.Transcript (roundSpec R deg)) :
 abbrev roundChallenge (tr : Spec.Transcript (roundSpec R deg)) :
     R :=
   tr.2.1
+
+/-- Extract the `i`-th round transcript from an `n`-round replicated transcript. -/
+abbrev roundTranscript (n : Nat)
+    (tr : Spec.Transcript (fullSpec R deg n)) (i : Fin n) :
+    Spec.Transcript (roundSpec R deg) :=
+  Spec.Transcript.replicateSplit (roundSpec R deg) n tr i
+
+/-- Extract the prefix of verifier challenges from an `n`-round replicated
+transcript. -/
+def challengePrefix (n : Nat) (tr : Spec.Transcript (fullSpec R deg n)) :
+    Fin n → R :=
+  fun i => roundChallenge R deg (roundTranscript R deg n tr i)
 
 /-- Advance the public claim after one round: evaluate the sent polynomial at the challenge.
 This is the state chain `advance` function. The new target is `poly.eval(challenge)`. -/
@@ -102,20 +137,21 @@ def RoundCheckProp {m_dom : ℕ} (D : Fin m_dom → R) (target : RoundClaim R)
 
 /-- The full sum `∑_{z ∈ D^n} poly(D ∘ z)` of a multivariate polynomial over the product domain.
 This is the claimed quantity in sum-check: the protocol verifies `fullSum D poly = target`. -/
-def fullSum {n : ℕ} {m_dom : ℕ} (D : Fin m_dom → R) (poly : CMvDegreeLE R n deg) : R :=
+def fullSum {n : ℕ} {m_dom : ℕ} (D : Fin m_dom → R) (poly : PolyStmt R deg n) : R :=
   (Finset.univ : Finset (Fin n → Fin m_dom)).sum fun z =>
     CMvPolynomial.eval (D ∘ z) poly.1
 
-/-! ## Uniform-round helpers for `Spec.stateChain` -/
-
-/-- The per-round spec, ignoring both index and stage state (the round shape is uniform). -/
-def roundSpecFn (_ : Nat) (_ : RoundClaim R) : Spec :=
-  roundSpec R deg
-
-/-- The per-round role decoration, ignoring both index and stage state. -/
-def roundRolesFn (_ : Nat) (_ : RoundClaim R) :
-    RoleDecoration (roundSpec R deg) :=
-  roundRoles R deg
+/-- Replay the verifier's current claim across an `n`-round replicated
+sum-check transcript. Later rounds are ignored once a check fails. -/
+def statementResult {m_dom : Nat} (D : Fin m_dom → R) :
+    (n : Nat) → RoundClaim R → Spec.Transcript (fullSpec R deg n) → Option (RoundClaim R)
+| 0, target, _ => some target
+| n + 1, target, tr =>
+    let ⟨tr₁, trRest⟩ := Spec.Transcript.replicateUncons (roundSpec R deg) n tr
+    if roundCheck R deg D target (roundPoly R deg tr₁) then
+      statementResult D n (advance R deg 0 target tr₁) trRest
+    else
+      none
 
 end
 
