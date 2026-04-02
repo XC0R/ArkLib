@@ -25,20 +25,45 @@ section
 
 variable {R : Type} [BEq R] [CommSemiring R] [LawfulBEq R] [Nontrivial R] {deg : ℕ}
 
+/-- Advance a residual polynomial by fixing its first variable to the sampled
+challenge. This is the stateful prover update for one sum-check round. -/
+def stepResidual (chal : R)
+    {numVars : ℕ} (poly : Sumcheck.PolyStmt R deg (numVars + 1)) :
+    Sumcheck.PolyStmt R deg numVars :=
+  ⟨CMvPolynomial.partialEvalFirst chal poly.1,
+    CMvPolynomial.partialEvalFirst_individualDegreeLE chal poly.1 poly.2⟩
+
+/-- The residual polynomial obtained by evaluating the first `prefixLen`
+variables of the original polynomial at the sampled challenge prefix. -/
+private def currentResidualGo :
+    (prefixLen : Nat) →
+    {n : Nat} →
+    (h : prefixLen ≤ n) →
+    (vals : Fin prefixLen → R) →
+    (poly : Sumcheck.PolyStmt R deg n) →
+    Sumcheck.PolyStmt R deg (n - prefixLen)
+  | 0, n, _, _, poly => by
+      simpa using poly
+  | prefixLen + 1, 0, h, _, _ => by
+      exact False.elim (Nat.not_succ_le_zero _ h)
+  | prefixLen + 1, n + 1, h, vals, poly => by
+      simpa using
+        currentResidualGo
+          prefixLen
+          (n := n)
+          (Nat.le_of_succ_le_succ h)
+          (fun i => vals i.succ)
+          (stepResidual (R := R) (deg := deg) (vals 0) poly)
+termination_by currentResidualGo prefixLen _ _ _ => prefixLen
+decreasing_by simp_wf
+
 /-- The residual polynomial obtained by evaluating the first `prefixLen`
 variables of the original polynomial at the sampled challenge prefix. -/
 def currentResidual {n prefixLen : Nat} (h : prefixLen ≤ n)
     (vals : Fin prefixLen → R)
     (poly : Sumcheck.PolyStmt R deg n) :
     Sumcheck.PolyStmt R deg (n - prefixLen) :=
-  let poly' : CMvPolynomial (prefixLen + (n - prefixLen)) R := by
-    simpa [Nat.add_sub_of_le h] using poly.1
-  let hDeg' :
-      CPoly.CMvPolynomial.IndividualDegreeLE (R := R) deg poly' := by
-    sorry
-  ⟨CMvPolynomial.partialEvalPrefix (k := n - prefixLen) vals poly',
-    CMvPolynomial.partialEvalPrefix_individualDegreeLE
-      (deg := deg) vals poly' hDeg'⟩
+  currentResidualGo (R := R) (deg := deg) prefixLen h vals poly
 
 /-- The active residual for the round after a prefix of length `prefixLen`. This
 is the residual polynomial in `((n - (prefixLen + 1)) + 1)` variables whose
@@ -73,14 +98,6 @@ def honestRoundPolyAtPrefix {m_dom : ℕ} (D : Fin m_dom → R)
     CDegreeLE R deg :=
   honestRoundPoly (R := R) (deg := deg) D <|
     currentRoundResidual (R := R) (deg := deg) h prefixTr poly
-
-/-- Advance a residual polynomial by fixing its first variable to the sampled
-challenge. This is the stateful prover update for one sum-check round. -/
-def stepResidual (chal : R)
-    {numVars : ℕ} (poly : Sumcheck.PolyStmt R deg (numVars + 1)) :
-    Sumcheck.PolyStmt R deg numVars :=
-  ⟨CMvPolynomial.partialEvalFirst chal poly.1,
-    CMvPolynomial.partialEvalFirst_individualDegreeLE chal poly.1 poly.2⟩
 
 /-- The honest prover step for one round, specialized to the original
 polynomial and the already-recorded challenge prefix. -/
