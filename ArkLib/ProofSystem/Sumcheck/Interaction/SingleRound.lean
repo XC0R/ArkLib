@@ -69,12 +69,13 @@ def verifierStep (m : Type → Type) [Monad m]
     (target : RoundClaim R) :
     Spec.Counterpart m (roundSpec R deg) (roundRoles R deg)
       (fun _ => Option (RoundClaim R)) :=
-  fun poly => do
-    let chal ← sampleChallenge
-    if roundCheck R deg D target poly then
-      pure ⟨chal, some (CPolynomial.eval chal poly.1)⟩
-    else
-      pure ⟨chal, none⟩
+  fun poly =>
+    pure <| do
+      let chal ← sampleChallenge
+      if roundCheck R deg D target poly then
+        pure ⟨chal, some (CPolynomial.eval chal poly.1)⟩
+      else
+        pure ⟨chal, none⟩
 
 /-- A single-round sum-check reduction.
 

@@ -158,9 +158,10 @@ def sumcheckReduction (m : Type → Type) [Monad m]
     some
     (fun _i st optClaim =>
       match optClaim with
-      | none => fun _poly => do
-          let chal ← sampleChallenge
-          pure ⟨chal, none⟩
+      | none => fun _poly =>
+          pure <| do
+            let chal ← sampleChallenge
+            pure ⟨chal, none⟩
       | some _ => verifierStep m D sampleChallenge st)
 
 /-! ## Security properties
