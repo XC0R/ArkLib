@@ -204,6 +204,20 @@ abbrev CounterpartFamily
 
 /-- Functorial output map for a generic counterpart family. The sender-side
 observation structure is unchanged; only the continuation outputs are mapped. -/
+private def counterpartFamilyShape
+    (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (mapReceiver :
+      {X : Type u} → {A B : X → Type u} →
+      (∀ x, A x → B x) → Receiver X A → Receiver X B) :
+    ShapeOver PUnit (fun _ => Role) where
+  toSyntaxOver := counterpartFamilySyntax Receiver
+  map := fun {agent} {X} {γ} {A} {B} f node =>
+    match γ with
+    | .sender =>
+        fun x => f x (node x)
+    | .receiver =>
+        mapReceiver f node
+
 def CounterpartFamily.mapOutput
     (Receiver : (X : Type u) → (X → Type u) → Type u)
     (mapReceiver :
@@ -213,14 +227,12 @@ def CounterpartFamily.mapOutput
     {A B : Transcript spec → Type u} →
     (∀ tr, A tr → B tr) →
     CounterpartFamily Receiver spec roles A →
-    CounterpartFamily Receiver spec roles B
-  | .done, _, _, _, f, a => f ⟨⟩ a
-  | .node _ _, ⟨.sender, _⟩, _, _, f, observe =>
-      fun x => mapOutput Receiver mapReceiver (fun p => f ⟨x, p⟩) (observe x)
-  | .node _ _, ⟨.receiver, _⟩, _, _, f, receive =>
-      mapReceiver
-        (fun x => mapOutput Receiver mapReceiver (fun p => f ⟨x, p⟩))
-        receive
+    CounterpartFamily Receiver spec roles B :=
+  fun {spec} {roles} {A} {B} f =>
+    ShapeOver.mapOutput
+      (counterpartFamilyShape Receiver mapReceiver)
+      (agent := PUnit.unit) (spec := spec) roles
+      (A := A) (B := B) f
 
 /-- Counterpart / environment type with transcript-dependent output: dual actions at
 each node, producing `Output ⟨⟩` at `.done`. For a no-output counterpart (the old
