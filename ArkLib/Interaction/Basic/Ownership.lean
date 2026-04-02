@@ -85,7 +85,7 @@ def syntaxOver [DecidableEq Agent]
     (owner : ∀ {X}, Γ X → Agent)
     (view : ∀ {X}, (γ : Γ X) → Agent → LocalView X) :
     SyntaxOver Agent Γ where
-  Node agent X γ Cont :=
+  Node agent _ γ Cont :=
     if agent = owner γ then
       (view γ agent).own Cont
     else
