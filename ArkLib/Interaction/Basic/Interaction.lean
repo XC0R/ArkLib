@@ -120,6 +120,25 @@ def InteractionOver.comap {Δ : Node.Context} {shape : ShapeOver Agent Δ}
     InteractionOver Agent Γ (shape.comap f) m where
   interact profile k := I.interact profile k
 
+@[simp]
+theorem InteractionOver.comap_id
+    {shape : ShapeOver Agent Γ}
+    {m : Type w → Type w}
+    (I : InteractionOver Agent Γ shape m) :
+    HEq (I.comap (Node.ContextHom.id Γ)) I := by
+  cases I
+  rfl
+
+theorem InteractionOver.comap_comp
+    {Δ : Node.Context} {Λ : Node.Context}
+    {shape : ShapeOver Agent Λ}
+    {m : Type w → Type w}
+    (I : InteractionOver Agent Λ shape m)
+    (g : Node.ContextHom Δ Λ) (f : Node.ContextHom Γ Δ) :
+    HEq ((I.comap g).comap f) (I.comap (Node.ContextHom.comp g f)) := by
+  cases I
+  rfl
+
 section Run
 
 variable {Agent : Type u}

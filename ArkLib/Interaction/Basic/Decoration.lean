@@ -281,6 +281,22 @@ abbrev map
     (spec : Spec) → Decoration S.toContext spec → Decoration T.toContext spec :=
   Decoration.map f
 
+@[simp]
+theorem map_id
+    {Γ : Node.Context.{u, v}} {S : Node.Schema Γ} :
+    (spec : Spec) → (d : Decoration S.toContext spec) →
+    Decoration.Schema.map (Node.Schema.SchemaMap.id S) spec d = d :=
+  Decoration.map_id
+
+theorem map_comp
+    {Γ Δ Λ : Node.Context.{u, v}}
+    {S : Node.Schema Γ} {T : Node.Schema Δ} {U : Node.Schema Λ}
+    (g : Node.Schema.SchemaMap T U) (f : Node.Schema.SchemaMap S T) :
+    (spec : Spec) → (d : Decoration S.toContext spec) →
+    Decoration.Schema.map g spec (Decoration.Schema.map f spec d) =
+      Decoration.Schema.map (Node.Schema.SchemaMap.comp g f) spec d :=
+  Decoration.map_comp g f
+
 /--
 `Decoration.Schema.telescope S spec` packages the staged telescope view of
 decorations for schema `S`, together with an equivalence from ordinary
@@ -335,6 +351,53 @@ theorem unpack_pack {Γ : Node.Context.{u, v}} (S : Node.Schema Γ) (spec : Spec
     (d : View S spec) :
     unpack S spec (pack S spec d) = d :=
   (telescope S spec).2.right_inv d
+
+/--
+Map the staged telescope view of decorations along a schema morphism.
+
+This is the schema-view analogue of `Decoration.Schema.map`: pack the staged
+view into an ordinary decoration, map that decoration along the schema
+morphism, then unpack it into the staged view for the target schema.
+-/
+abbrev mapView
+    {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (f : Node.Schema.SchemaMap S T) (spec : Spec) :
+    View S spec → View T spec :=
+  unpack T spec ∘ Decoration.Schema.map f spec ∘ pack S spec
+
+@[simp]
+theorem unpack_map
+    {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (f : Node.Schema.SchemaMap S T) (spec : Spec) (d : Decoration S.toContext spec) :
+    unpack T spec (Decoration.Schema.map f spec d) =
+      mapView f spec (unpack S spec d) := by
+  simp [mapView]
+
+@[simp]
+theorem pack_mapView
+    {Γ Δ : Node.Context.{u, v}} {S : Node.Schema Γ} {T : Node.Schema Δ}
+    (f : Node.Schema.SchemaMap S T) (spec : Spec) (d : View S spec) :
+    pack T spec (mapView f spec d) =
+      Decoration.Schema.map f spec (pack S spec d) := by
+  simp [mapView]
+
+@[simp]
+theorem mapView_id
+    {Γ : Node.Context.{u, v}} {S : Node.Schema Γ} :
+    (spec : Spec) → (d : View S spec) →
+    mapView (Node.Schema.SchemaMap.id S) spec d = d := by
+  intro spec d
+  simp [mapView]
+
+theorem mapView_comp
+    {Γ Δ Λ : Node.Context.{u, v}}
+    {S : Node.Schema Γ} {T : Node.Schema Δ} {U : Node.Schema Λ}
+    (g : Node.Schema.SchemaMap T U) (f : Node.Schema.SchemaMap S T) :
+    (spec : Spec) → (d : View S spec) →
+    mapView g spec (mapView f spec d) =
+      mapView (Node.Schema.SchemaMap.comp g f) spec d := by
+  intro spec d
+  simp [mapView, Decoration.Schema.map_comp]
 
 namespace Prefix
 

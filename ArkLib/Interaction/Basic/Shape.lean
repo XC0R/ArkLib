@@ -149,6 +149,21 @@ def ShapeOver.comap {Δ : Node.Context}
   Node agent X γ Cont := shape.Node agent X (f X γ) Cont
   map h := shape.map h
 
+@[simp]
+theorem ShapeOver.comap_id
+    (shape : ShapeOver Agent Γ) :
+    shape.comap (Node.ContextHom.id Γ) = shape := by
+  cases shape
+  rfl
+
+theorem ShapeOver.comap_comp
+    {Δ : Node.Context} {Λ : Node.Context}
+    (shape : ShapeOver Agent Λ)
+    (g : Node.ContextHom Δ Λ) (f : Node.ContextHom Γ Δ) :
+    (shape.comap g).comap f = shape.comap (Node.ContextHom.comp g f) := by
+  cases shape
+  rfl
+
 /--
 `ShapeOver.Family shape a spec ctxs Out` is the whole-tree participant
 type for agent `a` induced by the local syntax `shape`.
