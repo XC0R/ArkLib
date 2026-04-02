@@ -76,10 +76,11 @@ tree `spec`, for a realized node context `Γ`.
 If a node of `spec` has move space `X`, then the decoration stores one value of
 type `Γ X` at that node, and recursively stores decorations on every subtree.
 
-This is different from `Spec.ShapeOver`:
+This is different from `Spec.SyntaxOver`:
 * a decoration is **data on a tree**;
-* a shape is a **specification of local participant objects** that consumes such
-  data. -/
+* syntax is a **specification of local participant objects** that consumes such
+  data;
+* `Spec.ShapeOver` is the functorial refinement of that syntax layer. -/
 def Decoration (Γ : Node.Context.{u, v}) : Spec → Type (max u v)
   | .done => PUnit
   | .node X rest => Γ X × (∀ x, Decoration Γ (rest x))

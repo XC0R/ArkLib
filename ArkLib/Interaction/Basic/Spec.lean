@@ -17,8 +17,10 @@ moves are computed. Those concerns are separated into companion modules:
 
 * `Node` — realized node contexts and telescope-style node schemas
 * `Decoration` — concrete per-node metadata on a fixed protocol tree
-* `ShapeOver` / `InteractionOver` — generic local syntax and local execution
+* `SyntaxOver` / `InteractionOver` — generic local syntax and local execution
   laws over realized node contexts
+* `ShapeOver` — the functorial refinement of syntax, used when recursive
+  continuations admit a generic map
 * `Strategy` — one-player strategies with monadic effects
 * `Append`, `Replicate`, `Chain` — sequential composition and iteration
 
@@ -65,7 +67,9 @@ Those additional layers are supplied separately by:
 * `Spec.Node.Context` / `Spec.Node.Schema`, for node-local semantic contexts
   and their telescope-style descriptions;
 * `Spec.Decoration`, for concrete nodewise metadata;
-* `Spec.ShapeOver`, for local participant syntax over realized node contexts;
+* `Spec.SyntaxOver`, for the most general local participant syntax over
+  realized node contexts;
+* `Spec.ShapeOver`, for the functorial refinement of such syntax;
 * `Spec.InteractionOver`, for local execution laws over such syntax. -/
 inductive Spec : Type (u + 1) where
   | /-- Terminal node: the interaction is over. -/
