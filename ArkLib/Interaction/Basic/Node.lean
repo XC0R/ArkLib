@@ -32,9 +32,18 @@ The rest of the interaction core consumes realized node contexts, not schemas:
   context `Γ`;
 * `Spec.ShapeOver` and `Spec.InteractionOver` define syntax and execution over
   those realized contexts.
+
+Worked example:
+if we previously thought of node metadata in two stages,
+first a tag `Tag X` and then dependent data `Data X tag`,
+the corresponding schema is
+`(Spec.Node.Schema.singleton Tag).extend Data`.
+Its realized context is `Spec.Node.Context.extend Tag Data`,
+so a single decoration by that context packages the old staged view into one
+semantic object.
 -/
 
-universe u v
+universe u v w
 
 namespace Interaction
 namespace Spec
@@ -65,8 +74,12 @@ Extend a realized node context by one dependent field.
 If `Γ` is the current context and `A X γ` is a new field whose type may depend
 on the existing context value `γ : Γ X`, then `Γ.extend A` is the enlarged
 context containing both pieces of data.
+
+The new field is allowed to live in a different universe from the existing
+context. This keeps `Context.extend` flexible even though `Schema` itself uses
+one fixed universe parameter for its staged fields.
 -/
-def Context.extend (Γ : Context) (A : ∀ X, Γ X → Type v) : Context :=
+def Context.extend (Γ : Type u → Type v) (A : ∀ X, Γ X → Type w) : Type u → Type (max v w) :=
   fun X => Σ γ : Γ X, A X γ
 
 /--
@@ -81,15 +94,32 @@ Schemas are the structured front-end for building node-local contexts:
 The semantic object used elsewhere in the interaction core is still the
 realized context `Γ`; a schema is simply a readable way to assemble such
 contexts stage by stage, while keeping the dependency structure visible.
+
+For example, a two-stage schema consisting of:
+* a first field `Tag X`, and then
+* a second field `Data X tag` depending on that tag
+
+is written as `(Schema.singleton Tag).extend Data`,
+and realizes to the context `Context.extend Tag Data`.
 -/
 inductive Schema : Context → Type (max (u + 1) (v + 1)) where
   /-- The empty schema. -/
   | nil : Schema Context.empty
   /-- A one-field schema whose realized context is exactly `A`. -/
   | singleton (A : Type u → Type v) : Schema A
-  /-- Extend an existing schema by one further dependent field. -/
+/-- Extend an existing schema by one further dependent field. -/
   | snoc {Γ : Context} (S : Schema Γ) (A : ∀ X, Γ X → Type v) :
-      Schema (Γ.extend A)
+      Schema (Context.extend Γ A)
+
+/--
+Extend a node schema by one further dependent field.
+
+This is the functional wrapper around the `snoc` constructor, useful when a
+schema is being built incrementally.
+-/
+abbrev Schema.extend {Γ : Context} (S : Schema Γ) (A : ∀ X, Γ X → Type v) :
+    Schema (Context.extend Γ A) :=
+  .snoc S A
 
 /--
 Interpret a node schema as its realized node context.

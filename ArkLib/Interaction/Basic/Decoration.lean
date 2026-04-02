@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Quang Dao
 -/
 import ArkLib.Interaction.Basic.Node
+import Mathlib.Data.Sigma.Basic
+import Mathlib.Logic.Equiv.Basic
 
 /-!
 # Decorations and dependent decorations (`Over`)
@@ -34,12 +36,27 @@ layers, not dependent objects over a fixed base `Shape` or `Interaction`.
 
 Functorial `map` / `map_id` / `map_comp` for both layers are in this file.
 Composition along `Spec.append` is in `ArkLib.Interaction.Basic.Append`.
+
+This file also contains the bridge between the semantic and staged views of
+node metadata: decorating a tree by an extended context `Γ.extend A` is
+equivalent to giving a base decoration by `Γ` together with one dependent
+`Decoration.Over A` layer on top of it.
+
+In particular, if a schema is built as `(Spec.Node.Schema.singleton Γ).extend A`,
+then `Decoration.equivOver A spec` is exactly the statement that a decoration
+of that schema's realized context is the same as a base decoration by `Γ`
+plus one displayed layer over it.
 -/
 
 universe u v w w₂
 
 namespace Interaction
 namespace Spec
+
+private theorem prod_mk_heq {α : Type u} {β β' : Type v} {a : α} {b : β} {b' : β'}
+    (h : b ≍ b') : ((a, b) : α × β) ≍ ((a, b') : α × β') := by
+  cases h
+  rfl
 
 /-- `Decoration Γ spec` is concrete nodewise metadata on the fixed protocol
 tree `spec`, for a realized node context `Γ`.
@@ -120,6 +137,94 @@ theorem Decoration.Over.map_comp {Γ : Node.Context.{u, v}}
   | .node _ rest, ⟨γ, dRest⟩, ⟨fd, rr⟩ => by
       simp only [Decoration.Over.map]; congr 1; funext x
       exact map_comp g f (rest x) (dRest x) (rr x)
+
+/--
+Pack a base decoration and one dependent `Over` layer into a decoration of the
+extended context `Γ.extend A`.
+
+This is the tree-level realization of a single schema extension step.
+-/
+def Decoration.ofOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w) :
+    (spec : Spec) → (d : Decoration Γ spec) → Decoration.Over A spec d →
+    Decoration (Node.Context.extend Γ A) spec
+  | .done, _, _ => ⟨⟩
+  | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ =>
+      ⟨⟨γ, a⟩, fun x => ofOver A (rest x) (dRest x) (rRest x)⟩
+
+/--
+Unpack a decoration of the extended context `Γ.extend A` into:
+* its base decoration by `Γ`, and
+* its displayed `Decoration.Over A` layer above that base.
+
+This is the inverse structural view to `Decoration.ofOver`.
+-/
+def Decoration.toOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w) :
+    (spec : Spec) → Decoration (Node.Context.extend Γ A) spec →
+    Σ d : Decoration Γ spec, Decoration.Over A spec d
+  | .done, _ => ⟨⟨⟩, ⟨⟩⟩
+  | .node _ rest, ⟨⟨γ, a⟩, dRest⟩ =>
+      let ih := fun x => toOver A (rest x) (dRest x)
+      ⟨⟨γ, fun x => (ih x).1⟩, ⟨a, fun x => (ih x).2⟩⟩
+
+@[simp]
+theorem Decoration.toOver_ofOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w) :
+    (spec : Spec) → (d : Decoration Γ spec) → (r : Decoration.Over A spec d) →
+    Decoration.toOver A spec (Decoration.ofOver A spec d r) = ⟨d, r⟩
+  | .done, ⟨⟩, ⟨⟩ => rfl
+  | .node _ rest, ⟨γ, dRest⟩, ⟨a, rRest⟩ => by
+      rw [Sigma.ext_iff]
+      let baseTail :=
+        fun x => (Decoration.toOver A (rest x)
+          (Decoration.ofOver A (rest x) (dRest x) (rRest x))).1
+      let overTail :=
+        fun x => (Decoration.toOver A (rest x)
+          (Decoration.ofOver A (rest x) (dRest x) (rRest x))).2
+      have hbaseTail : baseTail = dRest := by
+        funext x
+        exact (Sigma.ext_iff.mp (toOver_ofOver A (rest x) (dRest x) (rRest x))).1
+      have hoverTail : HEq overTail rRest := by
+        refine Function.hfunext rfl ?_
+        intro x y hxy
+        cases hxy
+        exact (Sigma.ext_iff.mp (toOver_ofOver A (rest x) (dRest x) (rRest x))).2
+      have hpair : HEq (a, overTail) (a, rRest) := prod_mk_heq hoverTail
+      exact ⟨Prod.ext rfl hbaseTail, hpair⟩
+
+@[simp]
+theorem Decoration.ofOver_toOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w) :
+    (spec : Spec) → (d : Decoration (Node.Context.extend Γ A) spec) →
+    Decoration.ofOver A spec (Decoration.toOver A spec d).1 (Decoration.toOver A spec d).2 = d
+  | .done, ⟨⟩ => rfl
+  | .node _ rest, ⟨⟨γ, a⟩, dRest⟩ => by
+      simp [Decoration.toOver, Decoration.ofOver, ofOver_toOver A]
+
+/--
+Equivalence between:
+* decorating a tree by the extended context `Γ.extend A`, and
+* decorating it by `Γ` together with one `Decoration.Over A` layer.
+
+This is the main bridge from the semantic "single realized context" view to the
+staged schema/dependent-decoration view.
+
+Concrete example:
+if a schema is built as `(Spec.Node.Schema.singleton Tag).extend Data`, then
+decorations of its realized context `Node.Context.extend Tag Data` are
+equivalent to pairs consisting of:
+* `tags : Decoration Tag spec`, and
+* `datas : Decoration.Over Data spec tags`.
+-/
+def Decoration.equivOver {Γ : Node.Context.{u, v}} (A : ∀ X, Γ X → Type w)
+    (spec : Spec) :
+    Equiv (Decoration (Node.Context.extend Γ A) spec)
+      (Sigma fun d : Decoration Γ spec => Decoration.Over A spec d) := by
+  refine
+    { toFun := Decoration.toOver A spec
+      invFun := fun ⟨d, r⟩ => Decoration.ofOver A spec d r
+      left_inv := Decoration.ofOver_toOver A spec
+      right_inv := ?_ }
+  intro x
+  cases x with
+  | mk d r => exact Decoration.toOver_ofOver A spec d r
 
 end Spec
 end Interaction
