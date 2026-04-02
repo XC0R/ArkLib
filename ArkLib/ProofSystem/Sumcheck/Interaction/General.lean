@@ -120,6 +120,70 @@ private noncomputable def tailContinuation
               (snocRoundTranscript (R := R) (deg := deg) prefixLen prefixTr tr))
       simpa [Sumcheck.fullSpec, Sumcheck.fullRoles, fullOD, Spec.replicate_succ] using cont
 
+/-- Tail continuation for the remaining `remaining` rounds when the honest prover
+threads the current residual polynomial privately instead of recomputing it from
+the prefix transcript. The public oracle statement still stays fixed as the
+original polynomial. -/
+private noncomputable def tailContinuationStateful
+    {ι : Type} {oSpec : OracleSpec ι}
+    {m_dom : Nat} (D : Fin m_dom → R)
+    (n : Nat)
+    (sampleChallenge : OracleComp oSpec R) :
+    (remaining : Nat) →
+    OracleReduction.Continuation oSpec PUnit
+      (fun _ => Sumcheck.fullSpec R deg remaining)
+      (fun _ => Sumcheck.fullRoles R deg remaining)
+      (fun _ => fullOD remaining)
+      (fun _ => Option (RoundClaim R))
+      (fun _ => Sumcheck.PolyFamily R deg n)
+      (fun _ => Sumcheck.PolyStmt R deg remaining)
+      (fun _ _ => Option (RoundClaim R))
+      (fun _ _ => Sumcheck.PolyFamily R deg n)
+      (fun _ _ => Sumcheck.PolyStmt R deg 0)
+  | 0 => by
+      simpa [Sumcheck.fullSpec, Sumcheck.fullRoles, fullOD] using
+        (OracleReduction.Continuation.id
+          (SharedIn := PUnit)
+          (StatementIn := fun _ => Option (RoundClaim R))
+          (OStmtIn := fun _ => Sumcheck.PolyFamily R deg n)
+          (WitnessIn := fun _ => Sumcheck.PolyStmt R deg 0))
+  | remaining + 1 => by
+      have cont :
+          OracleReduction.Continuation oSpec PUnit
+            (fun _ => (roundSpec R deg).append (fun _ => Sumcheck.fullSpec R deg remaining))
+            (fun _ =>
+              RoleDecoration.append
+                (roundRoles R deg)
+                (fun _ => Sumcheck.fullRoles R deg remaining))
+            (fun _ =>
+              Role.Refine.append
+                (roundOracleDecoration R deg)
+                (fun _ => fullOD remaining))
+            (fun _ => Option (RoundClaim R))
+            (fun _ => Sumcheck.PolyFamily R deg n)
+            (fun _ => Sumcheck.PolyStmt R deg (remaining + 1))
+            (fun _ _ => Option (RoundClaim R))
+            (fun _ _ => Sumcheck.PolyFamily R deg n)
+            (fun _ _ => Sumcheck.PolyStmt R deg 0) :=
+        OracleReduction.Continuation.comp
+          (StmtMid := fun _ _ => Option (RoundClaim R))
+          (ιₛₘ := fun _ _ => Unit)
+          (OStmtMid := fun _ _ => Sumcheck.PolyFamily R deg n)
+          (WitMid := fun _ _ => Sumcheck.PolyStmt R deg remaining)
+          (ctx₂ := fun _ _ => Sumcheck.fullSpec R deg remaining)
+          (roles₂ := fun _ _ => Sumcheck.fullRoles R deg remaining)
+          (OD₂ := fun _ _ => fullOD remaining)
+          (StmtOut := fun _ _ _ => Option (RoundClaim R))
+          (ιₛₒ := fun _ _ _ => Unit)
+          (OStmtOut := fun _ _ _ => Sumcheck.PolyFamily R deg n)
+          (WitOut := fun _ _ _ => Sumcheck.PolyStmt R deg 0)
+          (roundContinuationOptionStateful
+            (R := R) (deg := deg) D
+            (totalVars := n) remaining sampleChallenge)
+          (fun _ _ =>
+            tailContinuationStateful D n sampleChallenge remaining)
+      simpa [Sumcheck.fullSpec, Sumcheck.fullRoles, fullOD, Spec.replicate_succ] using cont
+
 /-- The full continuation-native sum-check protocol over the fixed original
 polynomial oracle. -/
 private noncomputable def sumcheckContinuation
@@ -194,6 +258,73 @@ private noncomputable def sumcheckContinuation
               (snocRoundTranscript (R := R) (deg := deg) 0 prefix0 tr))
       simpa [Sumcheck.fullSpec, Sumcheck.fullRoles, fullOD, Spec.replicate_succ] using cont
 
+/-- The full continuation-native sum-check protocol with a private residual
+polynomial witness threaded across rounds. The public oracle statement remains
+the original polynomial oracle throughout. -/
+private noncomputable def sumcheckContinuationStateful
+    {ι : Type} {oSpec : OracleSpec ι}
+    (n : Nat)
+    {m_dom : Nat} (D : Fin m_dom → R)
+    (sampleChallenge : OracleComp oSpec R) :
+    OracleReduction.Continuation oSpec PUnit
+      (fun _ => Sumcheck.fullSpec R deg n)
+      (fun _ => Sumcheck.fullRoles R deg n)
+      (fun _ => fullOD n)
+      (fun _ => RoundClaim R)
+      (fun _ => Sumcheck.PolyFamily R deg n)
+      (fun _ => Sumcheck.PolyStmt R deg n)
+      (fun _ _ => Option (RoundClaim R))
+      (fun _ _ => Sumcheck.PolyFamily R deg n)
+      (fun _ _ => Sumcheck.PolyStmt R deg 0) := by
+  cases n with
+  | zero =>
+      refine
+        { prover := ?_
+          verifier := ?_
+          simulate := ?_ }
+      · intro _ sWithOracles witness
+        exact pure ⟨⟨some sWithOracles.stmt, sWithOracles.oracleStmt⟩, witness⟩
+      · intro _ _ _ target
+        exact some target
+      · intro _ _ q
+        exact liftM <| query (spec := [Sumcheck.PolyFamily R deg 0]ₒ) q
+  | succ n =>
+      have cont :
+          OracleReduction.Continuation oSpec PUnit
+            (fun _ => (roundSpec R deg).append (fun _ => Sumcheck.fullSpec R deg n))
+            (fun _ =>
+              RoleDecoration.append
+                (roundRoles R deg)
+                (fun _ => Sumcheck.fullRoles R deg n))
+            (fun _ =>
+              Role.Refine.append
+                (roundOracleDecoration R deg)
+                (fun _ => fullOD n))
+            (fun _ => RoundClaim R)
+            (fun _ => Sumcheck.PolyFamily R deg (n + 1))
+            (fun _ => Sumcheck.PolyStmt R deg (n + 1))
+            (fun _ _ => Option (RoundClaim R))
+            (fun _ _ => Sumcheck.PolyFamily R deg (n + 1))
+            (fun _ _ => Sumcheck.PolyStmt R deg 0) :=
+        OracleReduction.Continuation.comp
+          (StmtMid := fun _ _ => Option (RoundClaim R))
+          (ιₛₘ := fun _ _ => Unit)
+          (OStmtMid := fun _ _ => Sumcheck.PolyFamily R deg (n + 1))
+          (WitMid := fun _ _ => Sumcheck.PolyStmt R deg n)
+          (ctx₂ := fun _ _ => Sumcheck.fullSpec R deg n)
+          (roles₂ := fun _ _ => Sumcheck.fullRoles R deg n)
+          (OD₂ := fun _ _ => fullOD n)
+          (StmtOut := fun _ _ _ => Option (RoundClaim R))
+          (ιₛₒ := fun _ _ _ => Unit)
+          (OStmtOut := fun _ _ _ => Sumcheck.PolyFamily R deg (n + 1))
+          (WitOut := fun _ _ _ => Sumcheck.PolyStmt R deg 0)
+          (roundContinuationStateful
+            (R := R) (deg := deg) D
+            (totalVars := n + 1) n sampleChallenge)
+          (fun _ _ =>
+            tailContinuationStateful D (n + 1) sampleChallenge n)
+      simpa [Sumcheck.fullSpec, Sumcheck.fullRoles, fullOD, Spec.replicate_succ] using cont
+
 /-- The canonical `n`-round oracle-native sum-check protocol.
 
 The prover and verifier interact across `n` replicated rounds, but the oracle
@@ -216,6 +347,26 @@ noncomputable def sumcheckReduction
       (fun _ _ => Sumcheck.PolyFamily R deg n)
       (fun _ _ => PUnit) :=
   (sumcheckContinuation (R := R) (deg := deg) n D sampleChallenge).fix PUnit.unit
+
+/-- The canonical `n`-round oracle-native sum-check protocol with a private
+residual polynomial witness threaded across rounds. The public oracle statement
+still stays fixed as the original polynomial in `n` variables. -/
+noncomputable def sumcheckReductionStateful
+    {ι : Type} {oSpec : OracleSpec ι}
+    (n : Nat)
+    {m_dom : Nat} (D : Fin m_dom → R)
+    (sampleChallenge : OracleComp oSpec R) :
+    OracleReduction oSpec
+      (RoundClaim R)
+      (Sumcheck.PolyFamily R deg n)
+      (Sumcheck.PolyStmt R deg n)
+      (fun _ => Sumcheck.fullSpec R deg n)
+      (fun _ => Sumcheck.fullRoles R deg n)
+      (fun _ => fullOD n)
+      (fun _ _ => Option (RoundClaim R))
+      (fun _ _ => Sumcheck.PolyFamily R deg n)
+      (fun _ _ => Sumcheck.PolyStmt R deg 0) :=
+  (sumcheckContinuationStateful (R := R) (deg := deg) n D sampleChallenge).fix PUnit.unit
 
 /-! ## Security placeholders
 
