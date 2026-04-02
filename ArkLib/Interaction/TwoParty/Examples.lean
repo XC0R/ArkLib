@@ -31,7 +31,7 @@ example : Spec.Strategy.withRoles m (exSpec T U) (exRoles T U) (fun _ => α)
     = m ((_ : T) × ((_ : U) → m α)) := rfl
 
 example : Spec.Counterpart m (exSpec T U) (exRoles T U) (fun _ => α)
-    = ((_ : T) → m ((_ : U) × α)) := rfl
+    = ((_ : T) → m (m ((_ : U) × α))) := rfl
 
 end Examples
 end Interaction

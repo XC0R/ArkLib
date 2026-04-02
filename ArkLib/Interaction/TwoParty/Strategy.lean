@@ -67,7 +67,7 @@ private def focalView (m : Type u → Type u) (X : Type u) :
 private def counterpartView (m : Type u → Type u) (X : Type u) :
     Ownership.LocalView X where
   own Cont := m ((x : X) × Cont x)
-  other Cont := (x : X) → Cont x
+  other Cont := (x : X) → m (Cont x)
 
 private def focalMonadicView (bm : BundledMonad.{u, u}) (X : Type u) :
     Ownership.LocalView X where
@@ -87,7 +87,7 @@ private def focalRunner (m : Type u → Type u) [Monad m] (X : Type u) :
 private def counterpartRunner (m : Type u → Type u) [Monad m] (X : Type u) :
     Ownership.LocalRunner m (counterpartView m X) where
   runOwn {Cont} (node : m ((x : X) × Cont x)) := node
-  runOther {Cont} (node : (x : X) → Cont x) x := pure (node x)
+  runOther {Cont} (node : (x : X) → m (Cont x)) x := node x
 
 private def strategySyntax (m : Type u → Type u) :
     SyntaxOver.{u, 0, u, 0} PUnit (fun _ => Role) where
@@ -121,11 +121,11 @@ private theorem SyntaxOver.family_node {Agent : Type u} {Γ : Node.Context}
         SyntaxOver.Family syn agent (next x) (ctxs x) (fun tr => Out ⟨x, tr⟩)) := rfl
 
 private def counterpartFamilySyntax
-    (Receiver : (X : Type u) → (X → Type u) → Type u) :
+    (Sender Receiver : (X : Type u) → (X → Type u) → Type u) :
     SyntaxOver.{u, 0, u, 0} PUnit (fun _ => Role) where
   Node _ (X : Type u) (role : Role) (Cont : X → Type u) :=
     match role with
-    | .sender => (x : X) → Cont x
+    | .sender => Sender X Cont
     | .receiver => Receiver X Cont
 
 def pairedSyntax (m : Type u → Type u) :
@@ -134,7 +134,7 @@ def pairedSyntax (m : Type u → Type u) :
     match agent.tag, role with
     | .focal, .sender => m ((x : X) × Cont x)
     | .focal, .receiver => (x : X) → m (Cont x)
-    | .counterpart, .sender => (x : X) → Cont x
+    | .counterpart, .sender => (x : X) → m (Cont x)
     | .counterpart, .receiver => m ((x : X) × Cont x)
 
 private theorem pairedSyntax_eq_ownerBased (m : Type u → Type u) :
@@ -157,13 +157,14 @@ private def pairedInteraction (m : Type u → Type u) [Monad m] :
         let pNode : m ((x : X) × Cont Participant.focal x) := by
           simpa [pairedSyntax, Ownership.syntaxOver, roleOwner, Participant.focal,
             focalView] using profile Participant.focal
-        let cNode : (x : X) → Cont Participant.counterpart x := by
+        let cNode : (x : X) → m (Cont Participant.counterpart x) := by
           simpa [pairedSyntax, Ownership.syntaxOver, roleOwner, Participant.focal,
             Participant.counterpart, counterpartView] using profile Participant.counterpart
         let ⟨x, pCont⟩ ← (focalRunner m X).runOwn pNode
+        let cCont ← (counterpartRunner m X).runOther cNode x
         k x (fun
           | ⟨.focal, _⟩ => pCont
-          | ⟨.counterpart, _⟩ => cNode x)
+          | ⟨.counterpart, _⟩ => cCont)
     | .receiver => do
         let pNode : (x : X) → m (Cont Participant.focal x) := by
           simpa [pairedSyntax, Ownership.syntaxOver, roleOwner, Participant.focal,
@@ -244,49 +245,54 @@ theorem Strategy.withRoles_receiver_eq
     Strategy.withRoles m (.node X rest) ⟨.receiver, rRest⟩ Output =
       ((x : X) → m (Strategy.withRoles m (rest x) (rRest x) (fun tr => Output ⟨x, tr⟩))) := rfl
 
-/-- A generic counterpart family parameterized by the representation of receiver
-nodes.
+/-- A generic counterpart family parameterized by separate sender- and
+receiver-side node representations.
 
-Sender nodes are always plain observations: the environment learns the sender's
-move and continues in the corresponding subtree. Receiver nodes are represented
-by the supplied `Receiver` family.
-
-Both ordinary `Counterpart` and replayable `PublicCoinCounterpart` are
+Sender nodes model how the environment follows a move chosen by the focal
+party. Receiver nodes model how the environment chooses a move itself. Both
+ordinary `Counterpart` and replayable `PublicCoinCounterpart` are
 specializations of this single recursion. -/
 abbrev CounterpartFamily
-    (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (Sender Receiver : (X : Type u) → (X → Type u) → Type u)
     (spec : Spec) (roles : RoleDecoration spec) (Output : Transcript spec → Type u) :=
-  SyntaxOver.Family (counterpartFamilySyntax Receiver) PUnit.unit spec roles Output
+  SyntaxOver.Family (counterpartFamilySyntax Sender Receiver) PUnit.unit spec roles Output
 
-/-- Functorial output map for a generic counterpart family. The sender-side
-observation structure is unchanged; only the continuation outputs are mapped. -/
+/-- Functorial output map for a generic counterpart family. -/
 private def counterpartFamilyShape
+    (Sender : (X : Type u) → (X → Type u) → Type u)
     (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (mapSender :
+      {X : Type u} → {A B : X → Type u} →
+      (∀ x, A x → B x) → Sender X A → Sender X B)
     (mapReceiver :
       {X : Type u} → {A B : X → Type u} →
       (∀ x, A x → B x) → Receiver X A → Receiver X B) :
     ShapeOver PUnit (fun _ => Role) where
-  toSyntaxOver := counterpartFamilySyntax Receiver
+  toSyntaxOver := counterpartFamilySyntax Sender Receiver
   map := fun {agent} {X} {γ} {A} {B} f node =>
     match γ with
     | .sender =>
-        fun x => f x (node x)
+        mapSender f node
     | .receiver =>
         mapReceiver f node
 
 def CounterpartFamily.mapOutput
+    (Sender : (X : Type u) → (X → Type u) → Type u)
     (Receiver : (X : Type u) → (X → Type u) → Type u)
+    (mapSender :
+      {X : Type u} → {A B : X → Type u} →
+      (∀ x, A x → B x) → Sender X A → Sender X B)
     (mapReceiver :
       {X : Type u} → {A B : X → Type u} →
       (∀ x, A x → B x) → Receiver X A → Receiver X B) :
     {spec : Spec.{u}} → {roles : RoleDecoration spec} →
     {A B : Transcript spec → Type u} →
     (∀ tr, A tr → B tr) →
-    CounterpartFamily Receiver spec roles A →
-    CounterpartFamily Receiver spec roles B :=
+    CounterpartFamily Sender Receiver spec roles A →
+    CounterpartFamily Sender Receiver spec roles B :=
   fun {spec} {roles} {A} {B} f =>
     ShapeOver.mapOutput
-      (counterpartFamilyShape Receiver mapReceiver)
+      (counterpartFamilyShape Sender Receiver mapSender mapReceiver)
       (agent := PUnit.unit) (spec := spec) roles
       (A := A) (B := B) f
 
@@ -302,6 +308,12 @@ def Counterpart.mapReceiver {m : Type u → Type u} [Functor m] :
     {X : Type u} → {A B : X → Type u} →
     (∀ x, A x → B x) → m ((x : X) × A x) → m ((x : X) × B x)
   | _, _, _, f, sample => (fun ⟨x, c⟩ => ⟨x, f x c⟩) <$> sample
+
+/-- Map outputs through an effectful sender-side observation. -/
+def Counterpart.mapSender {m : Type u → Type u} [Functor m] :
+    {X : Type u} → {A B : X → Type u} →
+    (∀ x, A x → B x) → ((x : X) → m (A x)) → ((x : X) → m (B x))
+  | _, _, _, f, observe => fun x => f x <$> observe x
 
 /-- Functorial output map for role-dependent strategies. -/
 def Strategy.mapOutputWithRoles {m : Type u → Type u} [Functor m] :
@@ -361,7 +373,7 @@ def Counterpart.mapOutput {m : Type u → Type u} [Functor m] :
     (∀ tr, A tr → B tr) → Counterpart m spec roles A → Counterpart m spec roles B
   | .done, _, _, _, f, a => f ⟨⟩ a
   | .node _ _, ⟨.sender, _⟩, _, _, f, observe =>
-      fun x => mapOutput (fun p => f ⟨x, p⟩) (observe x)
+      Counterpart.mapSender (fun x => mapOutput (fun p => f ⟨x, p⟩)) observe
   | .node _ _, ⟨.receiver, _⟩, _, _, f, receive =>
       Counterpart.mapReceiver (fun x => mapOutput (fun p => f ⟨x, p⟩)) receive
 
@@ -380,7 +392,8 @@ for `x` unless that continuation is exposed separately.
 This is exactly the extra structure needed to replay a prescribed transcript
 through the verifier. -/
 abbrev PublicCoinCounterpart (m : Type u → Type u) :=
-  CounterpartFamily (fun X Cont => m X × ((x : X) → Cont x))
+  CounterpartFamily (fun X Cont => (x : X) → m (Cont x))
+    (fun X Cont => m X × ((x : X) → Cont x))
 
 namespace PublicCoinCounterpart
 
@@ -391,13 +404,13 @@ private def mapReceiver {m : Type u → Type u} :
 
 /-- Functorial output map for public-coin counterparts. The challenge samplers
 are unchanged; only the terminal output carried by continuations is mapped. -/
-def mapOutput {m : Type u → Type u} :
+def mapOutput {m : Type u → Type u} [Functor m] :
     {spec : Spec.{u}} → {roles : RoleDecoration spec} →
     {A B : Transcript spec → Type u} →
     (∀ tr, A tr → B tr) →
     PublicCoinCounterpart m spec roles A →
     PublicCoinCounterpart m spec roles B :=
-  CounterpartFamily.mapOutput _ mapReceiver
+  CounterpartFamily.mapOutput _ _ Counterpart.mapSender mapReceiver
 
 /-- Forget the public-coin factorization and recover the ordinary executable
 counterpart. -/
@@ -407,7 +420,9 @@ def toCounterpart {m : Type u → Type u} [Monad m] :
     PublicCoinCounterpart m spec roles Output → Counterpart m spec roles Output
   | .done, _, _, c => c
   | .node _ _, ⟨.sender, _⟩, _, observe =>
-      fun x => toCounterpart (observe x)
+      fun x => do
+        let next ← observe x
+        pure <| toCounterpart next
   | .node _ _, ⟨.receiver, _⟩, _, ⟨sample, next⟩ => do
       let x ← sample
       pure ⟨x, toCounterpart (next x)⟩
@@ -415,14 +430,16 @@ def toCounterpart {m : Type u → Type u} [Monad m] :
 /-- Replay a prescribed transcript through a public-coin counterpart. Sender
 messages are read from the transcript; receiver samplers are ignored and the
 stored continuation family is followed at the recorded challenge. -/
-def replay {m : Type u → Type u} :
+def replay {m : Type u → Type u} [Monad m] :
     {spec : Spec.{u}} → {roles : RoleDecoration spec} →
     {Output : Transcript spec → Type u} →
     PublicCoinCounterpart m spec roles Output →
-    (tr : Transcript spec) → Output tr
-  | .done, _, _, c, _ => c
+    (tr : Transcript spec) → m (Output tr)
+  | .done, _, _, c, _ => pure c
   | .node _ _, ⟨.sender, _⟩, _, observe, ⟨x, tr⟩ =>
-      replay (observe x) tr
+      do
+        let next ← observe x
+        replay next tr
   | .node _ _, ⟨.receiver, _⟩, _, ⟨_, next⟩, ⟨x, tr⟩ =>
       replay (next x) tr
 
@@ -440,7 +457,15 @@ theorem Counterpart.mapOutput_id {m : Type u → Type u} [Functor m] [LawfulFunc
       simp [Counterpart.mapOutput]
   | .node _ rest, ⟨.sender, rRest⟩ =>
       funext x
-      exact @Counterpart.mapOutput_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) (c x)
+      have hid :
+          (Counterpart.mapOutput
+            (fun (p : Transcript (rest x)) (y : A ⟨x, p⟩) => y) :
+              Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩) →
+                Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) =
+            id := by
+        funext c'
+        exact @Counterpart.mapOutput_id m _ _ (rest x) (rRest x) (fun p => A ⟨x, p⟩) c'
+      simp [Counterpart.mapOutput, Counterpart.mapSender, hid]
   | .node X rest, ⟨.receiver, rRest⟩ =>
       let F : ((x : X) × Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) →
           ((x : X) × Counterpart m (rest x) (rRest x) (fun p => A ⟨x, p⟩)) :=
@@ -472,7 +497,7 @@ def Counterpart.liftId {m : Type u → Type u} [Monad m] :
     Counterpart Id spec roles Output → Counterpart m spec roles Output
   | .done, _, _, c => c
   | .node _ _, ⟨.sender, _⟩, _, observe =>
-      fun x => liftId (observe x)
+      fun x => pure <| liftId (observe x)
   | .node _ _, ⟨.receiver, _⟩, _, ⟨x, c⟩ =>
       pure ⟨x, liftId c⟩
 
@@ -533,10 +558,11 @@ theorem Strategy.runWithRoles_sender {m : Type u → Type u} [Monad m]
     {OutputP OutputC : Transcript (Spec.node X rest) → Type u}
     (send :
       m ((x : X) × Strategy.withRoles m (rest x) (rRest x) (fun tr => OutputP ⟨x, tr⟩)))
-    (dualFn : (x : X) → Counterpart m (rest x) (rRest x) (fun tr => OutputC ⟨x, tr⟩)) :
+    (dualFn : (x : X) → m (Counterpart m (rest x) (rRest x) (fun tr => OutputC ⟨x, tr⟩))) :
     Strategy.runWithRoles (Spec.node X rest) ⟨.sender, rRest⟩ send dualFn = (do
       let ⟨x, next⟩ ← send
-      let ⟨tail, outP, outC⟩ ← Strategy.runWithRoles (rest x) (rRest x) next (dualFn x)
+      let dualNext ← dualFn x
+      let ⟨tail, outP, outC⟩ ← Strategy.runWithRoles (rest x) (rRest x) next dualNext
       pure ⟨⟨x, tail⟩, outP, outC⟩) := by
   simp [Strategy.runWithRoles, Strategy.runWithRolesAux, pairedInteraction,
     Participant.focal, Participant.counterpart, pairedSyntax, focalRunner, counterpartRunner]
@@ -586,11 +612,14 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
         cases roles
         simp [Strategy.mapOutputWithRoles, Counterpart.mapOutput, Strategy.runWithRoles_done]
     | .node _ rest, ⟨.sender, rRest⟩ =>
-        simp only [Strategy.mapOutputWithRoles, Counterpart.mapOutput, Counterpart.mapReceiver]
+        simp only [Strategy.mapOutputWithRoles, Counterpart.mapOutput, Counterpart.mapReceiver,
+          Counterpart.mapSender]
         simp [Strategy.runWithRoles, Strategy.runWithRolesAux, pairedInteraction,
           Participant.focal, Participant.counterpart, focalRunner, counterpartRunner]
         refine congrArg (fun k => strat >>= k) ?_
         funext xc
+        refine congrArg (fun k => cpt xc.1 >>= k) ?_
+        funext cNext
         let addPrefix :
             ((tr : Transcript (rest xc.1)) × (fun tr => OutputP' ⟨xc.1, tr⟩) tr ×
               (fun tr => OutputC' ⟨xc.1, tr⟩) tr) →
@@ -599,7 +628,7 @@ theorem Strategy.runWithRoles_mapOutputWithRoles_mapOutput
         simpa [bind_assoc, addPrefix] using
           congrArg (fun z => addPrefix <$> z)
             (go (rest xc.1) (rRest xc.1) (fun tr => fP ⟨xc.1, tr⟩) (fun tr => fC ⟨xc.1, tr⟩)
-              xc.2 (cpt xc.1))
+              xc.2 cNext)
     | .node _ rest, ⟨.receiver, rRest⟩ =>
         simp only [Strategy.mapOutputWithRoles, Counterpart.mapOutput,
           Counterpart.mapReceiver]

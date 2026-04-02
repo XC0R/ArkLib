@@ -35,10 +35,11 @@ def Action (role : Role) (m : Type u → Type u) (X : Type u) (Cont : X → Type
   | .sender => m ((x : X) × Cont x)
   | .receiver => (x : X) → m (Cont x)
 
-/-- Environment / dual view: sender branch is observation (Π); receiver branch samples (Σ). -/
+/-- Environment / dual view: sender branch observes the chosen move and may
+continue effectfully; receiver branch samples the move and continuation. -/
 def Dual (role : Role) (m : Type u → Type u) (X : Type u) (Cont : X → Type u) : Type u :=
   match role with
-  | .sender => (x : X) → Cont x
+  | .sender => (x : X) → m (Cont x)
   | .receiver => m ((x : X) × Cont x)
 
 /-- Run one round: pair an `Action` with the matching `Dual` and continue in `k`. -/
@@ -48,7 +49,8 @@ def interact {m : Type u → Type u} [Monad m] {X : Type u}
     ((x : X) → ACont x → DCont x → m Result) → m Result
   | .sender, mAction, dualFn, k => do
       let ⟨x, cont⟩ ← mAction
-      k x cont (dualFn x)
+      let dualCont ← dualFn x
+      k x cont dualCont
   | .receiver, recvFn, mDual, k => do
       let ⟨x, dualCont⟩ ← mDual
       let cont ← recvFn x

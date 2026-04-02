@@ -157,8 +157,8 @@ sample chal, observe witOut, sample decision, sample extraction. -/
 example : Spec.Counterpart m (ksSpec Msg Chal WitOut Decision ExtractedWit)
     ((ksPartyDeco Msg Chal WitOut Decision ExtractedWit).toRoles
       (ThreeParty.resolveFor .prover)) (fun _ => α)
-    = ((_ : Msg) → m ((_ : Chal) × ((_ : WitOut) → m
-        ((_ : Decision) × m ((_ : ExtractedWit) × α))))) := rfl
+    = ((_ : Msg) → m (m ((_ : Chal) × ((_ : WitOut) → m
+        (m ((_ : Decision) × m ((_ : ExtractedWit) × α))))))) := rfl
 
 end KnowledgeSoundnessInteraction
 
