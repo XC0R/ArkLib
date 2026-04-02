@@ -336,15 +336,14 @@ theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
     | .done, r₁ =>
         cases r₁
         simp [Strategy.compWithRolesFlat.eq_1, Counterpart.appendFlat.eq_1,
-          Strategy.runWithRoles.eq_1, Spec.append, Spec.Decoration.append, Spec.Transcript.append]
+          Strategy.runWithRoles_done, Spec.append, Spec.Decoration.append, Spec.Transcript.append]
     | .node _ rest, ⟨.sender, rRest⟩ =>
         cases strat₁ with
         | mk x cont =>
             simp only [append, Decoration.append, bind_pure_comp]
             rw [Strategy.compWithRolesFlat.eq_2, Counterpart.appendFlat.eq_2]
-            simp only [pure_bind]
-            rw [Strategy.runWithRoles.eq_2, Strategy.runWithRoles.eq_2]
-            simp only [bind_assoc]
+            simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc, bind_map_left,
+              map_bind, Functor.map_map]
             refine congrArg (fun k => cont >>= k) ?_
             funext next
             let addPrefix :
@@ -367,7 +366,28 @@ theorem Strategy.runWithRoles_compWithRolesFlat_appendFlat
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRolesFlat.eq_3, Counterpart.appendFlat.eq_3]
         simp only [pure_bind]
-        rw [Strategy.runWithRoles.eq_3, Strategy.runWithRoles.eq_3]
+        have hRunL := Strategy.runWithRoles_receiver
+          (m := m)
+          (X := _)
+          (rest := fun x => (rest x).append (fun p => s₂ ⟨x, p⟩))
+          (rRest := fun x => (rRest x).append (fun p => r₂ ⟨x, p⟩))
+          (OutputP := OutputP)
+          (OutputC := OutputC)
+          (fun x => do
+            let next ← strat₁ x
+            Strategy.compWithRolesFlat next (fun tr₁ mid => f ⟨x, tr₁⟩ mid))
+          (do
+            let ⟨x, next⟩ ← cpt₁
+            pure ⟨x, Counterpart.appendFlat next (fun p o => cpt₂ ⟨x, p⟩ o)⟩)
+        have hRunR := Strategy.runWithRoles_receiver
+          (m := m)
+          (X := _)
+          (rest := rest)
+          (rRest := rRest)
+          (OutputP := MidP)
+          (OutputC := MidC)
+          strat₁ cpt₁
+        rw [hRunL, hRunR]
         simp only [bind_assoc]
         refine congrArg (fun k => cpt₁ >>= k) ?_
         funext xc
@@ -447,21 +467,24 @@ theorem Strategy.runWithRoles_compWithRoles_append
     match s₁, r₁ with
     | .done, r₁ =>
         cases r₁
-        simp only [Strategy.compWithRoles, Counterpart.append,
-          Strategy.runWithRoles, Spec.append, Spec.Decoration.append,
-          Spec.Transcript.append, Spec.Transcript.packAppend, pure_bind,
-          bind_pure_comp, Prod.eta]
-        congr 1; funext strat; symm
-        rw [show (fun (a : (_ : _) × _) => (⟨a.fst, a.2⟩ : (_ : _) × _)) = id from
-          funext fun a => by obtain ⟨_, _⟩ := a; rfl, id_map]
+        simp [Strategy.compWithRoles, Counterpart.append,
+          Strategy.runWithRoles_done, Spec.append, Spec.Decoration.append,
+          Spec.Transcript.append, Spec.Transcript.packAppend, bind_pure_comp]
+        have hId :
+            (fun a : (tr : Spec.Transcript (s₂ PUnit.unit)) × FP PUnit.unit tr × FC PUnit.unit tr =>
+              ⟨a.fst, (a.2.fst, a.2.snd)⟩) = id := by
+          funext a
+          cases a
+          rfl
+        simp [hId]
+        rfl
     | .node _ rest, ⟨.sender, rRest⟩ =>
         cases strat₁ with
         | mk x cont =>
             simp only [append, Decoration.append, bind_pure_comp]
             rw [Strategy.compWithRoles.eq_2, Counterpart.append.eq_2]
-            simp only [pure_bind]
-            rw [Strategy.runWithRoles.eq_2, Strategy.runWithRoles.eq_2]
-            simp only [bind_assoc]
+            simp only [Strategy.runWithRoles_sender, pure_bind, bind_assoc, bind_map_left,
+              map_bind, Functor.map_map]
             refine congrArg (fun k => cont >>= k) ?_
             funext next
             let addPrefix :
@@ -490,7 +513,28 @@ theorem Strategy.runWithRoles_compWithRoles_append
         simp only [append, Decoration.append, bind_pure_comp]
         rw [Strategy.compWithRoles.eq_3, Counterpart.append.eq_3]
         simp only [pure_bind]
-        rw [Strategy.runWithRoles.eq_3, Strategy.runWithRoles.eq_3]
+        have hRunL := Strategy.runWithRoles_receiver
+          (m := m)
+          (X := _)
+          (rest := fun x => (rest x).append (fun p => s₂ ⟨x, p⟩))
+          (rRest := fun x => (rRest x).append (fun p => r₂ ⟨x, p⟩))
+          (OutputP := Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FP)
+          (OutputC := Spec.Transcript.liftAppend (Spec.node _ rest) s₂ FC)
+          (fun x => do
+            let next ← strat₁ x
+            Strategy.compWithRoles next (fun tr₁ mid => f ⟨x, tr₁⟩ mid))
+          (do
+            let ⟨x, next⟩ ← cpt₁
+            pure ⟨x, Counterpart.append next (fun p o => cpt₂ ⟨x, p⟩ o)⟩)
+        have hRunR := Strategy.runWithRoles_receiver
+          (m := m)
+          (X := _)
+          (rest := rest)
+          (rRest := rRest)
+          (OutputP := MidP)
+          (OutputC := MidC)
+          strat₁ cpt₁
+        rw [hRunL, hRunR]
         simp only [bind_assoc]
         refine congrArg (fun k => cpt₁ >>= k) ?_
         funext xc
