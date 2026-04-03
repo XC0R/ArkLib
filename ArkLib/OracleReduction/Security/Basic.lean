@@ -521,12 +521,22 @@ theorem Reduction.id_perfectCompleteness {rel : Set (StmtIn × WitIn)} :
     cases hx
     exact ⟨hIn, rfl⟩
 
+private lemma Reduction.run_mk_verifier_id {WitIn WitOut : Type}
+    (prover : Prover oSpec StmtIn WitIn StmtIn WitOut !p[])
+    (stmtIn : StmtIn) (witIn : WitIn) :
+    (Reduction.mk prover Verifier.id).run stmtIn witIn =
+      (fun pr => (pr, stmtIn)) <$> prover.run stmtIn witIn := by
+  simp only [Reduction.run, Verifier.run, Verifier.id, OptionT.run_pure,
+    monadLift_bind, Function.comp_apply, monadLift_pure,
+    pure_bind, Option.getM, map_eq_bind_pure_comp]
+
 /-- The identity / trivial verifier is perfectly sound. -/
 @[simp]
 theorem Verifier.id_soundness {lang : Set StmtIn} :
     (Verifier.id : Verifier oSpec _ _ _).soundness init impl lang lang 0 := by
   sorry
-  -- simp [Verifier.soundness, Verifier.id, Reduction.run, Verifier.run]
+  -- Approach: after Reduction.run_mk_verifier_id, stmtOut = stmtIn always.
+  -- Needs StateT.run'_bind/pure or manual support reasoning through OptionT+simulateQ+StateT.
 
 /-- The straightline extractor for the identity / trivial reduction, which just returns the input
   witness. -/
@@ -539,16 +549,9 @@ def Extractor.Straightline.id : Extractor.Straightline oSpec StmtIn WitIn WitIn 
 theorem Verifier.id_knowledgeSoundness {rel : Set (StmtIn × WitIn)} :
     (Verifier.id : Verifier oSpec _ _ _).knowledgeSoundness init impl rel rel 0 := by
   sorry
-  -- refine ⟨Extractor.Straightline.id, ?_⟩
-  -- simp only [Extractor.Straightline.id, Verifier.id, Reduction.runWithLog, Verifier.run]
-  -- simp only [liftM, monadLift, MonadLift.monadLift, liftComp]
-  -- simp only [WriterT.run, StateT.run']
-  -- simp
-  -- stop
-  -- intro stmtIn witIn prover stmtIn' witIn' stmtIn'' witIn'' s hs s' hSupport hRel'
-  -- -- simp only [support_bind]
-  -- -- aesop
-  -- sorry
+  -- Approach: Extractor.Straightline.id returns input witness.
+  -- Event (stmtIn, witIn) ∉ rel ∧ (stmtIn, witIn) ∈ rel is contradiction.
+  -- Same blocker: needs StateT.run'_bind/pure or manual support reasoning.
 
 /-- The identity / trivial reduction is perfectly complete. -/
 @[simp]
