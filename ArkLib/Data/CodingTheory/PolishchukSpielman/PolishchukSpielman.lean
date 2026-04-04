@@ -82,7 +82,7 @@ theorem polishchuk_spielman {F : Type} [Field F]
       quot_x quot_y h_card_Px h_card_Py h_quot_x h_quot_y h_le_1
   -- 3. cancellation in X gives Q_x
   have h_quot_y_eq :
-  ∀ x ∈ P_x, Polynomial.Bivariate.evalX x B = (quot_y x) * Polynomial.Bivariate.evalX x A := by
+      ∀ x ∈ P_x, Polynomial.Bivariate.evalX x B = (quot_y x) * Polynomial.Bivariate.evalX x A := by
     intro x hx
     exact (h_quot_y x hx).2
   obtain ⟨Q_x, hQx_card, hQx_sub, hQx_eval⟩ :=
@@ -90,7 +90,7 @@ theorem polishchuk_spielman {F : Type} [Field F]
       quot_y h_quot_y_eq h_f_degX
   -- 4. cancellation in Y gives Q_y
   have h_quot_x_eq :
-  ∀ y ∈ P_y, Polynomial.Bivariate.evalY y B = (quot_x y) * Polynomial.Bivariate.evalY y A := by
+      ∀ y ∈ P_y, Polynomial.Bivariate.evalY y B = (quot_x y) * Polynomial.Bivariate.evalY y A := by
     intro y hy
     exact (h_quot_x y hy).2
   obtain ⟨Q_y, hQy_card, hQy_sub, hQy_eval⟩ :=
