@@ -107,20 +107,7 @@ it also holds in the ideal setting, etc.
 instance : ProverOnly (pSpec OStatement) where
   prover_first' := by simp
 
-/-- Bridge lemma: `none` is never in the support of a computation that maps through `some`.
-This is the key missing piece for SendClaim completeness: every layer of `liftM`/`simulateQ`
-preserves the `some <$> _` structure, so `none` can never appear in the output support.
-TODO: upstream to VCVio as a general `support_simulateQ` or `none_not_mem_support_map_some`. -/
-private lemma none_not_mem_support_map_some {m : Type _ → Type _}
-    [Monad m] [LawfulMonad m] [HasEvalSet m]
-    {α : Type _} (mx : m α) :
-    none ∉ support (Option.some <$> mx : m (Option α)) := by
-  rw [support_map]; rintro ⟨_, _, ⟨⟩⟩
-
-
 set_option synthInstance.maxHeartbeats 800000 in
-set_option maxHeartbeats 1600000 in
-set_option maxRecDepth 2000 in
 theorem completeness [Nonempty σ] :
     (oracleReduction oSpec Statement OStatement relComp).perfectCompleteness
     init impl relIn (relOut OStatement) := by
@@ -140,10 +127,8 @@ theorem completeness [Nonempty σ] :
   erw [simulateQ_bind]
   -- 5. Probability decomposition via probEvent_eq_one_iff
   rw [probEvent_eq_one_iff]
-  simp only [OptionT.probFailure_eq, probOutput_eq_zero_iff, OptionT.mem_support_iff,
-    OptionT.run_mk]
-  simp only [support_bind, Set.mem_iUnion, support_pure, Set.mem_singleton_iff,
-    support_map, Set.mem_image]
+  simp only [OptionT.probFailure_eq, OptionT.mem_support_iff, OptionT.run_mk]
+  simp only [support_bind, Set.mem_iUnion]
   exact ⟨by {
     simp only [HasEvalPMF.probFailure_eq_zero, zero_add, probOutput_eq_zero_iff]
     intro h
@@ -168,21 +153,13 @@ theorem completeness [Nonempty σ] :
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
     -- x = some val, s'' = s₀; hs depends on val : Option (...)
     dsimp only [] at hs
-    -- Case split on val
     rcases val with _ | ⟨a⟩
-    · -- val = none: hval has (none, s₀) ∈ support of comp that always returns some
+    · -- val = none: contradicts hval (comp always returns some)
       exfalso
-      -- Convert innermost pure bind to map, peel through inner simulateQ layers
       simp only [bind_pure_comp] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      -- Eliminate Option.elimM, unfold OptionT.run, push simulateQ through bind
-      erw [Option.elimM_map] at hval
-      simp only [Option.elim_some] at hval
-      dsimp only [OptionT.run] at hval
-      -- Use bind_pure_comp to convert bind to map, then simulateQ_map + bridge
-      simp at hval
+      erw [simulateQ_map] at hval; erw [simulateQ_map] at hval; erw [simulateQ_map] at hval
+      erw [Option.elimM_map] at hval; simp only [Option.elim_some] at hval
+      dsimp only [OptionT.run] at hval; simp at hval
     · -- val = some a: hs has (some a).getM = pure a, computation reduces to pure (some ...)
       simp only [Option.getM, pure_bind] at hs
       erw [simulateQ_pure] at hs
@@ -211,35 +188,24 @@ theorem completeness [Nonempty σ] :
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
     -- y = some val; hx depends on val : Option (...)
     dsimp only [] at hx
-    -- Case split on val
     rcases val with _ | ⟨a⟩
-    · -- val = none: contradicts hval (same as Part 1)
+    · -- val = none: contradicts hval (same decomposition as Part 1)
       exfalso
       simp only [bind_pure_comp] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      erw [Option.elimM_map] at hval
-      simp only [Option.elim_some] at hval
-      dsimp only [OptionT.run] at hval
-      simp at hval
+      erw [simulateQ_map] at hval; erw [simulateQ_map] at hval; erw [simulateQ_map] at hval
+      erw [Option.elimM_map] at hval; simp only [Option.elim_some] at hval
+      dsimp only [OptionT.run] at hval; simp at hval
     · -- val = some a: getM succeeds, derive event
       simp only [Option.getM, pure_bind] at hx
       erw [simulateQ_pure] at hx
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff, Prod.mk.injEq,
         Option.some.injEq] at hx
-      -- hx is now conjunction: xval = concrete ∧ s' = s₀
       obtain ⟨rfl, -⟩ := hx
-      -- xval (= x) is now concrete but still contains a
-      -- Peel hval to determine a (same layers as none case)
+      -- Peel hval to determine a
       simp only [bind_pure_comp] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      erw [simulateQ_map] at hval
-      erw [Option.elimM_map] at hval
-      simp only [Option.elim_some] at hval
-      dsimp only [OptionT.run] at hval
-      simp at hval
+      erw [simulateQ_map] at hval; erw [simulateQ_map] at hval; erw [simulateQ_map] at hval
+      erw [Option.elimM_map] at hval; simp only [Option.elim_some] at hval
+      dsimp only [OptionT.run] at hval; simp at hval
       obtain ⟨_, _, rfl⟩ := hval
       -- a is now concrete, goal should be provable
       simp only [Set.mem_setOf_eq]
