@@ -465,15 +465,7 @@ theorem Reduction.run_of_prover_first [ProverOnly pSpec] (stmt : StmtIn) (wit : 
         let stmtOut ← (reduction.verifier.verify stmt transcript).run
         return (⟨transcript, ctxOut⟩, ← stmtOut.getM)) := by
   simp only [Reduction.run, Verifier.run]
-  rw [Prover.run_of_prover_first]
-  simp only [liftComp_eq_liftM, bind_assoc, pure_bind, monadLift_bind, monadLift_pure]
-  sorry
-  -- conv =>
-  --   enter [1, 2, a, 1]
-  --   rw [map_eq_pure_bind]
-  --   rw [loggingOracle.simulateQ_bind_fst
-  --     (reduction.verifier.verify stmt _) (fun a_1_1 => pure (a_1_1, _))]
-  -- simp
+  simp [Prover.run_of_prover_first]
 
 end SingleMessage
 
