@@ -9,6 +9,8 @@ import ArkLib.OracleReduction.Basic
 import ArkLib.ProofSystem.Fri.Domain
 import ArkLib.ProofSystem.Fri.RoundConsistency
 import ArkLib.ToMathlib.Finset.Basic
+import ArkLib.Data.CodingTheory.ReedSolomon
+import ArkLib.Data.CodingTheory.Basic.RelativeDistance
 
 /-!
 # The FRI protocol
@@ -293,23 +295,57 @@ namespace FoldPhase
 --     let x₀  := stmt j;
 --     roundConsistent cond f f' x₀
 
-/- The FRI non-final folding round input relation, with proximity parameter `δ`, f
-   for the `i`th round. -/
+/-- The FRI non-final folding round input relation, with proximity parameter `0 < δ`,
+   for the `i`-th round. The latest oracle codeword (the round-`i` evaluation
+   commitment, indexed at `Fin.last i.castSucc.val`) is δ-close to the Reed-Solomon
+   code on the round-`i` evaluation domain at the witness's degree bound. The witness
+   polynomial's degree bound itself is enforced by its type. Convention `0 < δ`
+   aligns with the proximity-gap bound style used in `ProximityGap/BCIKS20/`. -/
 def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (Statement F i.castSucc × (∀ j, OracleStatement D x s i.castSucc j)) ×
         Witness F s d i.castSucc.castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N : ℕ := ∑ j' ∈ finRangeTo (Fin.last i.castSucc.val).val, (s j').1
+    letI : Fintype ↑(evalDomain D x N) := Fintype.ofFinite _
+    haveI : Nonempty ↑(evalDomain D x N) := ⟨⟨x ^ (2 ^ N), by
+      simp [CosetDomain.evalDomain]
+      exact ⟨1, Subgroup.one_mem _, by simp⟩⟩⟩
+    0 < δ ∧
+    Code.relDistFromCode (ι := ↑(evalDomain D x N))
+        (ostmt (Fin.last i.castSucc.val))
+        ((ReedSolomon.code (CosetDomain.domainEmb (D := D) (x := x) (i := N))
+          (2 ^ ((∑ j', (s j').1) - N) * d.1) :
+            Submodule F (↑(evalDomain D x N) → F)) :
+          Set (↑(evalDomain D x N) → F))
+      ≤ (δ : ENNReal)
 
-/- The FRI non-final folding round output relation, with proximity parameter `δ`,
-   for the `i`th round. -/
+/-- The FRI non-final folding round output relation, with proximity parameter `0 < δ`,
+   for the `i`-th round. After folding, the round-`(i+1)` codeword (newly committed
+   by the prover, indexed at `Fin.last i.succ.val`) is δ-close to the Reed-Solomon
+   code on the round-`(i+1)` evaluation domain at the folded witness's degree bound. -/
 def outputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (Statement F i.succ × (∀ j, OracleStatement D x s i.succ j)) ×
         Witness F s d i.succ.castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N : ℕ := ∑ j' ∈ finRangeTo (Fin.last i.succ.val).val, (s j').1
+    letI : Fintype ↑(evalDomain D x N) := Fintype.ofFinite _
+    haveI : Nonempty ↑(evalDomain D x N) := ⟨⟨x ^ (2 ^ N), by
+      simp [CosetDomain.evalDomain]
+      exact ⟨1, Subgroup.one_mem _, by simp⟩⟩⟩
+    0 < δ ∧
+    Code.relDistFromCode (ι := ↑(evalDomain D x N))
+        (ostmt (Fin.last i.succ.val))
+        ((ReedSolomon.code (CosetDomain.domainEmb (D := D) (x := x) (i := N))
+          (2 ^ ((∑ j', (s j').1) - N) * d.1) :
+            Submodule F (↑(evalDomain D x N) → F)) :
+          Set (↑(evalDomain D x N) → F))
+      ≤ (δ : ENNReal)
 
 /-- Each round of the FRI protocol begins with the verifier sending a random field element as the
   challenge to the prover, and ends with the prover sending an oracle to
@@ -493,8 +529,10 @@ namespace FinalFoldPhase
 --       let β := f'.eval (s₀.1.1 ^ (2 ^ s));
 --         RoundConsistency.roundConsistencyCheck x₀ pts β
 
-/- Input relation for the final folding round. This is currently sorried out, to be filled in later.
--/
+/-- Input relation for the final folding round, with proximity parameter `0 < δ`. The
+   round-`k` codeword (the last folding round's commit, indexed at `Fin.last k`) is
+   δ-close to the Reed-Solomon code on the round-`k` evaluation domain at the
+   pre-final-fold witness's degree bound. -/
 def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
@@ -503,16 +541,38 @@ def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
           (∀ j, OracleStatement D x s (Fin.last k) j)
         ) ×
         Witness F s d (Fin.last k).castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N : ℕ := ∑ j' ∈ finRangeTo (Fin.last (Fin.last k).val).val, (s j').1
+    letI : Fintype ↑(evalDomain D x N) := Fintype.ofFinite _
+    haveI : Nonempty ↑(evalDomain D x N) := ⟨⟨x ^ (2 ^ N), by
+      simp [CosetDomain.evalDomain]
+      exact ⟨1, Subgroup.one_mem _, by simp⟩⟩⟩
+    0 < δ ∧
+    Code.relDistFromCode (ι := ↑(evalDomain D x N))
+        (ostmt (Fin.last (Fin.last k).val))
+        ((ReedSolomon.code (CosetDomain.domainEmb (D := D) (x := x) (i := N))
+          (2 ^ ((∑ j', (s j').1) - N) * d.1) :
+            Submodule F (↑(evalDomain D x N) → F)) :
+          Set (↑(evalDomain D x N) → F))
+      ≤ (δ : ENNReal)
 
-/- Output relation for the final folding round. This is currently sorried out, to be filled in
-later. -/
+/-- Output relation for the final folding round. After the final round the prover
+   sends a polynomial in the clear (the final oracle entry at index
+   `Fin.last (k + 1)` carries `F[X]`, not an evaluation function). The relation
+   asserts that polynomial is exactly the witness — a degree `< d` polynomial
+   committed in plaintext. The proximity parameter `δ` is required positive for
+   uniformity with the folding-round relations and is otherwise unused at this
+   step (no Hamming distance, just polynomial equality). -/
 def outputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (FinalStatement F k × ∀ j, FinalOracleStatement D x s j) ×
         Witness F s d (Fin.last (k + 1))
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, w⟩ =>
+    0 < δ ∧
+    (cast (by simp [FinalOracleStatement]) (ostmt (Fin.last (k + 1))) : F[X]) = w.1
 
 /-- The final folding round of the FRI protocol begins with the verifier sending a random field
   element as the challenge to the prover, then in contrast to the previous folding rounds simply
