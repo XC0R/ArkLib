@@ -34,8 +34,8 @@ rev = "fe33688378befe303df16c91189df9aff14bb105"
 
 [[require]]
 name = "Clean"
-git = "https://github.com/XC0R/clean"
-rev = "toolchain-bump-v4.28"
+git = "https://github.com/Verified-zkEVM/clean"
+rev = "4a013fed1036ff64b978dc5f55e0af743231359c"
 
 [[lean_lib]]
 name = "ArkLib"

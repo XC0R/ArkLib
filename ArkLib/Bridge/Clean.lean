@@ -33,8 +33,13 @@ Both prover and verifier use the canonical input variable encoding `varFromOffse
 ## Main results
 
 - `toReduction`: wraps a `FormalCircuit` as a `NonInteractiveReduction`
-- `reduction_perfectCompleteness`: Clean completeness → ArkLib perfect completeness
-- `reduction_soundness`: Clean soundness → ArkLib soundness (error = 0)
+- `reduction_perfectCompleteness`: transfers both Clean security properties into ArkLib's
+  perfect completeness. Clean's `original_completeness` (assumptions imply constraints hold)
+  and `original_soundness` (constraints imply spec) compose to show the output satisfies
+  `Spec` with probability 1.
+- `reduction_soundness`: ArkLib-structural soundness (error = 0). Inputs outside `Assumptions`
+  are rejected by the verifier. This is a property of the bridge construction, not a transfer
+  of Clean's soundness (which is already used in `reduction_perfectCompleteness` above).
 -/
 
 open OracleSpec OracleComp ProtocolSpec Circuit
@@ -192,12 +197,16 @@ theorem reduction_perfectCompleteness (circuit : FormalCircuit F Input Output) :
     subst hx
     exact ⟨⟨stmtIn, hSpec⟩, rfl⟩
 
-/-- **Soundness transfer**: Clean's `Soundness` implies ArkLib's soundness (with error 0).
+/-- **Structural soundness**: ArkLib soundness with error 0.
 
 The verifier noncomputably checks `circuit.Assumptions`. For any input `stmtIn` outside
 `{Assumptions}`, the check fails and the verifier rejects (returns `failure`). Since
 `OptionT.mk` wraps this as `none`, no output is produced, and the probability of
-accepting into `langOut` is 0. -/
+accepting into `langOut` is 0.
+
+Note: Clean's `original_soundness` (constraints imply spec) is not used here. It is
+transferred via `reduction_perfectCompleteness`, where it ensures output correctness
+for in-language inputs. -/
 theorem reduction_soundness (circuit : FormalCircuit F Input Output) :
     Verifier.soundness init impl
       { inp | circuit.Assumptions inp }
