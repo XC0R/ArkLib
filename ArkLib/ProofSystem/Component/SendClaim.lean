@@ -133,7 +133,9 @@ theorem completeness [Nonempty σ] :
     init impl relIn (relOut OStatement) := by
   simp only [OracleReduction.perfectCompleteness, oracleReduction, relOut]
   simp only [Reduction.perfectCompleteness_eq_prob_one]
-  intro ⟨stmt, oStmt⟩ wit hIn
+  -- `relIn` membership is unused: SendClaim is a deterministic forwarding component
+  -- whose computation succeeds unconditionally, independent of the input relation.
+  intro ⟨stmt, oStmt⟩ wit _
   -- 1. Unfold (run_of_prover_first absorbs Verifier.run for P_to_V)
   simp only [OracleReduction.toReduction, Reduction.run_of_prover_first,
     oracleProver, oracleVerifier, OracleVerifier.toVerifier]
