@@ -40,7 +40,7 @@ def evalOnPoints [Semiring F] : F[X] →ₗ[F] (ι → F) where
 
 /-- The Reed-Solomon code for polynomials of degree less than `deg` and evaluation points `domain`.
 -/
-def code (deg : ℕ) [Semiring F] : Submodule F (ι → F) :=
+noncomputable def code (deg : ℕ) [Semiring F] : Submodule F (ι → F) :=
   (Polynomial.degreeLT F deg).map (evalOnPoints domain)
 
 noncomputable def codewordToPoly
@@ -268,8 +268,7 @@ lemma dim_eq_deg_of_le' {ι : Type*} [Fintype ι] {F : Type*} [Field F]
       ext x
       simp [degreeLT]
       aesop
-    rw [h]
-    simp
+    simp [h]
   · rw [LinearCode.dim]
     let f := ReedSolomon.evalOnPoints (F := F) α
     let S := Polynomial.degreeLT F n
@@ -698,7 +697,7 @@ variable {F : Type*} [Field F] [DecidableEq F]
 /-- Definition 4.2, WHIR[ACFY24]
   Smooth ReedSolomon Codes are ReedSolomon Codes defined over Smooth Domains, such that
   their decoded univariate polynomials are of degree < 2ᵐ for some m ∈ ℕ. -/
-def smoothCode
+noncomputable def smoothCode
     (domain : ι ↪ F) [Smooth domain]
   (m : ℕ) : Submodule F (ι → F) := ReedSolomon.code domain (2^m)
 
@@ -710,7 +709,7 @@ noncomputable def mVdecode :
 
 /-- Auxiliary function to assign values to the weight polynomial variables:
     index `0` ↦ `p.eval b`, index `j+1` ↦ `b j`. -/
-private def toWeightAssignment
+private noncomputable def toWeightAssignment
   (p : MvPolynomial (Fin m) F)
   (b : Fin m → Fin 2) : Fin (m+1) → F :=
     let b' : Fin m → F := fun i => ↑(b i : ℕ)

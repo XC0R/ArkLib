@@ -70,9 +70,9 @@ private def elabReconcileStx : Tactic := fun stx => withMainContext do
   | `(tactic|aesop_reconcile) =>
     evalTactic (←
       `(tactic|(have := fun A A₁ X₁ X₂ X₃ ↦ @mem_leftCoset_iff.{0} A A₁ X₁ X₂ X₃
-                reconcile
                 specialize this (Units ‹_›) inferInstance
-                aesop)))
+                reconcile
+                first | aesop | (simp only [this, SetLike.mem_coe] at *; first | assumption | aesop))))
   | _ => throwError "Unsupported syntax."
 
 namespace Domain
@@ -275,8 +275,7 @@ private lemma gen_def {i : ℕ} :
 /- Proof that the `i`th subgroup has order `2 ^ (n - i)` -/
 instance {i : ℕ} : SmoothPowerOfTwo (n - i) (evalDomain D i) where
   smooth := by
-    simp
-    rw [gen_def]
+    rw [gen_def (D := D)]
     by_cases h : i ≤ n
     · have : (2 ^ n).gcd (2 ^ i) = 2 ^ i := by
         refine Eq.symm (Nat.gcd_greatest ?_ ?_ fun e a a ↦ a)
@@ -368,7 +367,7 @@ def evalDomain (i : ℕ) : Set Fˣ :=
   x ^ (2 ^ i) • Domain.evalDomain D i
 
 abbrev evalDomainSigma (s : Fin (n + 1) → ℕ+) (i : ℕ) :=
-  evalDomain D x (∑ j' ∈ finRangeTo i, s j')
+  evalDomain D x (∑ j' ∈ finRangeTo _ i, s j')
 
 /- Enumeration of the elements of the `i`th coset. -/
 def domain (n : ℕ) (i : ℕ) : Fin (2 ^ (n - i)) → evalDomain D x i :=
@@ -586,8 +585,8 @@ instance {i : Fin (n + 1)} : Fintype (evalDomain D x i) where
     simp only [domainEnum]
     rcases @domain_surjective (n := n) _ _ D _ _ _ _ y with ⟨a, h⟩
     use a
-    rw [←h]
-    simp
+    simp only [Finset.mem_univ, Function.Embedding.coeFn_mk, true_and]
+    exact h
 
 end CosetDomain
 
