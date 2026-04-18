@@ -12,6 +12,7 @@ import ArkLib.ProofSystem.Component.CheckClaim
 import ArkLib.ProofSystem.Component.RandomQuery
 import ArkLib.ProofSystem.Component.ReduceClaim
 import ArkLib.Data.Fin.Basic
+import ArkLib.ToMathlib.SimulateQ
 
 /-!
 # Single round of the Sum-check Protocol
@@ -536,8 +537,56 @@ theorem reduction_perfectCompleteness :
     rcases val2 with _ | ⟨out⟩
     · -- val2 = none: getM fails → produces none. But guard always passes.
       exfalso
-      -- v4.29.0: simulateQ_query rewrite regression; sorry pending VCVio update
-      exact sorry
+      -- Decompose hval: peel the do block's first bind
+      erw [simulateQ_bind] at hval
+      erw [StateT.run_bind] at hval
+      rw [mem_support_bind_iff] at hval
+      obtain ⟨⟨chal_res, s₂⟩, hchal, hval⟩ := hval
+      -- v4.29.0: hchal is a do-block (pure + liftComp query), need extra bind peel
+      erw [simulateQ_bind] at hchal
+      erw [StateT.run_bind] at hchal
+      rw [mem_support_bind_iff] at hchal
+      obtain ⟨⟨discr_val, s_d⟩, hchal_fst, hchal_rest⟩ := hchal
+      erw [simulateQ_map] at hchal_fst
+      erw [simulateQ_pure] at hchal_fst
+      rw [StateT.run_map, StateT.run_pure] at hchal_fst
+      simp only [support_map, support_pure, Set.mem_image, Set.mem_singleton_iff] at hchal_fst
+      obtain ⟨_, rfl, heq_d⟩ := hchal_fst
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_d
+      -- Second part: f <$> liftComp query — peel map, then liftComp, then query
+      erw [simulateQ_map] at hchal_rest
+      erw [StateT.run_map] at hchal_rest
+      simp only [support_map, Set.mem_image] at hchal_rest
+      obtain ⟨⟨inner_val, s_inner⟩, hinner, heq_c⟩ := hchal_rest
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_c
+      simp only [QueryImpl.addLift_def,
+        QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left] at hinner
+      erw [simulateQ_query] at hinner
+      erw [StateT.run_map] at hinner
+      simp only [support_map, Set.mem_image] at hinner
+      obtain ⟨⟨oracle_resp, s_o⟩, _, heq_q⟩ := hinner
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_q
+      erw [simulateQ_pure] at hval
+      simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hval
+      -- Now decompose hval2
+      simp only [QueryImpl.addLift_def, QueryImpl.liftTarget_apply,
+        QueryImpl.add_apply_inl, QueryImpl.add_apply_inr,
+        simulateQ_query, simulateQ_pure, simulateQ_bind, simulateQ_map,
+        QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
+        OracleComp.liftComp_map, OracleComp.liftComp_pure,
+        pure_bind, map_pure, Functor.map_map, Function.comp,
+        OracleQuery.cont, OracleQuery.input_query,
+        StateT.run_bind, StateT.run_map, StateT.run_pure,
+        support_map, support_pure, Set.mem_singleton_iff, Set.mem_image,
+        Prod.mk.injEq, Option.some.injEq, Fin.snoc] at hval2
+      norm_num at hval2
+      rw [Finset.sum_map] at hValid
+      simp only [apply_ite, simulateQ_ite, OptionT.run_pure] at hval2
+      erw [if_pos hValid] at hval2
+      simp only [simulateQ_pure,
+        StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval2
+      simp at hval2
     · -- val2 = some out: getM succeeds, final map wraps in some, contradicts none
       simp only [Option.getM, pure_bind] at hs
       erw [simulateQ_pure] at hs
@@ -582,8 +631,61 @@ theorem reduction_perfectCompleteness :
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hx_rest
       exact absurd (congr_arg Prod.fst hx_rest) (by simp)
     · -- val2 = some out: getM succeeds, x is concrete
-      -- v4.29.0: simulateQ_query rewrite regression; sorry pending VCVio update
-      exact sorry
+      simp only [Option.getM, pure_bind] at hx_rest
+      erw [simulateQ_pure] at hx_rest
+      simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hx_rest
+      obtain ⟨rfl, rfl⟩ := hx_rest
+      erw [simulateQ_bind] at hval
+      erw [StateT.run_bind] at hval
+      rw [mem_support_bind_iff] at hval
+      obtain ⟨⟨chal_res, s₂⟩, hchal, hval⟩ := hval
+      -- v4.29.0: hchal is a do-block, need extra bind peel
+      erw [simulateQ_bind] at hchal
+      erw [StateT.run_bind] at hchal
+      rw [mem_support_bind_iff] at hchal
+      obtain ⟨⟨discr_val, s_d⟩, hchal_fst, hchal_rest⟩ := hchal
+      erw [simulateQ_map] at hchal_fst
+      erw [simulateQ_pure] at hchal_fst
+      rw [StateT.run_map, StateT.run_pure] at hchal_fst
+      simp only [support_map, support_pure, Set.mem_image, Set.mem_singleton_iff] at hchal_fst
+      obtain ⟨_, rfl, heq_d⟩ := hchal_fst
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_d
+      -- Second part: f <$> liftComp query — peel map, then liftComp, then query
+      erw [simulateQ_map] at hchal_rest
+      erw [StateT.run_map] at hchal_rest
+      simp only [support_map, Set.mem_image] at hchal_rest
+      obtain ⟨⟨inner_val, s_inner⟩, hinner, heq_c⟩ := hchal_rest
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_c
+      simp only [QueryImpl.addLift_def,
+        QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left] at hinner
+      erw [simulateQ_query] at hinner
+      erw [StateT.run_map] at hinner
+      simp only [support_map, Set.mem_image] at hinner
+      obtain ⟨⟨oracle_resp, s_o⟩, _, heq_q⟩ := hinner
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_q
+      erw [simulateQ_pure] at hval
+      simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hval
+      -- Decompose hval2: resolve guard
+      simp only [QueryImpl.addLift_def, QueryImpl.liftTarget_apply,
+        QueryImpl.add_apply_inl, QueryImpl.add_apply_inr,
+        simulateQ_query, simulateQ_pure, simulateQ_bind, simulateQ_map,
+        QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
+        OracleComp.liftComp_map, OracleComp.liftComp_pure,
+        pure_bind, map_pure, Functor.map_map, Function.comp,
+        OracleQuery.cont, OracleQuery.input_query,
+        StateT.run_bind, StateT.run_map, StateT.run_pure,
+        support_map, support_pure, Set.mem_singleton_iff, Set.mem_image,
+        Prod.mk.injEq, Option.some.injEq, Fin.snoc] at hval2
+      norm_num at hval2
+      rw [Finset.sum_map] at hValid
+      simp only [apply_ite, simulateQ_ite, OptionT.run_pure] at hval2
+      erw [if_pos hValid] at hval2
+      simp only [simulateQ_pure,
+        StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval2
+      obtain ⟨_, ⟨_, rfl⟩, _, rfl⟩ := hval2
+      simp only [Set.mem_setOf_eq, outputRelation]
+      constructor <;> simp
 
 
 /-- Perfect completeness for the oracle reduction -/
