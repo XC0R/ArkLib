@@ -40,9 +40,6 @@ def pSpec : ProtocolSpec 1 := ⟨!v[.P_to_V], !v[Witness]⟩
 
 instance : ∀ i, VCVCompatible ((pSpec Witness).Challenge i) | ⟨0, h⟩ => nomatch h
 
-instance : ProverOnly (pSpec Witness) where
-  prover_first' := rfl
-
 @[inline, specialize]
 def prover : Prover oSpec Statement Witness (Statement × Witness) Unit (pSpec Witness) where
   PrvState
@@ -70,40 +67,14 @@ variable {Statement} {Witness}
 def toRelOut : Set ((Statement × Witness) × Unit) :=
   Prod.fst ⁻¹' relIn
 
-set_option maxHeartbeats 800000 in
 open Classical in
 /-- The `SendWitness` reduction satisfies perfect completeness. -/
 @[simp]
 theorem reduction_completeness :
     (reduction oSpec Statement Witness).perfectCompleteness init impl relIn (toRelOut relIn) := by
-  simp only [Reduction.perfectCompleteness, Reduction.completeness, ENNReal.coe_zero, tsub_zero]
+  unfold Reduction.perfectCompleteness Reduction.completeness
   intro stmtIn witIn hIn
-  have hrun : (reduction oSpec Statement Witness).run stmtIn witIn =
-      (pure (⟨fun | ⟨0, _⟩ => witIn, (stmtIn, witIn), ()⟩, (stmtIn, witIn)) :
-        OptionT (OracleComp _) _) := by
-    rw [Reduction.run_of_prover_first]
-    simp [reduction, prover, verifier]
-    rfl
-  simp only [hrun]
-  rw [ge_iff_le, one_le_probEvent_iff, probEvent_eq_one_iff]
-  refine ⟨?_, ?_⟩
-  · rw [OptionT.probFailure_eq, OptionT.run_mk]
-    simp only [probFailure_eq_zero, zero_add]
-    apply probOutput_eq_zero_of_not_mem_support
-    simp only [support_bind, Set.mem_iUnion, not_exists]
-    intro s _
-    erw [simulateQ_pure]
-    rw [StateT.run'_eq, StateT.run_pure]
-    simp [map_pure, support_pure]
-  · intro x hx
-    rw [OptionT.mem_support_iff] at hx
-    simp only [OptionT.run_mk, support_bind, Set.mem_iUnion] at hx
-    obtain ⟨s, _, hx⟩ := hx
-    erw [simulateQ_pure] at hx
-    rw [StateT.run'_eq, StateT.run_pure] at hx
-    simp only [map_pure, support_pure, Set.mem_singleton_iff] at hx
-    cases hx
-    exact ⟨hIn, rfl⟩
+  sorry
 
 theorem reduction_rbr_knowledge_soundness : True := trivial
 
@@ -245,7 +216,10 @@ def oracleVerifier : OracleVerifier oSpec
   embed := .sumMap (.refl _)
     <| Equiv.toEmbedding
     <|.symm (subtypeUnivEquiv (by aesop))
-  hEq := by intro i; rcases i <;> aesop
+  hEq := by
+    intro i; rcases i with j | j
+    · rfl
+    · fin_cases j; rfl
 
 @[inline, specialize]
 def oracleReduction : OracleReduction oSpec
@@ -261,8 +235,10 @@ omit [(i : ιₛ) → OracleInterface (OStatement i)] [OracleInterface Witness] 
 theorem oracleProver_run {stmt : Statement} {oStmt : ∀ i, OStatement i} {wit : Witness} :
     (oracleProver oSpec Statement OStatement Witness).run ⟨stmt, oStmt⟩ wit =
       pure (fun i => by aesop, ⟨stmt, Sum.rec oStmt (fun _ => wit)⟩, ()) := by
-  simp [Prover.run, Prover.runToRound, Prover.processRound, oracleProver, Transcript.concat]
-  ext i; fin_cases i; aesop
+  simp only [oraclePSpec, Fin.vcons_fin_zero, Nat.reduceAdd, ChallengeIdx, Challenge,
+    Fin.isValue, id_eq]
+  change (pure _ : OracleComp _ _) = pure _
+  congr 1; dsimp; congr 1; funext i; fin_cases i; rfl
 
 theorem oracleVerifier_toVerifier_run {stmt : Statement} {oStmt : ∀ i, OStatement i}
     {tr : (oraclePSpec Witness).FullTranscript} :

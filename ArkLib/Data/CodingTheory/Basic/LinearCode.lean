@@ -69,9 +69,7 @@ theorem projection_injective
     refine exists_and_left.mp ?_
     use v
   let D := {i : n | u i ≠ v i}
-  have hD : card D = hammingDist u v := by
-    simp only [ne_eq, card_ofFinset]
-    exact rfl
+  have hD : card D = hammingDist u v := Fintype.card_subtype _
   have hagree : ∀ i ∈ S, u i = v i := by
     intros i hi
     let i' : {x // x ∈ S} := ⟨i, hi⟩
@@ -220,7 +218,7 @@ theorem dist_eq_dist_from_HammingNorm [CommRing F] [DecidableEq F] (LC : LinearC
       exact huv this
     · -- norm bound via `hammingDist_eq_hammingNorm`
       have hEq : hammingNorm (u - v) = hammingDist u v := by
-        simpa using (hammingDist_eq_hammingNorm u v).symm
+        simp [hammingDist, hammingNorm, sub_ne_zero]
       simpa [hEq] using hle
   · intro h
     rcases h with ⟨w, hw, hw_ne, hle⟩

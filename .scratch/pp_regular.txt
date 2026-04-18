@@ -1,0 +1,1910 @@
+warning: manifest out of date: source kind (git/path) of dependency 'VCVio' changed; use `lake update VCVio` to update it
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:16: warning: This simp argument is unused:
+  StateT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵,̵ ̵map_bind, bind_pure_comp, Functor.map_map, Function.comp, map_pure, StateT.run_pure,
+  ̲  ̲ ̲ ̲Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:33: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map, Function.comp, map_pure,
+  ̲  ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:76: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵mp̵,̵
+  ̵ ̵ ̵ ̵ ̵m̵ap_pure,
+  ̲  ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:179:4: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+      m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:179:14: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp, ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+      m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:20: warning: This simp argument is unused:
+  StateT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵,̵ ̵map_bind, bind_pure_comp, Functor.map_map, Function.comp, ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+          m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:37: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map, Function.comp, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:63: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functo̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵F̵u̵n̵c̵t̵ion.comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:80: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵mp̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵m̵ap_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:8: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:18: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:35: warning: This simp argument is unused:
+  Prod.map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, P̵r̵o̵d̵.̵m̵a̵p̵,̵ ̵id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:45: warning: This simp argument is unused:
+  id_eq
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, i̵d̵_̵e̵q̵,̵ ̵Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:52: warning: This simp argument is unused:
+  Prod.mk.eta
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, id_eq, P̵r̵o̵d̵.̵m̵k̵.̵e̵t̵a̵,̵ ̵id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:65: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, id_eq, Prod.mk.eta,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:260:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.snd_snd_mem_support_simulateQ_addLift_fsChal`:
+  [VCVCompatible StmtIn]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [VCVCompatible StmtIn] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:274:62: warning: This simp argument is unused:
+  OracleQuery.cont_query
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.input_query, O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵c̵o̵n̵t̵_̵q̵u̵e̵r̵y̵,̵id_map, StateT.run_bind, support_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲Set.mem_iUnion] at hx
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:275:6: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.input_query, OracleQuery.cont_query,
+        i̵d̵_̵m̵a̵p̵,̵ ̵StateT.run_bind, support_bind, Set.mem_iUnion] at hx
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:294:24: warning: This simp argument is unused:
+  StateT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵,̵ ̵map_bind, bind_pure_comp, Functor.map_map, Function.comp, ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+              m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:294:41: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map, Function.comp, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:294:67: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functo̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵F̵u̵n̵c̵t̵ion.comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:294:84: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵mp̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵m̵ap_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:12: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:22: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              map_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:39: warning: This simp argument is unused:
+  Prod.map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              map_pure, StateT.run_pure, P̵r̵o̵d̵.̵m̵a̵p̵,̵ ̵id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:49: warning: This simp argument is unused:
+  id_eq
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              map_pure, StateT.run_pure, Prod.map, i̵d̵_̵e̵q̵,̵ ̵Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:56: warning: This simp argument is unused:
+  Prod.mk.eta
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              map_pure, StateT.run_pure, Prod.map, id_eq, P̵r̵o̵d̵.̵m̵k̵.̵e̵t̵a̵,̵ ̵id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:295:69: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+              StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+              map_pure, StateT.run_pure, Prod.map, id_eq, Prod.mk.eta,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:307:22: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.addLift, QueryImpl.add_apply_inr, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLift.monadLift, StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵map_pure, support_pure, Set.mem_singleton_iff] at hquery
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:307:39: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.addLift, QueryImpl.add_apply_inr, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLift.monadLift, StateT.run, StateT.run_pure, m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵support_pure,
+            Set.mem_singleton_iff] at hquery
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:307:49: warning: This simp argument is unused:
+  support_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.addLift, QueryImpl.add_apply_inr, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLift.monadLift, StateT.run, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲s̵u̵p̵p̵o̵r̵t̵_̵p̵u̵r̵e̵,̵Set.mem_singleton_iff] at hquery
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:308:10: warning: This simp argument is unused:
+  Set.mem_singleton_iff
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.addLift, QueryImpl.add_apply_inr, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLift.monadLift, StateT.run, StateT.run_pure, map_pure, s̵u̵p̵p̵o̵r̵t̵_̵p̵u̵r̵e̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵S̵e̵t̵.̵m̵e̵m̵_̵s̵i̵n̵g̵l̵e̵t̵o̵n̵_̵i̵f̵f̵]̵s̲u̲p̲p̲o̲r̲t̲_̲p̲u̲r̲e̲]̲ at hquery
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:323:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.runToRoundFS_default_state_eq`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:354:49: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵simulateQ_map, Functor.map_map, map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_bind, StateT.run_pure, StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:355:52: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, simulateQ_pure, simulateQ_map, Functor.map_map,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲map_bind, StateT.run_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:379:17: warning: This simp argument is unused:
+  StateT.run_map
+
+Hint: Omit it from the simp argument list.
+  simp only [S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵m̵a̵p̵,̵ ̵full_run_simulateQ_liftTarget_eq_prod impl]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:412:36: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:420:20: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, fsChallengeQueryImpl', srChallengeQueryImpl', liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLiftT.monadLift, MonadLift.monadLift, StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵map_pure, pure_bind, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:420:47: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, fsChallengeQueryImpl', srChallengeQueryImpl', liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLiftT.monadLift, MonadLift.monadLift, StateT.run, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲p̵u̵r̵e̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:445:48: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵map_bind, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:445:65: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:476:34: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵QueryImpl.liftTarget_self, ← QueryImpl.addLift_def]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:487:32: warning: 'funext a' tactic does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:487:42: warning: 'rfl' tactic does nothing
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:487:32: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:487:42: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:492:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.runToRoundFS_default_messages_state_eq`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:518:49: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵simulateQ_map, Functor.map_map, map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_bind, StateT.run_pure, StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:519:52: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, simulateQ_pure, simulateQ_map, Functor.map_map,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲map_bind, StateT.run_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:538:17: warning: This simp argument is unused:
+  StateT.run_map
+
+Hint: Omit it from the simp argument list.
+  simp only [S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵m̵a̵p̵,̵ ̵full_run_simulateQ_liftTarget_eq_prod impl]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:557:36: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:562:20: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, fsChallengeQueryImpl', srChallengeQueryImpl', liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLiftT.monadLift, MonadLift.monadLift, StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵map_pure, pure_bind, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:562:47: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, fsChallengeQueryImpl', srChallengeQueryImpl', liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲MonadLiftT.monadLift, MonadLift.monadLift, StateT.run, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲p̵u̵r̵e̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:586:48: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵map_bind, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:586:65: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:608:34: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵QueryImpl.liftTarget_self, ← QueryImpl.addLift_def]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:625:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.runToRoundFS_default_prvState_eq`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:640:30: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map,̵ ̵F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵m̵p̵] at this
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:651:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.qState_mem_support_simulateQ_deriveTranscriptFS`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:664:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.deriveTranscriptSRAux_default_pure`:
+  [VCVCompatible StmtIn]
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [VCVCompatible StmtIn] [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:688:17: warning: This simp argument is unused:
+  simulateQ_query
+
+Hint: Omit it from the simp argument list.
+  simp only [̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵i̵n̵p̵u̵t̵_̵q̵u̵e̵r̵y̵,̵[̲O̲r̲a̲c̲l̲e̲Q̲u̲e̲r̲y̲.̲i̲n̲p̲u̲t̲_̲q̲u̲e̲r̲y̲,̲ OracleQuery.cont_query, id_map, QueryImpl.addLift_def,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:688:83: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, ̵i̵d̵_̵m̵a̵p̵,̵
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:689:31: warning: This simp argument is unused:
+  QueryImpl.add_apply_inr
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵a̵d̵d̵_̵a̵p̵p̵l̵y̵_̵i̵n̵r̵,̵ ̵QueryImpl.liftTarget_apply, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:689:56: warning: This simp argument is unused:
+  QueryImpl.liftTarget_apply
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵l̵i̵f̵t̵T̵a̵r̵g̵e̵t̵_̵a̵p̵p̵l̵y̵,̵fsChallengeQueryImpl',
+          srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:690:31: warning: This simp argument is unused:
+  srChallengeQueryImpl'
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', s̵r̵C̵h̵a̵l̵l̵e̵n̵g̵e̵Q̵u̵e̵r̵y̵I̵m̵p̵l̵'̵,̵ ̵liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:691:41: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:691:58: warning: This simp argument is unused:
+  defaultFSImpl
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, d̵e̵f̵a̵u̵l̵t̵F̵S̵I̵m̵p̵l̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:692:8: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, ̲S̲t̲a̲t̲e̲T̲.̲r̲u̲n̲_̲p̲u̲r̲e̲,̲ ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+          s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵pure,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_p̵u̵r̵e̵,̵ ̵m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵p̵u̵r̵e̵_̵bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:692:24: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, S̵t̵m̲at̵e̵T̵.̵r̵u̵n̵p̲_pure,
+  ̲ m̵a̵p̵_̵p̵u̵r̵e̵,̵  ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:692:41: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, m̵a̵p_̵p̵ure,̵ ̵p̵u̵r̵e̵_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:692:51: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, ̲s̲i̲m̲u̲l̲a̲t̲e̲Q̲_̲p̲u̲r̲e̲,̲
+          s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, map_pure, p̵u̵r̵e̵_̵bind,̵ ̵b̵i̵n̵d̵_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:692:62: warning: This simp argument is unused:
+  bind_pure_comp
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:693:8: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵]̵b̲i̲n̲d̲_̲p̲u̲r̲e̲_̲c̲o̲m̲p̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:702:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.deriveTranscriptSRAux_default_pure_characterize`:
+  [VCVCompatible StmtIn]
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [VCVCompatible StmtIn] [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:741:17: warning: This simp argument is unused:
+  simulateQ_query
+
+Hint: Omit it from the simp argument list.
+  simp only [̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵i̵n̵p̵u̵t̵_̵q̵u̵e̵r̵y̵,̵[̲O̲r̲a̲c̲l̲e̲Q̲u̲e̲r̲y̲.̲i̲n̲p̲u̲t̲_̲q̲u̲e̲r̲y̲,̲ OracleQuery.cont_query, id_map, QueryImpl.addLift_def,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:741:83: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, ̵i̵d̵_̵m̵a̵p̵,̵
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:742:31: warning: This simp argument is unused:
+  QueryImpl.add_apply_inr
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵a̵d̵d̵_̵a̵p̵p̵l̵y̵_̵i̵n̵r̵,̵ ̵QueryImpl.liftTarget_apply, fsChallengeQueryImpl',
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:742:56: warning: This simp argument is unused:
+  QueryImpl.liftTarget_apply
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵l̵i̵f̵t̵T̵a̵r̵g̵e̵t̵_̵a̵p̵p̵l̵y̵,̵fsChallengeQueryImpl',
+          srChallengeQueryImpl', liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:743:31: warning: This simp argument is unused:
+  srChallengeQueryImpl'
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', s̵r̵C̵h̵a̵l̵l̵e̵n̵g̵e̵Q̵u̵e̵r̵y̵I̵m̵p̵l̵'̵,̵ ̵liftM, MonadLiftT.monadLift, MonadLift.monadLift, StateT.run,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, defaultFSImpl, simulateQ_pure, StateT.run_pure, map_pure, pure_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲bind_pure_comp, Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:744:41: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:744:58: warning: This simp argument is unused:
+  defaultFSImpl
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, d̵e̵f̵a̵u̵l̵t̵F̵S̵I̵m̵p̵l̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, StateT.run_pure, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:745:8: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, ̲S̲t̲a̲t̲e̲T̲.̲r̲u̲n̲_̲p̲u̲r̲e̲,̲ ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+          s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵pure,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_p̵u̵r̵e̵,̵ ̵m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵p̵u̵r̵e̵_̵bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:745:24: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure, S̵t̵m̲at̵e̵T̵.̵r̵u̵n̵p̲_pure,
+  ̲ m̵a̵p̵_̵p̵u̵r̵e̵,̵  ̲ ̲ ̲ ̲ ̲ ̲pure_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:745:41: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, m̵a̵p_̵p̵ure,̵ ̵p̵u̵r̵e̵_bind, bind_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:745:51: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, ̲s̲i̲m̲u̲l̲a̲t̲e̲Q̲_̲p̲u̲r̲e̲,̲
+          s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, map_pure, p̵u̵r̵e̵_̵bind,̵ ̵b̵i̵n̵d̵_pure_comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:745:62: warning: This simp argument is unused:
+  bind_pure_comp
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:746:8: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query, OracleQuery.input_query, OracleQuery.cont_query, id_map,
+          QueryImpl.addLift_def, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+          fsChallengeQueryImpl', srChallengeQueryImpl', liftM, MonadLiftT.monadLift,
+          MonadLift.monadLift, StateT.run, StateT.run_pure, defaultFSImpl, simulateQ_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, map_pure, pure_bind, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵]̵b̲i̲n̲d̲_̲p̲u̲r̲e̲_̲c̲o̲m̲p̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:783:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.deriveTranscriptFS_default_eq`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:895:37: warning: This simp argument is unused:
+  OracleQuery.cont_query
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.c̵o̵n̵t̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵input_query, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:895:86: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.cont_query, OracleQuery.input_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:912:37: warning: This simp argument is unused:
+  OracleQuery.cont_query
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.c̵o̵n̵t̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵input_query, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:912:86: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.cont_query, OracleQuery.input_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:924:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.toChallengesUpTo_eq_default_of_mem_support_runToRound_gen`:
+  [VCVCompatible StmtIn]
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+  [(i : pSpec.ChallengeIdx) → SampleableType (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [VCVCompatible
+  StmtIn] [(i : pSpec.ChallengeIdx) →
+  VCVCompatible (pSpec.Challenge i)] [(i : pSpec.ChallengeIdx) → SampleableType (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:945:15: warning: This simp argument is unused:
+  simulateQ_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵b̵i̵n̵d̵,̵ ̵StateT.run_bind, simulateQ_pure, StateT.run_pure] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:945:31: warning: This simp argument is unused:
+  StateT.run_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵b̵i̵n̵d̵,̵ ̵simulateQ_pure, StateT.run_pure] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:945:48: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:945:64: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, simulateQ_pure,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵] at h_step
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:952:17: warning: This simp argument is unused:
+  defaultChalImpl
+
+Hint: Omit it from the simp argument list.
+  simp only [̵d̵e̵f̵a̵u̵l̵t̵C̵h̵a̵l̵I̵m̵p̵l̵,̵ ̵Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵a̵d̵d̵L̵i̵f̵t̵,̵[̲Q̲u̲e̲r̲y̲I̲m̲p̲l̲.̲a̲d̲d̲L̲i̲f̲t̲,̲ QueryImpl.add_apply_inr, StateT.run_pure, support_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲Set.mem_singleton_iff] at h_chal
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:952:53: warning: This simp argument is unused:
+  QueryImpl.add_apply_inr
+
+Hint: Omit it from the simp argument list.
+  simp only [defaultChalImpl, QueryImpl.addLift, Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵a̵d̵d̵_̵a̵p̵p̵l̵y̵_̵i̵n̵r̵,̵StateT.run_pure, support_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲Set.mem_singleton_iff] at h_chal
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:953:8: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [defaultChalImpl, QueryImpl.addLift, QueryImpl.add_apply_inr, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵support_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲Set.mem_singleton_iff] at h_chal
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:953:25: warning: This simp argument is unused:
+  support_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [defaultChalImpl, QueryImpl.addLift, QueryImpl.add_apply_inr, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲s̵u̵p̵p̵o̵r̵t̵_̵p̵u̵r̵e̵,̵ ̵Set.mem_singleton_iff] at h_chal
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:953:39: warning: This simp argument is unused:
+  Set.mem_singleton_iff
+
+Hint: Omit it from the simp argument list.
+  simp only [defaultChalImpl, QueryImpl.addLift, QueryImpl.add_apply_inr, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲s̵u̵p̵p̵o̵r̵t̵_̵p̵u̵r̵e̵,̵ ̵S̵e̵t̵.̵m̵e̵m̵_̵s̵i̵n̵g̵l̵e̵t̵o̵n̵_̵i̵f̵f̵]̵s̲u̲p̲p̲o̲r̲t̲_̲p̲u̲r̲e̲]̲ at h_chal
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:958:17: warning: This simp argument is unused:
+  simulateQ_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵b̵i̵n̵d̵,̵ ̵StateT.run_bind, simulateQ_pure, StateT.run_pure] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:958:33: warning: This simp argument is unused:
+  StateT.run_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵b̵i̵n̵d̵,̵ ̵simulateQ_pure, StateT.run_pure] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:958:50: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:958:66: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, simulateQ_pure,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:961:17: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵[̲S̲t̲a̲t̲e̲T̲.̲r̲u̲n̲_̲p̲u̲r̲e̲,̲ support_pure, Set.mem_singleton_iff] at h_final
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:961:33: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵support_pure, Set.mem_singleton_iff] at h_final
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:984:17: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵[̲S̲t̲a̲t̲e̲T̲.̲r̲u̲n̲_̲p̲u̲r̲e̲,̲ support_pure, Set.mem_singleton_iff] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:984:33: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵support_pure, Set.mem_singleton_iff] at h_rest
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:995:38: warning: This simp argument is unused:
+  ProtocolSpec.dir
+
+Hint: Omit it from the simp argument list.
+  simp only [ProtocolSpec.take, P̵r̵o̵t̵o̵c̵o̵l̵S̵p̵e̵c̵.̵d̵i̵r̵,̵ ̵Fin.take] at hIdx
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1009:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.toChallengesUpTo_eq_default_of_mem_support_runToRound`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1017:33: warning: unused variable `i`
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1022:8: warning: declaration uses `sorry`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1414:8: error: Tactic `apply` failed: could not unify the conclusion of `@ProbComp.bind_congr_of_forall_mem_support`
+  ?mx >>= ?f = ?mx >>= ?g
+with the goal
+  (do
+      let a ←
+        do
+          let p ← (simulateQ (impl + defaultChalImpl) (Prover.runToRound (Fin.last n) stmtIn witIn R.prover)).run s
+          let p_1 ← (simulateQ (impl + defaultChalImpl) (liftM (R.prover.output p.1.2))).run p.2
+          (pure (some (p.1.1, p_1.1))).run p_1.2
+      let a ←
+        (simulateQ (impl + defaultChalImpl)
+                (match a.1 with
+                | some proverResult => do
+                  let __do_lift ← liftM (R.verifier.verify stmtIn proverResult.1)
+                  match __do_lift with
+                    | some stmtOut => do
+                      let __do_lift ←
+                        match stmtOut with
+                          | none => pure none
+                          | some a => pure (some a)
+                      match __do_lift with
+                        | some __do_lift => pure (some (proverResult, __do_lift))
+                        | none => pure none
+                    | none => pure none
+                | none => pure none)).run
+            a.2
+      pure (Option.map (fun x => (x.1.2, x.2)) a.1)) =
+    do
+    let p ← ?m.2144
+    G (p.1.1.toMessagesUpTo, p.1.2, p.2, defaultFSImpl)
+
+Note: The full type of `@ProbComp.bind_congr_of_forall_mem_support` is
+  ∀ {α β : Type} (mx : ProbComp α) {f g : α → ProbComp β}, (∀ x ∈ support mx, f x = g x) → mx >>= f = mx >>= g
+
+n : ℕ
+pSpec : ProtocolSpec n
+ι : Type
+oSpec : OracleSpec ι
+StmtIn WitIn StmtOut WitOut : Type
+inst✝² : VCVCompatible StmtIn
+inst✝¹ : (i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)
+inst✝ : (i : pSpec.ChallengeIdx) → SampleableType (pSpec.Challenge i)
+σ : Type
+init : ProbComp σ
+impl : QueryImpl oSpec (StateT σ ProbComp)
+relIn : Set (StmtIn × WitIn)
+relOut : Set (StmtOut × WitOut)
+R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec
+hPerf :
+  ∀ (stmtIn : StmtIn) (witIn : WitIn),
+    (stmtIn, witIn) ∈ relIn →
+      have pImpl := impl.addLift challengeQueryImpl;
+      (probEvent
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+          fun x =>
+          match x with
+          | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+        1
+stmtIn : StmtIn
+witIn : WitIn
+hRelIn : (stmtIn, witIn) ∈ relIn
+hI :
+  have pImpl := impl.addLift challengeQueryImpl;
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+hI_iff :
+  Pr[⊥ |
+        OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+      0 ∧
+    ∀
+      x ∈
+        support
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hNoFail :
+  Pr[⊥ |
+      OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+    0
+hAllSucceed :
+  ∀
+    x ∈
+      support
+        (OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+    match x with
+    | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hDefaultSubRandom :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run s)
+hDefaultSubRandom' :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s)
+hDefaultSubRandomFull :
+  (support do
+      let s ← init
+      (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+    support do
+      let s ← init
+      (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s
+hDefaultComplete :
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+niSpec : ProtocolSpec 1 := ⋯
+this✝⁴ : niSpec.ProverFirst
+this✝³ : niSpec.ProverOnly
+this✝² : (i : niSpec.ChallengeIdx) → VCVCompatible (niSpec.Challenge i)
+this✝¹ : (i : niSpec.ChallengeIdx) → SampleableType (niSpec.Challenge i)
+s : σ
+hliftComp_self :
+  ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α),
+    mx.liftComp (oSpec + fsChallengeOracle StmtIn pSpec) = mx
+hliftM_some : ∀ {α : Type} (mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α), liftM mx = some <$> mx
+hmsg :
+  (fun p => (p.1.1, p.1.2.2, p.2)) <$>
+      (simulateQ (impl.addLift fsChallengeQueryImpl')
+            (Prover.runToRoundFS (Fin.last n) stmtIn R.prover (R.prover.input (stmtIn, witIn)))).run
+        (s, defaultFSImpl) =
+    (fun p => (p.1.1.toMessagesUpTo, p.1.2, p.2, defaultFSImpl)) <$>
+      (simulateQ (impl.addLift defaultChalImpl) (Prover.runToRound (Fin.last n) stmtIn witIn R.prover)).run s
+G : MessagesUpTo (Fin.last n) pSpec ×
+    R.prover.PrvState (Fin.last n) × σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id →
+  ProbComp (Option ((StmtOut × WitOut) × StmtOut)) := ⋯
+this✝ : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → VCVCompatible ((take ↑k ⋯ pSpec).Challenge j)
+this : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → SampleableType ((take ↑k ⋯ pSpec).Challenge j)
+hliftM_some_FS : ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α), liftM mx = some <$> mx
+hc_oSpec :
+  (QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl +
+        QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp)
+          fsChallengeQueryImpl' ∘ₛ
+      fun t => liftM (query t)) =
+    QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl
+⊢ (do
+      let a ←
+        do
+          let p ← (simulateQ (impl + defaultChalImpl) (Prover.runToRound (Fin.last n) stmtIn witIn R.prover)).run s
+          let p_1 ← (simulateQ (impl + defaultChalImpl) (liftM (R.prover.output p.1.2))).run p.2
+          (pure (some (p.1.1, p_1.1))).run p_1.2
+      let a ←
+        (simulateQ (impl + defaultChalImpl)
+                (match a.1 with
+                | some proverResult => do
+                  let __do_lift ← liftM (R.verifier.verify stmtIn proverResult.1)
+                  match __do_lift with
+                    | some stmtOut => do
+                      let __do_lift ←
+                        match stmtOut with
+                          | none => pure none
+                          | some a => pure (some a)
+                      match __do_lift with
+                        | some __do_lift => pure (some (proverResult, __do_lift))
+                        | none => pure none
+                    | none => pure none
+                | none => pure none)).run
+            a.2
+      pure (Option.map (fun x => (x.1.2, x.2)) a.1)) =
+    do
+    let p ← ?m.2144
+    G (p.1.1.toMessagesUpTo, p.1.2, p.2, defaultFSImpl)
+case h.e_a.h
+n : ℕ
+pSpec : ProtocolSpec n
+ι : Type
+oSpec : OracleSpec ι
+StmtIn WitIn StmtOut WitOut : Type
+inst✝² : VCVCompatible StmtIn
+inst✝¹ : (i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)
+inst✝ : (i : pSpec.ChallengeIdx) → SampleableType (pSpec.Challenge i)
+σ : Type
+init : ProbComp σ
+impl : QueryImpl oSpec (StateT σ ProbComp)
+relIn : Set (StmtIn × WitIn)
+relOut : Set (StmtOut × WitOut)
+R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec
+hPerf :
+  ∀ (stmtIn : StmtIn) (witIn : WitIn),
+    (stmtIn, witIn) ∈ relIn →
+      have pImpl := impl.addLift challengeQueryImpl;
+      (probEvent
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+          fun x =>
+          match x with
+          | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+        1
+stmtIn : StmtIn
+witIn : WitIn
+hRelIn : (stmtIn, witIn) ∈ relIn
+hI :
+  have pImpl := impl.addLift challengeQueryImpl;
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+hI_iff :
+  Pr[⊥ |
+        OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+      0 ∧
+    ∀
+      x ∈
+        support
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hNoFail :
+  Pr[⊥ |
+      OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+    0
+hAllSucceed :
+  ∀
+    x ∈
+      support
+        (OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+    match x with
+    | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hDefaultSubRandom :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run s)
+hDefaultSubRandom' :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s)
+hDefaultSubRandomFull :
+  (support do
+      let s ← init
+      (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+    support do
+      let s ← init
+      (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s
+hDefaultComplete :
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+niSpec : ProtocolSpec 1 := { dir := !v[Direction.P_to_V], «Type» := !v[(i : pSpec.MessageIdx) → pSpec.Message i] }
+this✝⁴ : niSpec.ProverFirst
+this✝³ : niSpec.ProverOnly
+this✝² : (i : niSpec.ChallengeIdx) → VCVCompatible (niSpec.Challenge i)
+this✝¹ : (i : niSpec.ChallengeIdx) → SampleableType (niSpec.Challenge i)
+s : σ
+hliftComp_self :
+  ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α),
+    mx.liftComp (oSpec + fsChallengeOracle StmtIn pSpec) = mx
+hliftM_some : ∀ {α : Type} (mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α), liftM mx = some <$> mx
+hmsg :
+  (fun p => (p.1.1, p.1.2.2, p.2)) <$>
+      (simulateQ (impl.addLift fsChallengeQueryImpl')
+            (Prover.runToRoundFS (Fin.last n) stmtIn R.prover (R.prover.input (stmtIn, witIn)))).run
+        (s, defaultFSImpl) =
+    (fun p => (p.1.1.toMessagesUpTo, p.1.2, p.2, defaultFSImpl)) <$>
+      (simulateQ (impl.addLift defaultChalImpl) (Prover.runToRound (Fin.last n) stmtIn witIn R.prover)).run s
+G : MessagesUpTo (Fin.last n) pSpec ×
+    R.prover.PrvState (Fin.last n) × σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id →
+  ProbComp (Option ((StmtOut × WitOut) × StmtOut)) :=
+  fun x =>
+    match x with
+    | (msgs, prvState, s', _q) => do
+      let __discr ← (simulateQ impl (R.prover.output prvState)).run s'
+      match __discr with
+        | ((prvStmtOut, witOut), s'') =>
+          let transcript := Transcript.ofMessagesChallenges msgs fun i => default;
+          do
+          let __discr ← (simulateQ impl (R.verifier.verify stmtIn transcript).run).run s''
+          match __discr with
+            | (stmtOutOpt, _s''') =>
+              match stmtOutOpt with
+              | none => pure none
+              | some stmtOut => pure (some ((prvStmtOut, witOut), stmtOut))
+this✝ : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → VCVCompatible ((take ↑k ⋯ pSpec).Challenge j)
+this : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → SampleableType ((take ↑k ⋯ pSpec).Challenge j)
+hliftM_some_FS : ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α), liftM mx = some <$> mx
+hc_oSpec :
+  (QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl +
+        QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp)
+          fsChallengeQueryImpl' ∘ₛ
+      fun t => liftM (query t)) =
+    QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl
+msgs : MessagesUpTo (Fin.last n) pSpec
+_stmtIn' : StmtIn
+prvState : R.prover.PrvState (Fin.last n)
+s' : σ
+hmem :
+  ((msgs, _stmtIn', prvState), s', defaultFSImpl) ∈
+    support
+      ((simulateQ (impl.addLift fsChallengeQueryImpl')
+            (Prover.runToRoundFS (Fin.last n) stmtIn R.prover (R.prover.input (stmtIn, witIn)))).run
+        (s, fun x => default))
+prvStmtOut : StmtOut
+witOut : WitOut
+s'' : σ
+h_deriveFS :
+  (simulateQ (impl.addLift fsChallengeQueryImpl') (Messages.deriveTranscriptFS stmtIn msgs)).run (s'', defaultFSImpl) =
+    pure (Transcript.ofMessagesChallenges msgs fun i => default, s'', defaultFSImpl)
+⊢ (do
+      let a ←
+        (simulateQ (impl.addLift fsChallengeQueryImpl') (Messages.deriveTranscriptFS stmtIn msgs)).run
+            (s'', defaultFSImpl)
+      let a ←
+        (simulateQ (impl.addLift fsChallengeQueryImpl') do
+                let __do_lift ← liftM (R.verifier.verify stmtIn a.1)
+                match __do_lift with
+                  | some __do_lift =>
+                    match __do_lift with
+                    | none => pure none
+                    | some a => pure (some a)
+                  | none => pure none).run
+            a.2
+      (fun a => Option.map (fun x => (x.1.2, x.2)) a.1) <$>
+          (simulateQ
+                (impl.addLift fsChallengeQueryImpl' +
+                  QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp)
+                    challengeQueryImpl)
+                do
+                let __do_lift ←
+                  match a.1 with
+                    | none => pure none
+                    | some a => pure (some a)
+                match __do_lift with
+                  | some __do_lift =>
+                    pure
+                      (some
+                        ((fun i =>
+                            match i with
+                            | ⟨0, isLt⟩ => msgs,
+                            prvStmtOut, witOut),
+                          __do_lift))
+                  | none => pure none).run
+            a.2) =
+    do
+    let __discr ←
+      (simulateQ impl (R.verifier.verify stmtIn (Transcript.ofMessagesChallenges msgs fun i => default))).run s''
+    match __discr.1 with
+      | none => pure none
+      | some stmtOut => pure (some ((prvStmtOut, witOut), stmtOut))
+case h.e_a.h
+n : ℕ
+pSpec : ProtocolSpec n
+ι : Type
+oSpec : OracleSpec ι
+StmtIn WitIn StmtOut WitOut : Type
+inst✝² : VCVCompatible StmtIn
+inst✝¹ : (i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)
+inst✝ : (i : pSpec.ChallengeIdx) → SampleableType (pSpec.Challenge i)
+σ : Type
+init : ProbComp σ
+impl : QueryImpl oSpec (StateT σ ProbComp)
+relIn : Set (StmtIn × WitIn)
+relOut : Set (StmtOut × WitOut)
+R : Reduction oSpec StmtIn WitIn StmtOut WitOut pSpec
+hPerf :
+  ∀ (stmtIn : StmtIn) (witIn : WitIn),
+    (stmtIn, witIn) ∈ relIn →
+      have pImpl := impl.addLift challengeQueryImpl;
+      (probEvent
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+          fun x =>
+          match x with
+          | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+        1
+stmtIn : StmtIn
+witIn : WitIn
+hRelIn : (stmtIn, witIn) ∈ relIn
+hI :
+  have pImpl := impl.addLift challengeQueryImpl;
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ pImpl (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+hI_iff :
+  Pr[⊥ |
+        OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+      0 ∧
+    ∀
+      x ∈
+        support
+          (OptionT.mk do
+            let __do_lift ← init
+            (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hNoFail :
+  Pr[⊥ |
+      OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift] =
+    0
+hAllSucceed :
+  ∀
+    x ∈
+      support
+        (OptionT.mk do
+          let __do_lift ← init
+          (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' __do_lift),
+    match x with
+    | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut
+hDefaultSubRandom :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run s)
+hDefaultSubRandom' :
+  ∀ (s : σ),
+    support ((simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+      support ((simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s)
+hDefaultSubRandomFull :
+  (support do
+      let s ← init
+      (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' s) ⊆
+    support do
+      let s ← init
+      (simulateQ (impl.addLift challengeQueryImpl) (Reduction.run stmtIn witIn R)).run' s
+hDefaultComplete :
+  (probEvent
+      (OptionT.mk do
+        let __do_lift ← init
+        (simulateQ (impl.addLift defaultChalImpl) (Reduction.run stmtIn witIn R)).run' __do_lift)
+      fun x =>
+      match x with
+      | ((fst, prvStmtOut, witOut), stmtOut) => (stmtOut, witOut) ∈ relOut ∧ prvStmtOut = stmtOut) =
+    1
+niSpec : ProtocolSpec 1 := { dir := !v[Direction.P_to_V], «Type» := !v[(i : pSpec.MessageIdx) → pSpec.Message i] }
+this✝⁴ : niSpec.ProverFirst
+this✝³ : niSpec.ProverOnly
+this✝² : (i : niSpec.ChallengeIdx) → VCVCompatible (niSpec.Challenge i)
+this✝¹ : (i : niSpec.ChallengeIdx) → SampleableType (niSpec.Challenge i)
+s : σ
+hliftComp_self :
+  ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α),
+    mx.liftComp (oSpec + fsChallengeOracle StmtIn pSpec) = mx
+hliftM_some : ∀ {α : Type} (mx : OracleComp (oSpec + [pSpec.Challenge]ₒ) α), liftM mx = some <$> mx
+hmsg :
+  (fun p => (p.1.1, p.1.2.2, p.2)) <$>
+      (simulateQ (impl.addLift fsChallengeQueryImpl')
+            (Prover.runToRoundFS (Fin.last n) stmtIn R.prover (R.prover.input (stmtIn, witIn)))).run
+        (s, defaultFSImpl) =
+    (fun p => (p.1.1.toMessagesUpTo, p.1.2, p.2, defaultFSImpl)) <$>
+      (simulateQ (impl.addLift defaultChalImpl) (Prover.runToRound (Fin.last n) stmtIn witIn R.prover)).run s
+G : MessagesUpTo (Fin.last n) pSpec ×
+    R.prover.PrvState (Fin.last n) × σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id →
+  ProbComp (Option ((StmtOut × WitOut) × StmtOut)) :=
+  fun x =>
+    match x with
+    | (msgs, prvState, s', _q) => do
+      let __discr ← (simulateQ impl (R.prover.output prvState)).run s'
+      match __discr with
+        | ((prvStmtOut, witOut), s'') =>
+          let transcript := Transcript.ofMessagesChallenges msgs fun i => default;
+          do
+          let __discr ← (simulateQ impl (R.verifier.verify stmtIn transcript).run).run s''
+          match __discr with
+            | (stmtOutOpt, _s''') =>
+              match stmtOutOpt with
+              | none => pure none
+              | some stmtOut => pure (some ((prvStmtOut, witOut), stmtOut))
+this✝ : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → VCVCompatible ((take ↑k ⋯ pSpec).Challenge j)
+this : (k : Fin (n + 1)) → (j : (take ↑k ⋯ pSpec).ChallengeIdx) → SampleableType ((take ↑k ⋯ pSpec).Challenge j)
+hliftM_some_FS : ∀ {α : Type} (mx : OracleComp (oSpec + fsChallengeOracle StmtIn pSpec) α), liftM mx = some <$> mx
+hc_oSpec :
+  (QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl +
+        QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp)
+          fsChallengeQueryImpl' ∘ₛ
+      fun t => liftM (query t)) =
+    QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp) impl
+msgs : MessagesUpTo (Fin.last n) pSpec
+_stmtIn' : StmtIn
+prvState : R.prover.PrvState (Fin.last n)
+s' : σ
+hmem :
+  ((msgs, _stmtIn', prvState), s', defaultFSImpl) ∈
+    support
+      ((simulateQ (impl.addLift fsChallengeQueryImpl')
+            (Prover.runToRoundFS (Fin.last n) stmtIn R.prover (R.prover.input (stmtIn, witIn)))).run
+        (s, fun x => default))
+prvStmtOut : StmtOut
+witOut : WitOut
+s'' : σ
+h_deriveFS :
+  (simulateQ (impl.addLift fsChallengeQueryImpl') (Messages.deriveTranscriptFS stmtIn msgs)).run (s'', defaultFSImpl) =
+    pure (Transcript.ofMessagesChallenges msgs fun i => default, s'', defaultFSImpl)
+⊢ (do
+      let a ←
+        (simulateQ (impl.addLift fsChallengeQueryImpl') (Messages.deriveTranscriptFS stmtIn msgs)).run
+            (s'', defaultFSImpl)
+      let a ←
+        (simulateQ (impl.addLift fsChallengeQueryImpl') do
+                let __do_lift ← liftM (R.verifier.verify stmtIn a.1)
+                match __do_lift with
+                  | some __do_lift =>
+                    match __do_lift with
+                    | none => pure none
+                    | some a => pure (some a)
+                  | none => pure none).run
+            a.2
+      (fun a => Option.map (fun x => (x.1.2, x.2)) a.1) <$>
+          (simulateQ
+                (impl.addLift fsChallengeQueryImpl' +
+                  QueryImpl.liftTarget (StateT (σ × QueryImpl (srChallengeOracle StmtIn pSpec) Id) ProbComp)
+                    challengeQueryImpl)
+                do
+                let __do_lift ←
+                  match a.1 with
+                    | none => pure none
+                    | some a => pure (some a)
+                match __do_lift with
+                  | some __do_lift =>
+                    pure
+                      (some
+                        ((fun i =>
+                            match i with
+                            | ⟨0, isLt⟩ => msgs,
+                            prvStmtOut, witOut),
+                          __do_lift))
+                  | none => pure none).run
+            a.2) =
+    do
+    let __discr ←
+      (simulateQ impl (R.verifier.verify stmtIn (Transcript.ofMessagesChallenges msgs fun i => default))).run s''
+    match __discr.1 with
+      | none => pure none
+      | some stmtOut => pure (some ((prvStmtOut, witOut), stmtOut))
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1202:13: warning: This simp argument is unused:
+  probEvent_map
+
+Hint: Omit it from the simp argument list.
+  simp only ̵[̵p̵r̵o̵b̵E̵v̵e̵n̵t̵_̵m̵a̵p̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1224:46: warning: This simp argument is unused:
+  OptionT.run_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [OptionT.run_map, OptionT.run_mk, OptionT.run_b̵i̵n̵d̵,̵ ̵O̵p̵t̵i̵o̵n̵T̵.̵r̵u̵n̵_̵lift]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1224:64: warning: This simp argument is unused:
+  OptionT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [OptionT.run_map, OptionT.run_mk, OptionT.run_bind,̵ ̵O̵p̵t̵i̵o̵n̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1240:29: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_p̵u̵r̵e̵,̵ ̵s̵i̵mu̵l̵at̵e̵Q̵_̵m̵a̵p,
+  ̵  ̵ ̵ ̵bind_pure_comp, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲StateT.run_map,
+  ̵  ̵ ̵ ̵map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1240:45: warning: This simp argument is unused:
+  simulateQ_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵m̵a̵p̵,̵
+  ̵ ̵ ̵ ̵ ̵bind_pure_comp, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲StateT.run_map,
+  ̵  ̵ ̵ ̵map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1241:37: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, bind_pure_comp, StateT.run_bind,
+  ̲  ̲ ̲ ̲S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_map, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1241:54: warning: This simp argument is unused:
+  StateT.run_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, bind_pure_comp, StateT.run_bind,
+  ̲  ̲ ̲ ̲StateT.run_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵m̵a̵p̵,̵map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1242:14: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, bind_pure_comp, StateT.run_bind,
+  ̲  ̲ ̲ ̲StateT.run_pure, StateT.run_map, map_bind, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1242:31: warning: This simp argument is unused:
+  bind_assoc
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, bind_pure_comp, StateT.run_bind,
+  ̲  ̲ ̲ ̲StateT.run_pure, StateT.run_map, map_bind, Functor.map_map, b̵i̵n̵d̵_̵a̵s̵s̵o̵c̵,̵ ̵pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1242:43: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, bind_pure_comp, StateT.run_bind,
+  ̲  ̲ ̲ ̲StateT.run_pure, StateT.run_map, map_bind, Functor.map_map, b̵i̵n̵d̵_̵a̵s̵s̵o̵c̵,̵ ̵p̵u̵r̵e̵_̵b̵i̵n̵d̵]̵b̲i̲n̲d̲_̲a̲s̲s̲o̲c̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1260:61: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_map, StateT.run_map, Functor.map_map,̵ ̵m̵a̵p̵_̵b̵i̵n̵d̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1273:13: warning: This simp argument is unused:
+  simulateQ_map
+
+Hint: Omit it from the simp argument list.
+  simp only [s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵m̵a̵p̵,̵ ̵StateT.run_map, Functor.map_map, map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1273:28: warning: This simp argument is unused:
+  StateT.run_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_map, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵m̵a̵p̵,̵ ̵Functor.map_map, map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1279:54: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [map_eq_pure_bind, bind_assoc, pure_bind,̵ ̵F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵m̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1366:44: warning: This simp argument is unused:
+  ← QueryImpl.simulateQ_compose
+
+Hint: Omit it from the simp argument list.
+  simp only [OracleComp.liftComp_def,̵ ̵←̵ ̵Q̵u̵e̵r̵y̵I̵m̵p̵l̵.̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵c̵o̵m̵p̵o̵s̵e̵]
+
+Note: Simp arguments with `←` have the additional effect of removing the other direction from the simp set, even if the simp argument itself is unused. If the hint above does not work, try replacing `←` with `-` to only get that effect and silence this warning.
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1368:19: warning: This simp argument is unused:
+  simulateQ_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵b̵i̵n̵d̵,̵ ̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵[̲s̲i̲m̲u̲l̲a̲t̲e̲Q̲_̲p̲u̲r̲e̲,̲ StateT.run_bind, StateT.run_pure, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map, map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1368:35: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_bind, StateT.run_pure, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map, map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1368:51: warning: This simp argument is unused:
+  StateT.run_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵b̵i̵n̵d̵,̵ ̵StateT.run_pure, bind_pure_comp, Functor.map_map,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1368:68: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, StateT.run_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵bind_pure_comp, Functor.map_map,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1369:26: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, StateT.run_bind, StateT.run_pure, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1370:63: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [OptionT.run, simulateQ_map, StateT.run_map, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵map_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1370:80: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [OptionT.run, simulateQ_map, StateT.run_map, Functor.map_map,̵ ̵m̵a̵p̵_̵b̵i̵n̵d̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1373:36: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_map_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1376:19: warning: This simp argument is unused:
+  G
+
+Hint: Omit it from the simp argument list.
+  simp only ̵[̵G̵]̵
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1377:52: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, bind_pure_comp, map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1377:68: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, simulateQ_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵bind_pure_comp, map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1378:10: warning: This simp argument is unused:
+  bind_pure_comp
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, simulateQ_pure, StateT.run_pure, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵ ̵map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲Functor.map_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1378:36: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, StateT.run_bind, simulateQ_pure, StateT.run_pure, bind_pure_comp,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵]̵m̲a̲p̲_̲b̲i̲n̲d̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1381:19: warning: This simp argument is unused:
+  simulateQ_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_b̵i̵n̵d̵,̵ ̵s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵pure, simulateQ_map,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_pure, StateT.run_map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1381:35: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_p̵u̵r̵e̵,̵ ̵s̵i̵mu̵l̵at̵e̵Q̵_̵m̵a̵p,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_pure, StateT.run_map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1382:10: warning: This simp argument is unused:
+  StateT.run_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_b̵i̵n̵d̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵pure, StateT.run_map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1382:27: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1383:26: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1383:36: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, map_bind, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1383:53: warning: This simp argument is unused:
+  bind_assoc
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, map_bind, Functor.map_map, b̵i̵n̵d̵_̵a̵s̵s̵o̵c̵,̵ ̵pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1383:65: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, map_bind, Functor.map_map, b̵i̵n̵d̵_̵a̵s̵s̵o̵c̵,̵ ̵p̵u̵r̵e̵_̵b̵i̵n̵d̵]̵b̲i̲n̲d̲_̲a̲s̲s̲o̲c̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1385:35: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_p̵u̵r̵e̵,̵ ̵s̵i̵mu̵l̵at̵e̵Q̵_̵m̵a̵p,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_pure, StateT.run_map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1385:51: warning: This simp argument is unused:
+  simulateQ_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵m̵a̵p̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_pure, StateT.run_map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1386:27: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵map,
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1386:44: warning: This simp argument is unused:
+  StateT.run_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵StateT.run_bind, StateT.run_pure, ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵m̵a̵p̵,̵
+            bind_pure_comp, map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1387:10: warning: This simp argument is unused:
+  bind_pure_comp
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, b̵i̵n̵d̵_̵p̵u̵r̵e̵_̵c̵o̵m̵p̵,̵ ̵map_bind, Functor.map_map, bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1387:36: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, map_bind, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵bind_assoc, pure_bind]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:1387:65: warning: This simp argument is unused:
+  pure_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_bind, simulateQ_pure, simulateQ_map, StateT.run_bind, StateT.run_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_map, bind_pure_comp, map_bind, Functor.map_map, b̵i̵n̵d̵_̵a̵s̵s̵o̵c̵,̵ ̵p̵u̵r̵e̵_̵b̵i̵n̵d̵]̵b̲i̲n̲d̲_̲a̲s̲s̲o̲c̲]̲
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`

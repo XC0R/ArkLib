@@ -195,8 +195,9 @@ lemma ps_eval_x_eq_map {F : Type} [CommSemiring F]
 lemma ps_eval_y_eq_eval_x_swap {F : Type} [CommRing F]
     (y : F) (f : F[X][Y]) :
     evalY y f = evalX y (swap f) := by
+  letI : Algebra F[X] F[X] := Polynomial.algebra (R := F) (A := F)
   convert aveal_eq_map_swap y f using 1
-  · unfold evalY Polynomial.aeval; aesop
+  · unfold evalY; simp [Polynomial.aeval_def]
   · -- By definition of `evalX`, we have `evalX y (swap f) = (swap f).map (evalRingHom y)`.
     rw [ps_eval_x_eq_map]
     rfl

@@ -1,0 +1,225 @@
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:16: warning: This simp argument is unused:
+  StateT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵,̵ ̵map_bind, bind_pure_comp, Functor.map_map, Function.comp, map_pure, StateT.run_pure,
+  ̲  ̲ ̲ ̲Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:33: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map, Function.comp, map_pure,
+  ̲  ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:178:76: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵mp̵,̵
+  ̵ ̵ ̵ ̵ ̵m̵ap_pure,
+  ̲  ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:179:4: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+      m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:179:14: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+      StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp, ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+      m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵Prod.map, id_eq, Prod.mk.eta]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:20: warning: This simp argument is unused:
+  StateT.run_lift
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵l̵i̵f̵t̵,̵ ̵map_bind, bind_pure_comp, Functor.map_map, Function.comp, ̲m̲a̲p̲_̲p̲u̲r̲e̲,̲
+          m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:37: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵bind_pure_comp, Functor.map_map, Function.comp, map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:63: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functo̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵F̵u̵n̵c̵t̵ion.comp,
+  ̵  ̵ ̵ ̵ ̵ ̵ ̵ ̵map_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:213:80: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵mp̵,̵
+  ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵ ̵m̵ap_pure,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:8: warning: This simp argument is unused:
+  map_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          m̵a̵p̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_pure, Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:18: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵Prod.map, id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:35: warning: This simp argument is unused:
+  Prod.map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, P̵r̵o̵d̵.̵m̵a̵p̵,̵ ̵id_eq, Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:45: warning: This simp argument is unused:
+  id_eq
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, i̵d̵_̵e̵q̵,̵ ̵Prod.mk.eta, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:52: warning: This simp argument is unused:
+  Prod.mk.eta
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, id_eq, P̵r̵o̵d̵.̵m̵k̵.̵e̵t̵a̵,̵ ̵id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:214:65: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [QueryImpl.liftTarget_apply, liftM, MonadLiftT.monadLift, MonadLift.monadLift,
+          StateT.run, StateT.run_lift, map_bind, bind_pure_comp, Functor.map_map, Function.comp,
+          map_pure, StateT.run_pure, Prod.map, id_eq, Prod.mk.eta,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:321:6: error: `simp` made no progress
+ArkLib/OracleReduction/FiatShamir/Basic.lean:279:49: warning: This simp argument is unused:
+  simulateQ_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, s̵i̵m̵u̵l̵a̵t̵e̵Q̵_̵p̵u̵r̵e̵,̵ ̵simulateQ_map, Functor.map_map, map_bind,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲StateT.run_bind, StateT.run_pure, StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:280:52: warning: This simp argument is unused:
+  StateT.run_pure
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_bind, simulateQ_pure, simulateQ_map, Functor.map_map,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲map_bind, StateT.run_bind, S̵t̵a̵t̵e̵T̵.̵r̵u̵n̵_̵p̵u̵r̵e̵,̵ ̵StateT.run_map, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.simulateQ_add_liftComp_right]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:331:48: warning: This simp argument is unused:
+  Functor.map_map
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, F̵u̵n̵c̵t̵o̵r̵.̵m̵a̵p̵_̵m̵a̵p̵,̵ ̵map_bind, ← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:331:65: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [bind_pure_comp, simulateQ_map, Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵← OracleComp.liftComp_eq_liftM,
+  ̲  ̲ ̲ ̲ ̲ ̲ ̲ ̲QueryImpl.addLift_def, QueryImpl.simulateQ_add_liftComp_left]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:362:34: warning: This simp argument is unused:
+  map_bind
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map, m̵a̵p̵_̵b̵i̵n̵d̵,̵ ̵QueryImpl.liftTarget_self, ← QueryImpl.addLift_def]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:377:8: warning: automatically included section variable(s) unused in theorem `_private.ArkLib.OracleReduction.FiatShamir.Basic.0.runToRoundFS_default_prvState_eq`:
+  [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [(i : pSpec.ChallengeIdx) → VCVCompatible (pSpec.Challenge i)] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:392:30: warning: This simp argument is unused:
+  Function.comp
+
+Hint: Omit it from the simp argument list.
+  simp only [Functor.map_map,̵ ̵F̵u̵n̵c̵t̵i̵o̵n̵.̵c̵o̵m̵p̵] at this
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:418:37: warning: This simp argument is unused:
+  OracleQuery.cont_query
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.c̵o̵n̵t̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵input_query, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:418:86: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.cont_query, OracleQuery.input_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:435:37: warning: This simp argument is unused:
+  OracleQuery.cont_query
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.c̵o̵n̵t̵_̵q̵u̵e̵r̵y̵,̵ ̵O̵r̵a̵c̵l̵e̵Q̵u̵e̵r̵y̵.̵input_query, id_map]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:435:86: warning: This simp argument is unused:
+  id_map
+
+Hint: Omit it from the simp argument list.
+  simp only [simulateQ_query_bind, OracleQuery.cont_query, OracleQuery.input_query,̵ ̵i̵d̵_̵m̵a̵p̵]
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:442:8: warning: declaration uses `sorry`
+ArkLib/OracleReduction/FiatShamir/Basic.lean:477:8: warning: declaration uses `sorry`
