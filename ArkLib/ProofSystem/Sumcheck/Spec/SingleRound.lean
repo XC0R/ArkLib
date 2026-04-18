@@ -425,13 +425,17 @@ open Function in
 def oracleVerifier : OracleVerifier oSpec (StmtIn R) (OStmtIn R deg) (StmtOut R) (OStmtOut R deg)
     (pSpec R deg) where
   verify := fun target chal => do
+    -- Query the message oracle at each evaluation point to check the prover's polynomial
     let evals : Vector R m ← (Vector.finRange m).mapM
       (fun i => OptionT.lift <| OracleComp.liftComp
-        (OracleComp.lift <| query (spec := [OStmtIn R deg]ₒ) (⟨(), D i⟩))
+        (OracleComp.lift <| query (spec := [(pSpec R deg).Message]ₒ) (⟨default, D i⟩))
         _)
     guard (evals.sum = target)
-    -- Needs to convert `evals` to `R⦃≤ deg⦄[X]`, and then evaluate at `chal`
-    pure (sorry, chal default)
+    -- Query the input oracle at the challenge point for the new target
+    let newTarget ← OptionT.lift <| OracleComp.liftComp
+      (OracleComp.lift <| query (spec := [OStmtIn R deg]ₒ) (⟨(), chal default⟩))
+      _
+    pure (newTarget, chal default)
   embed := .inl
   hEq := fun i => by simp [pSpec]
 
@@ -453,12 +457,231 @@ open scoped NNReal
 --   · simp; exact default
 --   · simp; exact default
 
--- TODO: show that the oracle verifier reduces to the (non-oracle) verifier
+-- Bridge lemmas: simulateQ distributes over OptionT operations.
+-- These connect OptionT's Bind/Pure/Alternative with OracleComp's, enabling simulateQ_bind
+-- to fire through OptionT do-blocks.
+private lemma simulateQ_optionT_bind'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α β : Type} (mx : OptionT (OracleComp spec) α) (my : α → OptionT (OracleComp spec) β) :
+    simulateQ impl ((mx >>= my : OptionT (OracleComp spec) β) : OracleComp spec (Option β)) =
+    (simulateQ impl (mx : OracleComp spec (Option α)) >>= fun opt =>
+      match opt with
+      | none => pure none
+      | some a => simulateQ impl (my a : OracleComp spec (Option β)) : r (Option β)) := by
+  change simulateQ impl ((mx : OracleComp spec (Option α)) >>= fun opt =>
+    match opt with | some a => (my a : OracleComp spec (Option β)) | none => pure none) = _
+  rw [simulateQ_bind]
+  congr 1; ext opt; cases opt <;> simp [simulateQ_pure]
+
+private lemma simulateQ_optionT_lift'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α : Type} (mx : OracleComp spec α) :
+    simulateQ impl ((OptionT.lift mx : OptionT (OracleComp spec) α) : OracleComp spec (Option α)) =
+    (some <$> simulateQ impl mx : r (Option α)) := by
+  change simulateQ impl (some <$> mx) = some <$> simulateQ impl mx
+  rw [simulateQ_map]
+
+private lemma simulateQ_optionT_liftM'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α : Type} (mx : OracleComp spec α) :
+    simulateQ impl ((liftM mx : OptionT (OracleComp spec) α) : OracleComp spec (Option α)) =
+    (some <$> simulateQ impl mx : r (Option α)) := by
+  -- liftM mx goes through MonadLiftT → MonadLift → OptionT.lift → OptionT.mk (x >>= pure ∘ some)
+  -- Unfold the typeclass layers, then use simulateQ_bind + simulateQ_pure
+  delta liftM MonadLiftT.monadLift instMonadLiftTOfMonadLift monadLift
+    instMonadLiftTOfOracleQuery
+  simp only [OptionT.instMonadLift, OptionT.lift, OptionT.mk,
+    simulateQ_bind, simulateQ_pure, simulateQ_map,
+    liftComp, bind_pure_comp]
+  erw [simulateQ_ofLift_eq_self]
+
+private lemma simulateQ_optionT_pure'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r) {α : Type} (x : α) :
+    simulateQ impl ((pure x : OptionT (OracleComp spec) α) : OracleComp spec (Option α)) =
+    (pure (some x) : r (Option α)) :=
+  simulateQ_pure impl (some x)
+
+private lemma simulateQ_optionT_failure'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r) {α : Type} :
+    simulateQ impl ((failure : OptionT (OracleComp spec) α) : OracleComp spec (Option α)) =
+    (pure none : r (Option α)) :=
+  simulateQ_pure impl none
+
+-- Transitive bridge: simulateQ on liftM from OracleComp spec to OptionT (OracleComp (spec+spec')).
+-- Combines liftComp (spec change) + OptionT.lift (Option wrapping).
+private lemma simulateQ_trans_liftM_pure
+    {ι ι' : Type} {spec : OracleSpec ι} {spec' : OracleSpec ι'} {r : Type → Type*}
+    [Monad r] (impl : QueryImpl (spec + spec') r) {α : Type} (x : α) :
+    simulateQ impl
+      ((liftM (pure x : OracleComp spec α) : OptionT (OracleComp (spec + spec')) α) :
+        OracleComp (spec + spec') (Option α)) =
+    (pure (some x) : r (Option α)) := by
+  change simulateQ impl (pure (some x)) = pure (some x)
+  exact simulateQ_pure impl (some x)
+
+private lemma simulateQ_trans_liftM_query
+    {ι ι' : Type} {spec : OracleSpec ι} {spec' : OracleSpec ι'} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl (spec + spec') r)
+    (q : spec.Domain) :
+    simulateQ impl
+      ((liftM (liftM (OracleQuery.query q) : OracleComp spec (spec.Range q)) :
+        OptionT (OracleComp (spec + spec')) (spec.Range q)) :
+        OracleComp (spec + spec') (Option (spec.Range q))) =
+    (some <$> (impl (Sum.inl q)) : r (Option (spec.Range q))) := by
+  show simulateQ impl (some <$> (OracleComp.liftComp (liftM (OracleQuery.query q) :
+    OracleComp spec (spec.Range q)) (spec + spec'))) = _
+  rw [simulateQ_map, OracleComp.liftComp_query, simulateQ_map]
+  erw [simulateQ_query]
+  simp only [OracleQuery.query, OracleQuery.mk, Functor.map_map,
+    OracleQuery.cont, OracleQuery.input, id]
+  congr 1
+
+-- Right-side version for queries from spec' in spec + spec'
+private lemma simulateQ_trans_liftM_query_right
+    {ι ι' : Type} {spec : OracleSpec ι} {spec' : OracleSpec ι'} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl (spec + spec') r)
+    (q : spec'.Domain) :
+    simulateQ impl
+      ((liftM (liftM (OracleQuery.query q) : OracleComp spec' (spec'.Range q)) :
+        OptionT (OracleComp (spec + spec')) (spec'.Range q)) :
+        OracleComp (spec + spec') (Option (spec'.Range q))) =
+    (some <$> (impl (Sum.inr q)) : r (Option (spec'.Range q))) := by
+  show simulateQ impl (some <$> (OracleComp.liftComp (liftM (OracleQuery.query q) :
+    OracleComp spec' (spec'.Range q)) (spec + spec'))) = _
+  rw [simulateQ_map, OracleComp.liftComp_query, simulateQ_map]
+  erw [simulateQ_query]
+  simp only [OracleQuery.query, OracleQuery.mk, Functor.map_map,
+    OracleQuery.cont, OracleQuery.input, id]
+  congr 1
+
+private lemma MonadHom.toFun_map' {m n : Type → Type*} [Monad m] [Monad n]
+    [LawfulMonad m] [LawfulMonad n]
+    {α β : Type} (φ : m →ᵐ n) (f : α → β) (mx : m α) :
+    φ.toFun _ (f <$> mx) = f <$> φ.toFun _ mx := by
+  simp only [map_eq_bind_pure_comp, φ.toFun_bind']
+  congr 1
+  ext a
+  exact φ.toFun_pure' _
+
+private lemma List.mapM_hom' {m n : Type → Type*} [Monad m] [Monad n]
+    [LawfulMonad m] [LawfulMonad n]
+    {α β : Type} (φ : m →ᵐ n) (f : α → m β) (l : List α) :
+    φ.toFun _ (l.mapM f) = l.mapM (fun x => φ.toFun _ (f x)) := by
+  induction l with
+  | nil => simp [List.mapM_nil, φ.toFun_pure']
+  | cons a l ih =>
+    rw [List.mapM_cons, φ.toFun_bind', List.mapM_cons]
+    congr 1
+    ext b
+    rw [φ.toFun_bind']
+    congr 1
+    · ext bs; exact φ.toFun_pure' _
+
+private lemma Array.mapM_hom' {m n : Type → Type*} [Monad m] [Monad n]
+    [LawfulMonad m] [LawfulMonad n]
+    {α β : Type} (φ : m →ᵐ n) (f : α → m β) (a : Array α) :
+    φ.toFun _ (a.mapM f) = a.mapM (fun x => φ.toFun _ (f x)) := by
+  rw [Array.mapM_eq_mapM_toList, MonadHom.toFun_map' φ]
+  rw [List.mapM_hom' φ f]
+  rw [Array.mapM_eq_mapM_toList]
+
+private lemma Vector.mapM_hom' {m n : Type → Type*} [Monad m] [Monad n]
+    [LawfulMonad m] [LawfulMonad n]
+    {α β : Type} (φ : m →ᵐ n) (f : α → m β) {k : ℕ} (xs : Vector α k) :
+    φ.toFun _ (xs.mapM f) = xs.mapM (fun x => φ.toFun _ (f x)) := by
+  apply Vector.map_toArray_inj.mp
+  rw [← MonadHom.toFun_map' φ, Vector.toArray_mapM, Vector.toArray_mapM]
+  exact Array.mapM_hom' φ f xs.toArray
+
+private lemma simulateQ_optionT_mapM_pure
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α β : Type} (f : α → OptionT (OracleComp spec) β) (g : α → β)
+    (hfg : ∀ x, simulateQ impl ((f x : OracleComp spec (Option β))) =
+      (pure (some (g x)) : r (Option β)))
+    {n : ℕ} (xs : Vector α n) :
+    simulateQ impl ((xs.mapM f : OracleComp spec (Option (Vector β n)))) =
+      (pure (some (xs.map g)) : r (Option (Vector β n))) := by
+  let φ : OptionT (OracleComp spec) →ᵐ OptionT r :=
+  { toFun := fun α (mx : OptionT (OracleComp spec) α) =>
+      (simulateQ impl mx : OptionT r α)
+    toFun_pure' := fun x => simulateQ_pure impl (some x)
+    toFun_bind' := fun mx my => by
+      show simulateQ impl (mx >>= fun opt => match opt with
+        | some a => my a | none => pure none) =
+        simulateQ impl mx >>= fun opt => match opt with
+        | some a => simulateQ impl (my a) | none => pure none
+      rw [simulateQ_bind]
+      congr 1
+      ext opt
+      cases opt with
+      | none => exact simulateQ_pure impl none
+      | some a => rfl }
+  have h1 := Vector.mapM_hom' φ f xs
+  simp only [show ∀ x, φ.toFun _ (f x) = (pure (g x) : OptionT r β) from hfg] at h1
+  rw [Vector.mapM_pure] at h1
+  exact h1
+
 theorem oracleVerifier_eq_verifier :
     (oracleVerifier R deg D oSpec).toVerifier = verifier R deg D oSpec := by
-  ext
-  simp [OracleVerifier.toVerifier, verifier, OracleInterface.simOracle2]
-  sorry
+  ext ⟨target, oStmt⟩ transcript
+  simp only [OracleVerifier.toVerifier, verifier, oracleVerifier, pSpec,
+    OracleInterface.simOracle2,
+    QueryImpl.addLift_def,
+    QueryImpl.add_apply_inl, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+    OptionT.run, OptionT.mk, OptionT.lift, OptionT.run_bind, OptionT.run_pure, OptionT.run_mk,
+    OracleComp.liftComp_bind, OracleComp.liftComp_pure, OracleComp.liftComp_query,
+    OracleComp.liftComp_map, OracleComp.liftComp_seq,
+    OracleQuery.cont_query, OracleQuery.input_query,
+    pure_bind, bind_pure_comp, bind_assoc, map_pure, id_map, Functor.map_id, Function.comp,
+    FullTranscript.challenges, FullTranscript.messages]
+  -- Push simulateQ through the outer bind
+  erw [simulateQ_bind]
+  -- Navigate to mapM subterm and rewrite using OptionT helper
+  conv_lhs =>
+    arg 2; arg 1
+    erw [simulateQ_optionT_mapM_pure (g := fun i =>
+      (transcript.messages default).1.eval (D i)) (hfg := by intro i; rfl)]
+  -- pure (some evals) >>= rest reduces to rest (some evals); match (some a) resolves
+  simp only [pure_bind]
+  -- Push simulateQ through the guard bind
+  erw [simulateQ_bind]
+  -- Unfold guard to if-then-else
+  simp only [guard, Alternative.failure, OptionT.fail, OptionT.mk]
+  -- Push simulateQ through the guard's if-then-else
+  erw [simulateQ_ite, simulateQ_pure, simulateQ_pure]
+  -- Bridge: rewrite Vector.sum in the if-condition to Finset.sum so both sides match.
+  -- Use `have` to establish the sum equality, then `simp_rw` to rewrite under the binder.
+  have hsum : (Vector.map (fun i => (transcript.messages default).1.eval (D i))
+      (Vector.finRange _)).sum = ∑ x ∈ Finset.map D Finset.univ,
+      Polynomial.eval x ↑(transcript.messages default).1 := by
+    simp only [Vector.sum]
+    rw [← Array.sum_eq_sum_toList, Vector.toList_toArray, Vector.toList_map,
+        Vector.finRange, Vector.toList_ofFn, List.map_ofFn, List.sum_ofFn, Finset.sum_map]
+    simp [Function.comp]
+  rw [hsum]
+  -- Now both guard conditions match. Distribute bind/map over the if-then-else.
+  simp only [OracleComp.ite_bind, pure_bind]
+  -- Simplify simulateQ: pure none in false branch, and push through map/query in true branch
+  simp only [simulateQ_pure]
+  -- Push <$> through both ifs, then split
+  simp only [apply_ite (Functor.map _)]
+  -- Now both sides: if cond then f <$> A else f <$> B
+  split_ifs with h1 h2
+  · -- Both conditions true: resolve simulateQ query, show values agree
+    -- Try rfl — both sides should compute to the same pure value
+    rfl
+  · -- LHS true, RHS false: contradiction (transcript.messages default = transcript 0)
+    exfalso; simp only [FullTranscript.messages, pSpec] at *; tauto
+  · -- LHS false, RHS true: contradiction
+    exfalso; simp only [FullTranscript.messages, pSpec] at *; tauto
+  · -- Both false: both map over none in OptionT → both equal pure none
+    rfl
 
 /-- The oracle reduction is equivalent to the non-oracle reduction -/
 theorem oracleReduction_eq_reduction :
@@ -468,6 +691,8 @@ theorem oracleReduction_eq_reduction :
 
 variable {σ : Type} {init : ProbComp σ} {impl : QueryImpl oSpec (StateT σ ProbComp)}
 
+
+set_option maxHeartbeats 12800000 in
 /-- Perfect completeness for the (non-oracle) reduction -/
 theorem reduction_perfectCompleteness :
     (reduction R deg D oSpec).perfectCompleteness init impl
@@ -504,63 +729,43 @@ theorem reduction_perfectCompleteness :
     intro s _ hmem
     simp only [StateT.run'_eq, support_map, Set.mem_image] at hmem
     obtain ⟨⟨_, s'⟩, hmem, rfl⟩ := hmem
-    -- The computation always returns some (guard passes by hValid, output by construction).
-    -- Needs: support decomposition through simulateQ's PFunctor.FreeM.mapM representation.
-    -- Peel outer OptionT bind via simulateQ_bind
     erw [simulateQ_bind] at hmem
     erw [StateT.run_bind] at hmem
     rw [mem_support_bind_iff] at hmem
     obtain ⟨⟨x, s''⟩, hx, hs⟩ := hmem
-    -- OptionT.lift wraps in some: peel via simulateQ_map
     erw [simulateQ_map] at hx
     rw [StateT.run_map] at hx
     simp only [support_map, Set.mem_image] at hx
     obtain ⟨⟨val, s₀⟩, hval, heq⟩ := hx
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-    -- x = some val; OptionT bind matches on some → takes some branch
-    -- Peel second OptionT bind (stmtOut)
     erw [simulateQ_bind] at hs
     erw [StateT.run_bind] at hs
     rw [mem_support_bind_iff] at hs
     obtain ⟨⟨y, s'''⟩, hy, hs⟩ := hs
-    -- OptionT.lift wraps in some; peel via simulateQ_map (inner + outer)
     erw [simulateQ_map] at hy
     erw [simulateQ_map] at hy
     rw [StateT.run_map] at hy
     simp only [support_map, Set.mem_image] at hy
     obtain ⟨⟨val2, s₁⟩, hval2, heq2⟩ := hy
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq2
-    -- y = some val2; match on some → continues
-    -- val2 : Option output_type; if some, getM succeeds; if none, getM fails
     dsimp only [] at hs
     rcases val2 with _ | ⟨out⟩
-    · -- val2 = none: getM fails → produces none. But guard always passes.
-      exfalso
-      -- Decompose hval: peel the do block's first bind
+    · exfalso
       erw [simulateQ_bind] at hval
       erw [StateT.run_bind] at hval
       rw [mem_support_bind_iff] at hval
       obtain ⟨⟨chal_res, s₂⟩, hchal, hval⟩ := hval
-      -- Try combined simp to peel liftComp_map + simulateQ_map
-      -- Strip liftComp layers using addLift/add decomposition
       simp only [QueryImpl.addLift_def,
         QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
         OracleComp.liftComp_map, OracleComp.liftComp_pure] at hchal hval
-      -- hchal is now: simulateQ impl_add (liftM (query ...))
-      -- Peel the query
       erw [simulateQ_query] at hchal
       rw [StateT.run_map] at hchal
       simp only [support_map, Set.mem_image] at hchal
       obtain ⟨⟨oracle_resp, s_o⟩, _, heq_c⟩ := hchal
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq_c
-      -- chal_res = (query ...).cont oracle_resp — should be concrete tuple
-      -- Now hval has chal_res with known structure; match should reduce
       erw [simulateQ_pure] at hval
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj hval
-      -- val is now concrete. Force Fin.snoc evaluation, then resolve guard.
-      -- dsimp evaluates Fin.snoc definitionally, making val.1 0 = oStmt ()
-      -- Then if_pos hValid resolves the guard
       simp only [QueryImpl.addLift_def,
         QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
         OracleComp.liftComp_map, OracleComp.liftComp_pure,
@@ -568,68 +773,54 @@ theorem reduction_perfectCompleteness :
         StateT.run_pure, StateT.run_map,
         support_pure, support_map, Set.mem_singleton_iff, Set.mem_image,
         Prod.mk.injEq, Option.some.injEq] at hval2
-      -- The inner simulateQ is definitionally liftComp; erw bridges
       erw [QueryImpl.simulateQ_add_liftComp_left] at hval2
-      -- Evaluate Fin.snoc using norm_num, then resolve guard
       simp only [Fin.snoc] at hval2
       norm_num at hval2
-      -- Guard is ∑ x, eval (D x) ... = target; rewrite hValid to match
       rw [Finset.sum_map] at hValid
       rw [if_pos hValid] at hval2
-      -- Guard resolved: pure () → liftComp_pure → simulateQ_pure → done
       simp only [OptionT.run_pure, OracleComp.liftComp_pure,
         simulateQ_pure, pure_bind, map_pure,
         StateT.run_pure, support_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hval2
       simp at hval2
-    · -- val2 = some out: getM succeeds, final map wraps in some, contradicts none
-      simp only [Option.getM, pure_bind] at hs
+    · simp only [Option.getM, pure_bind] at hs
       erw [simulateQ_pure] at hs
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hs
       exact absurd (congr_arg Prod.fst hs) (by simp)
-  · -- All outputs satisfy the event
-    intro x hx
+  · intro x hx
     rw [OptionT.mem_support_iff] at hx
     simp only [OptionT.run_mk, support_bind, Set.mem_iUnion] at hx
     obtain ⟨s, _, hx⟩ := hx
     simp only [StateT.run'_eq, support_map, Set.mem_image] at hx
     obtain ⟨⟨_, s'⟩, hx, rfl⟩ := hx
-    -- Same decomposition as sorry 1: peel outer OptionT bind
     erw [simulateQ_bind] at hx
     erw [StateT.run_bind] at hx
     rw [mem_support_bind_iff] at hx
     obtain ⟨⟨x_opt, s''⟩, hx_first, hx_rest⟩ := hx
-    -- Peel some <$> from OptionT.lift
     erw [simulateQ_map] at hx_first
     rw [StateT.run_map] at hx_first
     simp only [support_map, Set.mem_image] at hx_first
     obtain ⟨⟨val, s₀⟩, hval, heq⟩ := hx_first
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
-    -- x_opt = some val; peel second OptionT bind
     erw [simulateQ_bind] at hx_rest
     erw [StateT.run_bind] at hx_rest
     rw [mem_support_bind_iff] at hx_rest
     obtain ⟨⟨y, s'''⟩, hy, hx_rest⟩ := hx_rest
-    -- Peel some <$> from inner computation
     erw [simulateQ_map] at hy
     erw [simulateQ_map] at hy
     rw [StateT.run_map] at hy
     simp only [support_map, Set.mem_image] at hy
     obtain ⟨⟨val2, s₁⟩, hval2, heq2⟩ := hy
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq2
-    -- y = some val2; case split on val2
     dsimp only [] at hx_rest
     rcases val2 with _ | ⟨out⟩
-    · -- val2 = none: getM fails, produces none, but x is some — contradiction
-      simp only [Option.getM, pure_bind] at hx_rest
+    · simp only [Option.getM, pure_bind] at hx_rest
       erw [simulateQ_pure] at hx_rest
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hx_rest
       exact absurd (congr_arg Prod.fst hx_rest) (by simp)
-    · -- val2 = some out: getM succeeds, x is concrete
-      simp only [Option.getM, pure_bind] at hx_rest
+    · simp only [Option.getM, pure_bind] at hx_rest
       erw [simulateQ_pure] at hx_rest
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hx_rest
       obtain ⟨rfl, rfl⟩ := hx_rest
-      -- Decompose hval to get val's concrete form (same as sorry 1's Layer 6)
       simp only [QueryImpl.addLift_def,
         QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
         OracleComp.liftComp_map, OracleComp.liftComp_pure] at hval
@@ -648,7 +839,6 @@ theorem reduction_perfectCompleteness :
       erw [simulateQ_pure] at hval
       simp only [StateT.run_pure, support_pure, Set.mem_singleton_iff] at hval
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj hval
-      -- Decompose hval2 (same as sorry 1's Layer 7): resolve guard, make out concrete
       erw [QueryImpl.simulateQ_add_liftComp_left] at hval2
       simp only [Fin.snoc] at hval2
       norm_num at hval2
@@ -657,11 +847,9 @@ theorem reduction_perfectCompleteness :
       simp only [OptionT.run_pure, OracleComp.liftComp_pure,
         pure_bind, map_pure,
         StateT.run_pure, support_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hval2
-      -- hval2 is an existential giving out's concrete form
       obtain ⟨_, ⟨_, rfl⟩, _, rfl⟩ := hval2
       simp only [Set.mem_setOf_eq, outputRelation]
       constructor <;> simp
-
 
 /-- Perfect completeness for the oracle reduction -/
 theorem oracleReduction_perfectCompleteness :
