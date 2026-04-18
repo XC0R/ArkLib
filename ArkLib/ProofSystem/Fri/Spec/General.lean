@@ -10,14 +10,13 @@ import ArkLib.ProofSystem.Fri.Spec.SingleRound
 
 namespace Fri
 
-open OracleSpec OracleComp ProtocolSpec Domain NNReal
+open OracleSpec OracleComp ProtocolSpec NNReal
 
 namespace Spec
 
 /- FRI parameters:
    - `F` a non-binary finite field.
-   - `D` the cyclic subgroup of order `2 ^ n` we will to construct the evaluation domains.
-   - `x` the element of `Fˣ` we will use to construct our evaluation domain.
+   - `ω` the smooth coset FFT domain encoding the evaluation domain.
    - `k` the number of, non final, folding rounds the protocol will run.
    - `s` the "folding degree" of each round,
          a folding degree of `1` this corresponds to the standard "even-odd" folding.
@@ -26,86 +25,86 @@ namespace Spec
       for proximity of a polynomial of appropriate degree.
   - `l`, the number of round consistency checks to be run by the query round.
 -/
-variable {F : Type} [NonBinaryField F] [Finite F]
-variable (D : Subgroup Fˣ) {n : ℕ} [DIsCyclicC : IsCyclicWithGen D] [DSmooth : SmoothPowerOfTwo n D]
-variable (x : Fˣ)
+variable {F : Type} [NonBinaryField F] [Fintype F] [DecidableEq F]
+variable {n : ℕ}
+variable {ω : ReedSolomon.SmoothCosetFftDomain n F}
 variable (k : ℕ) (s : Fin (k + 1) → ℕ+) (d : ℕ+)
 variable (dom_size_cond : (2 ^ (∑ i, (s i).1)) * d ≤ 2 ^ n)
 variable (l : ℕ)
 
 /- Input/Output relations for the FRI protocol. -/
-def inputRelation [DecidableEq F] (δ : ℝ≥0) :
+def inputRelation (δ : ℝ≥0) :
     Set
       (
-        (Statement F (0 : Fin (k + 1)) × (∀ j, OracleStatement D x s 0 j)) ×
+        (Statement F (0 : Fin (k + 1)) × (∀ j, OracleStatement s ω 0 j)) ×
         Witness F s d (0 : Fin (k + 2))
       ) :=
   match k with
-  | 0 => FinalFoldPhase.inputRelation D x s d (round_bound dom_size_cond) δ
-  | .succ _ => FoldPhase.inputRelation D x s d 0 (round_bound dom_size_cond) δ
+  | 0 => FinalFoldPhase.inputRelation s d (round_bound dom_size_cond) δ
+  | .succ _ => FoldPhase.inputRelation s d 0 (round_bound dom_size_cond) δ
 
-def outputRelation [DecidableEq F] (δ : ℝ≥0) :
+def outputRelation (δ : ℝ≥0) :
     Set
       (
-        (FinalStatement F k × ∀ j, FinalOracleStatement D x s j) ×
+        (FinalStatement F k × ∀ j, FinalOracleStatement s ω j) ×
         Witness F s d (Fin.last (k + 1))
       )
-  := QueryRound.outputRelation D x s d (round_bound dom_size_cond) δ
+  := QueryRound.outputRelation s d (round_bound dom_size_cond) δ
 
 /- Protocol spec for the combined non-final folding rounds of the FRI protocol. -/
 @[reducible]
 def pSpecFold : ProtocolSpec (Fin.vsum fun (_ : Fin k) ↦ 2) :=
-  ProtocolSpec.seqCompose (fun (i : Fin k) => FoldPhase.pSpec D x s i)
+  ProtocolSpec.seqCompose (fun (i : Fin k) => FoldPhase.pSpec s (ω := ω) i)
 
 /- `OracleInterface` instance for `pSpecFold` and with the final folding round
    protocol specification appended to it. -/
-instance : ∀ j, OracleInterface ((pSpecFold D x k s).Message j) :=
+instance : ∀ j, OracleInterface ((pSpecFold (ω := ω) k s).Message j) :=
   instOracleInterfaceMessageSeqCompose
 
-instance : ∀ j, OracleInterface ((pSpecFold D x k s).Challenge j) :=
+instance : ∀ j, OracleInterface ((pSpecFold (ω := ω) k s).Challenge j) :=
   ProtocolSpec.challengeOracleInterface
 
-instance : ∀ j, OracleInterface (((pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F)).Message j) :=
+instance : ∀ j, OracleInterface (((pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F)).Message j) :=
   instOracleInterfaceMessageAppend
 
-instance : ∀ j, OracleInterface (((pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F)).Challenge j) :=
+instance : ∀ j, OracleInterface (((pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F)).Challenge j) :=
   ProtocolSpec.challengeOracleInterface
 
 instance :
     ∀ i, OracleInterface
-          ((pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec D x l).Message i) :=
+          ((pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec (ω := ω) l).Message i) :=
   instOracleInterfaceMessageAppend
 
 instance :
     ∀ j,
       OracleInterface
-        (((pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec D x l)).Challenge j) :=
+        (((pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec (ω := ω) l)).Challenge j) :=
   ProtocolSpec.challengeOracleInterface
 
 /- Oracle reduction for all folding rounds of the FRI protocol -/
 @[reducible]
 noncomputable def reductionFold :
   OracleReduction []ₒ
-    (Statement F (0 : Fin (k + 1))) (OracleStatement D x s (0 : Fin (k + 1)))
+    (Statement F (0 : Fin (k + 1))) (OracleStatement s ω (0 : Fin (k + 1)))
       (Witness F s d (0 : Fin (k + 2)))
-    (FinalStatement F k) (FinalOracleStatement D x s)
+    (FinalStatement F k) (FinalOracleStatement s ω)
       (Witness F s d (Fin.last (k + 1)))
-    (pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F)
+    (pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F)
  := OracleReduction.append
       (OracleReduction.seqCompose _ _ (fun (i : Fin (k + 1)) => Witness F s d i.castSucc)
-        (FoldPhase.foldOracleReduction D x s d))
-      (FinalFoldPhase.finalFoldOracleReduction D x s d)
+        (fun i => FoldPhase.foldOracleReduction s d i (ω := ω)))
+      (FinalFoldPhase.finalFoldOracleReduction s d)
 
 /- Oracle reduction of the FRI protocol. -/
 @[reducible]
-noncomputable def reduction [DecidableEq F] :
+noncomputable def reduction :
   OracleReduction []ₒ
-    (Statement F (0 : Fin (k + 1))) (OracleStatement D x s (0 : Fin (k + 1)))
+    (Statement F (0 : Fin (k + 1))) (OracleStatement s ω (0 : Fin (k + 1)))
       (Witness F s d (0 : Fin (k + 2)))
-    (FinalStatement F k) (FinalOracleStatement D x s) (Witness F s d (Fin.last (k + 1)))
-    (pSpecFold D x k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec D x l) :=
-  OracleReduction.append (reductionFold D x k s d)
-    (QueryRound.queryOracleReduction D x s d dom_size_cond l)
+    (FinalStatement F k) (FinalOracleStatement s ω) (Witness F s d (Fin.last (k + 1)))
+    (pSpecFold (ω := ω) k s ++ₚ FinalFoldPhase.pSpec F ++ₚ QueryRound.pSpec (ω := ω) l) :=
+  OracleReduction.append (reductionFold (ω := ω) k s d)
+    (QueryRound.queryOracleReduction s d dom_size_cond l)
 
 end Spec
 

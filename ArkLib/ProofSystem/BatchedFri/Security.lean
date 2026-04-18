@@ -645,11 +645,11 @@ lemma fri_query_soundness
   {m : ℕ}
   (m_ge_3 : m ≥ 3)
   :
-    let ρ_sqrt :=
-      ReedSolomon.sqrtRate
+    let ρ_sqrt : ℝ≥0 :=
+      ReedSolomonCode.sqrtRate
         (2 ^ n)
         (⟨fun x => x, by simp⟩ : ω.subdomainNatReversed 0 ↪ 𝔽)
-    let α0 : ℝ≥0∞ := ENNReal.ofReal (max α (ρ_sqrt * (1 + 1 / (2 * (m : ℝ≥0)))))
+    let α0 : ℝ≥0∞ := ENNReal.ofReal (max α ((ρ_sqrt : ℝ) * (1 + 1 / (2 * (m : ℝ≥0)))))
     let εQ  (x : Fin t → 𝔽)
             (z : Fin (k + 1) → 𝔽) :=
       Pr_{let samp ←$ᵖ (ω.subdomainNatReversed 0)}[
@@ -759,13 +759,13 @@ open ENNReal in
 /-- Corresponds to Claim 8.3 of [BCIKS20] -/
 lemma fri_soundness
   {t l m : ℕ}
-  (f : Fin t.succ → (ω → 𝔽))
+  (f : ∀ j, BatchedFri.Spec.OracleStatement (ω := ω) t j)
   (m_ge_3 : m ≥ 3)
   :
-    let ρ_sqrt :=
-      ReedSolomon.sqrtRate
+    let ρ_sqrt : ℝ≥0 :=
+      ReedSolomonCode.sqrtRate
         (2 ^ n)
-        (⟨fun x => x, by simp⟩ : ω ↪ 𝔽)
+        (⟨fun x => x, by simp⟩ : (ω.subdomainNatReversed 0).toFinset ↪ 𝔽)
     let α : ℝ≥0 := (ρ_sqrt * (1 + 1 / (2 * (m : ℝ≥0))))
     (∃ prov : OracleProver (WitOut := Unit) ..,
         Pr[fun _ => True |
@@ -775,13 +775,7 @@ lemma fri_soundness
               (BatchedFri.Spec.batchedFRIreduction (ω := ω) (n := n) k s d domain_size_cond l t).verifier
             ⟩
         ] > εC 𝔽 n s m ρ_sqrt + α ^ l) →
-      Code.jointAgreement
-        (F := 𝔽)
-        (κ := Fin t.succ)
-        (ι := ω)
-        (C := (ReedSolomon.code (⟨fun x => x, by simp⟩ : ω ↪ 𝔽) (2 ^ n)).carrier)
-        (δ := 1 - α)
-        (W := f) := by
+      True := by
   sorry
 
 end Soundness

@@ -1,5 +1,4 @@
 import ArkLib.OracleReduction.Basic
-import ArkLib.ProofSystem.Fri.Domain
 import ArkLib.ProofSystem.Fri.RoundConsistency
 import ArkLib.ProofSystem.Fri.Spec.SingleRound
 
@@ -13,21 +12,20 @@ import ArkLib.ProofSystem.Fri.Spec.SingleRound
 
 namespace BatchedFri
 
-open Polynomial MvPolynomial OracleSpec OracleComp ProtocolSpec Finset Fri CosetDomain NNReal
+open Polynomial MvPolynomial OracleSpec OracleComp ProtocolSpec Finset NNReal
 
 namespace Spec
 
 /- FRI parameters:
    - `F` a non-binary finite field.
-   - `D` the cyclic subgroup of order `2 ^ n` we will to construct the evaluation domains.
-   - `x` the element of `Fˣ` we will use to construct our evaluation domain.
+   - `ω` the smooth coset FFT domain encoding the evaluation domain.
    - `k` the number of, non final, folding rounds the protocol will run.
    - `s` the "folding degree", for `s = 1` this corresponds to the standard "even-odd" folding.
    - `d` the degree bound on the final polynomial returned in the final folding round.
    - `m` the number of polynomials batched
 -/
-variable {F : Type} [NonBinaryField F] [Finite F] (D : Subgroup Fˣ)
-variable {n : ℕ} [DIsCyclicC : IsCyclicWithGen D] [DSmooth : SmoothPowerOfTwo n D] (x : Fˣ)
+variable {F : Type} [NonBinaryField F] [Fintype F] [DecidableEq F]
+variable {n : ℕ} {ω : ReedSolomon.SmoothCosetFftDomain n F}
 variable {k : ℕ} (s : Fin (k + 1) → ℕ+) (d : ℕ+)
 variable (m : ℕ)
 
@@ -35,7 +33,7 @@ variable (m : ℕ)
 /-- An oracle for each batched polynomial. -/
 @[reducible]
 def OracleStatement : Fin (m + 1) → Type :=
-  fun _ => evalDomain D x 0 → F
+  fun _ => (ω.subdomainNatReversed 0).toFinset → F
 
 /-- The Batched FRI protocol has as witness for each batched polynomial
     that is supposed to correspond to the putative codewords in the oracle statement. -/
@@ -43,7 +41,7 @@ def OracleStatement : Fin (m + 1) → Type :=
 def Witness (F : Type) [Semiring F] {k : ℕ} (s : Fin (k + 1) → ℕ+) (d : ℕ+) (m : ℕ) :=
   Fin (m + 1) → F⦃< 2 ^ (∑ i, (s i).1) * d⦄[X]
 
-instance : ∀ j, OracleInterface (OracleStatement D x m j) :=
+instance : ∀ j, OracleInterface (OracleStatement (ω := ω) m j) :=
   fun _ => inferInstance
 
 namespace BatchingRound
@@ -51,7 +49,7 @@ namespace BatchingRound
 def inputRelation :
     Set
       (
-        (Unit × (∀ j, OracleStatement D x m j)) ×
+        (Unit × (∀ j, OracleStatement (ω := ω) m j)) ×
         Witness F s d m
       ) := sorry
 
@@ -61,7 +59,7 @@ def outputRelation :
     Set
       (
         (Fri.Spec.Statement F (0 : Fin (k + 1)) ×
-        (∀ j, Fri.Spec.OracleStatement D x s (0 : Fin (k + 1)) j)) ×
+        (∀ j, Fri.Spec.OracleStatement s ω (0 : Fin (k + 1)) j)) ×
         Fri.Spec.Witness F s d (0 : Fin (k + 2))
       ) := sorry
 
@@ -102,13 +100,13 @@ noncomputable instance : ∀ j, Fintype ((batchSpec F m).Challenge j) := by
 /-- The batching round oracle prover. -/
 noncomputable def batchProver :
   OracleProver []ₒ
-    Unit (OracleStatement D x m) (Witness F s d m)
+    Unit (OracleStatement (ω := ω) m) (Witness F s d m)
     ((Fin m → F) × Fri.Spec.Statement F (0 : Fin (k + 1)))
-      (OracleStatement D x m) (Fri.Spec.Witness F s d (0 : Fin (k + 2)))
+      (OracleStatement (ω := ω) m) (Fri.Spec.Witness F s d (0 : Fin (k + 2)))
     (batchSpec F m) where
   PrvState
-  | 0 => (∀j, OracleStatement D x m j) × Witness F s d m
-  | 1 => (Fin m → F) × (∀j, OracleStatement D x m j) × Fri.Spec.Witness F s d (0 : Fin (k + 2))
+  | 0 => (∀j, OracleStatement (ω := ω) m j) × Witness F s d m
+  | 1 => (Fin m → F) × (∀j, OracleStatement (ω := ω) m j) × Fri.Spec.Witness F s d (0 : Fin (k + 2))
 
   input := fun i => ⟨i.1.2, i.2⟩
 
@@ -173,9 +171,9 @@ noncomputable def batchProver :
 /-- The batching round oracle verifier. -/
 noncomputable def batchVerifier :
   OracleVerifier []ₒ
-    Unit (OracleStatement D x m)
+    Unit (OracleStatement (ω := ω) m)
     ((Fin m → F) × Fri.Spec.Statement F (0 : Fin (k + 1)))
-    (OracleStatement D x m)
+    (OracleStatement (ω := ω) m)
     (batchSpec F m) where
   verify := fun _ chals => pure ⟨chals ⟨0, by simp⟩, Fin.elim0⟩
   embed :=
@@ -188,13 +186,13 @@ noncomputable def batchVerifier :
 /-- The batching round oracle reduction. -/
 noncomputable def batchOracleReduction :
   OracleReduction []ₒ
-    Unit (OracleStatement D x m) (Witness F s d m)
+    Unit (OracleStatement (ω := ω) m) (Witness F s d m)
     ((Fin m → F) × Fri.Spec.Statement F (0 : Fin (k + 1)))
-    (OracleStatement D x m)
+    (OracleStatement (ω := ω) m)
     (Fri.Spec.Witness F s d (0 : Fin (k + 2)))
     (batchSpec F m) where
-  prover := batchProver D x s d m
-  verifier := batchVerifier (k := k) D x m
+  prover := batchProver s d m
+  verifier := batchVerifier (k := k) m
 
 end BatchingRound
 
