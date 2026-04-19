@@ -62,17 +62,21 @@ lemma coeff_polynomialOfCoeffs_eq_coeffs'' :
     (polynomialOfCoeffs coeffs).coeff = Fin.liftF coeffs := by
   aesop (add simp [Fin.liftF', polynomialOfCoeffs])
 
-set_option linter.flexible false in
-set_option linter.style.multiGoal false in
 @[simp]
 lemma polynomialOfCoeffs_eq_zero :
     polynomialOfCoeffs coeffs = 0 ↔ ∀ (x : ℕ) (h : x < deg), coeffs ⟨x, h⟩ = 0 := by
   constructor <;> intro h
   · intro x hx
     have : (polynomialOfCoeffs coeffs).coeff x = (0 : F[X]).coeff x := by rw [h]
-    simp [polynomialOfCoeffs] at this; exact this hx
-  · simp [polynomialOfCoeffs, AddMonoidAlgebra.ext_iff]; intro m
-    split_ifs with hm; exact h m hm; rfl
+    simp only [polynomialOfCoeffs, ne_eq, coeff_ofFinsupp, Finsupp.coe_mk, coeff_zero,
+      dite_eq_right_iff] at this
+    exact this hx
+  · simp only [polynomialOfCoeffs, ne_eq, ofFinsupp_eq_zero, AddMonoidAlgebra.ext_iff,
+      Finsupp.coe_mk]
+    intro m
+    split_ifs with hm
+    · exact h m hm
+    · rfl
 
 lemma polynomialOfCoeffs_coeffsOfPolynomial {p : F[X]}
     (h : p.natDegree + 1 = deg) : polynomialOfCoeffs (coeffsOfPolynomial (deg := deg) p) = p := by
