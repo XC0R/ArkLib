@@ -103,16 +103,17 @@ noncomputable def Witness (F : Type) [NonBinaryField F] {k : ℕ}
 private lemma witness_lift {F : Type} [NonBinaryField F]
   {k : ℕ} {s : Fin (k + 1) → ℕ+} {d : ℕ+} {p : F[X]} {α : F} {i : Fin (k + 1)} :
     p ∈ Witness F s d i.castSucc →
-      p.foldNth (2 ^ (s i).1) α ∈ Witness F s d i.succ := by
+      FoldingPolynomial.polyFold p (2 ^ (s i).1) α ∈ Witness F s d i.succ := by
   intro deg_bound
   unfold Witness at deg_bound ⊢
   rw [Polynomial.mem_degreeLT] at deg_bound ⊢
   simp only [Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat,
     Fin.val_succ] at deg_bound ⊢
   by_cases h : p = 0
-  · rw [h, foldNth_zero, degree_zero]
+  · subst h
+    rw [FoldingPolynomial.polyFold_zero_eq_zero, degree_zero]
     exact WithBot.bot_lt_coe _
-  · by_cases h' : foldNth (2 ^ (s i).1) p α = 0
+  · by_cases h' : FoldingPolynomial.polyFold p (2 ^ (s i).1) α = 0
     · rw [h', degree_zero]
       exact WithBot.bot_lt_coe _
     · erw [Polynomial.degree_eq_natDegree h, WithBot.coe_lt_coe] at deg_bound
@@ -120,10 +121,11 @@ private lemma witness_lift {F : Type} [NonBinaryField F]
       norm_cast at deg_bound ⊢
       have : 2 ^ (s i).1 > 0 := by
         simp only [gt_iff_lt, Nat.ofNat_pos, pow_pos]
-      rw [Iff.symm (Nat.mul_lt_mul_left this)]
-      apply lt_of_le_of_lt foldNth_degree_le'
+      apply lt_of_le_of_lt FoldingPolynomial.polyFold_natDegree_le
       have arith {a b c : ℕ} (h : b ≥ c) (h' : a ≤ c) : a + (b - c) = b - (c - a) := by
         rw [Nat.sub_sub_right b h', Nat.sub_add_comm h, Nat.add_comm]
+      rw [Iff.symm (Nat.mul_lt_mul_left this)]
+      apply lt_of_le_of_lt (Nat.mul_div_le _ _)
       rw [←mul_assoc, ←pow_add, arith]
       · convert deg_bound
         rw [sum_finRangeTo_add_one]
@@ -345,8 +347,8 @@ noncomputable def foldProver :
   | ⟨0, _⟩ => fun ⟨⟨chals, o⟩, p⟩ ↦ pure <|
     fun (α : F) ↦
       ⟨
-        ⟨Fin.append chals (fun (_ : Fin 1) ↦ α), o⟩,
-        ⟨p.1.foldNth (2 ^ (s i.castSucc).1) α, witness_lift p.2⟩
+        ⟨Fin.append chals (fun (_ : Fin 1) => α), o⟩,
+        ⟨FoldingPolynomial.polyFold p.1 (2 ^ (s i.castSucc).1) α, witness_lift p.2⟩
       ⟩
   | ⟨1, h⟩ => nomatch h
 
@@ -541,7 +543,7 @@ noncomputable def finalFoldProver :
       ⟨
         ⟨Fin.vappend chals !v[α], o⟩,
         ⟨
-          p.1.foldNth (2 ^ (s (Fin.last k)).1) α,
+          FoldingPolynomial.polyFold p.1 (2 ^ (s (Fin.last k)).1) α,
           by
             simpa only [(rfl : (Fin.last k).succ = (Fin.last (k + 1)))] using
               witness_lift p.2
@@ -807,7 +809,7 @@ noncomputable def queryVerifier (k_le_n : (∑ j', (s j').1) ≤ n) (l : ℕ) [D
                         }⟩
                     else
                       pure (p.eval (s₀.1 ^ (2 ^ (s (Fin.last k)).1)))
-                  guard (RoundConsistency.roundConsistencyCheck x₀ pts β)
+                  guard (RoundConsistency.roundConsistencyCheck x₀ (List.get pts) β)
               )
     pure prevChallenges
   embed :=
