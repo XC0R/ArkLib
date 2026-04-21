@@ -1,4 +1,5 @@
 import ArkLib.AGM.Basic
+import ArkLib.Bridge.Clean
 import ArkLib.CommitmentScheme.Basic
 import ArkLib.CommitmentScheme.Fold
 import ArkLib.CommitmentScheme.KZG
@@ -146,6 +147,8 @@ import ArkLib.ProofSystem.Component.RandomQuery
 import ArkLib.ProofSystem.Component.ReduceClaim
 import ArkLib.ProofSystem.Component.SendClaim
 import ArkLib.ProofSystem.Component.SendWitness
+import ArkLib.ProofSystem.ConstraintSystem.Basic
+import ArkLib.ProofSystem.ConstraintSystem.Examples
 import ArkLib.ProofSystem.ConstraintSystem.Lookup
 import ArkLib.ProofSystem.ConstraintSystem.MemoryChecking
 import ArkLib.ProofSystem.ConstraintSystem.Plonk
