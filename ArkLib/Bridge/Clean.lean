@@ -47,18 +47,21 @@ abbrev canonicalInputVar (Input : TypeMap) (F : Type) [Field F] [ProvableType In
 /-- A Clean `FormalCircuit` viewed as an ArkLib `ConstraintSystem`.
 
 The single index `Unit` reflects that one circuit is one constraint system (no size family).
-`satisfies` checks that the environment encodes the claimed input and that all circuit
-constraints hold. -/
+The in-the-clear statement `Stmt` carries the public input. The oracle statement `OStmt`
+carries the committed output — the prover commits to an output value and the constraint
+system verifies consistency. `satisfies` checks input encoding, circuit constraints, and
+output consistency. -/
 def toConstraintSystem (circuit : FormalCircuit F Input Output) :
     ConstraintSystem where
   Index := Unit
   Stmt := fun _ => Input F
-  OStmt := fun _ => PUnit
+  OStmt := fun _ => Output F
   Wit := fun _ => Environment F
-  satisfies := fun _ inp _ env =>
+  satisfies := fun _ inp out env =>
     eval env (canonicalInputVar Input F) = inp ∧
     ConstraintsHold env
-      (circuit.main (canonicalInputVar Input F) |>.operations 0)
+      (circuit.main (canonicalInputVar Input F) |>.operations 0) ∧
+    eval env (circuit.output (canonicalInputVar Input F) 0) = out
 
 /-- A Clean `FormalCircuit` viewed as an ArkLib `BehavioralContract`.
 
@@ -67,6 +70,10 @@ def toConstraintSystem (circuit : FormalCircuit F Input Output) :
 - **Completeness**: Clean's `original_completeness` guarantees that if assumptions hold
   and a witness environment exists (encoding the input with valid local witnesses),
   constraints are satisfied and the output meets the spec.
+
+The output lives in `OStmt` (oracle/committed statement) rather than `Stmt`, reflecting
+ZK semantics: the prover commits to the output, and completeness existentially quantifies
+over it.
 
 The `hWitGen` parameter asserts that for every input satisfying `Assumptions`, there exists
 an environment encoding that input and using the circuit's local witness generators. This
@@ -81,7 +88,7 @@ noncomputable def toBehavioralContract (circuit : FormalCircuit F Input Output)
   Assumptions := fun inp => circuit.Assumptions inp
   Spec := fun inp env =>
     circuit.Spec inp (eval env (circuit.output (canonicalInputVar Input F) 0))
-  soundness := fun inp _ env hAssume ⟨hEval, hConstr⟩ =>
+  soundness := fun inp _ env hAssume ⟨hEval, hConstr, _⟩ =>
     circuit.original_soundness 0 env (canonicalInputVar Input F) inp hEval hAssume hConstr
   completeness := fun inp hAssume => by
     obtain ⟨env, hEval, hLocalWit⟩ := hWitGen inp hAssume
@@ -89,6 +96,7 @@ noncomputable def toBehavioralContract (circuit : FormalCircuit F Input Output)
       (canonicalInputVar Input F) inp hEval hAssume hLocalWit
     have hSpec := circuit.original_soundness 0 env
       (canonicalInputVar Input F) inp hEval hAssume hConstr
-    exact ⟨PUnit.unit, env, ⟨hEval, hConstr⟩, hSpec⟩
+    exact ⟨eval env (circuit.output (canonicalInputVar Input F) 0), env,
+      ⟨hEval, hConstr, rfl⟩, hSpec⟩
 
 end Clean.Bridge
