@@ -6,6 +6,8 @@ Authors: Quang Dao, František Silváši, Julian Sutherland, Ilia Vlasov
 
 
 import ArkLib.Data.CodingTheory.ReedSolomon.FftDomain
+import ArkLib.Data.CodingTheory.ReedSolomon
+import ArkLib.Data.CodingTheory.Basic.RelativeDistance
 import ArkLib.OracleReduction.Basic
 import CompPoly.Fields.Basic
 import ArkLib.ProofSystem.Fri.RoundConsistency
@@ -249,23 +251,45 @@ namespace FoldPhase
 --     let x₀  := stmt j;
 --     roundConsistent cond f f' x₀
 
-/- The FRI non-final folding round input relation, with proximity parameter `δ`, f
-   for the `i`th round. -/
+/-- The FRI non-final folding round input relation, with proximity parameter `0 < δ`,
+    for the `i`-th round. The latest oracle codeword (the round-`i` evaluation
+    commitment, indexed at `Fin.last i.castSucc.val`) is δ-close to the Reed-Solomon
+    code on the round-`i` evaluation domain at the witness's degree bound. -/
 def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (Statement F i.castSucc × (∀ j, OracleStatement s ω i.castSucc j)) ×
         Witness F s d i.castSucc.castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N := ∑ j' ∈ finRangeTo (k + 1) (Fin.last i.castSucc.val).val, (s j').1
+    let dom := ω.subdomainNatReversed N
+    let f : Fin (2 ^ (n - N)) → F :=
+      fun idx => ostmt (Fin.last i.castSucc.val)
+        ⟨dom idx, Finset.mem_image.mpr ⟨idx, Finset.mem_univ _, rfl⟩⟩
+    0 < δ ∧
+      δᵣ(f, (ReedSolomon.code (↑dom : Fin (2 ^ (n - N)) ↪ F)
+        (2 ^ ((∑ j', (s j').1) - N) * d.1) : Set _)) ≤ ↑δ
 
-/- The FRI non-final folding round output relation, with proximity parameter `δ`,
-   for the `i`th round. -/
+/-- The FRI non-final folding round output relation, with proximity parameter `0 < δ`,
+    for the `i`-th round. After folding, the round-`(i+1)` codeword (newly committed
+    by the prover, indexed at `Fin.last i.succ.val`) is δ-close to the Reed-Solomon
+    code on the round-`(i+1)` evaluation domain at the folded witness's degree bound. -/
 def outputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (Statement F i.succ × (∀ j, OracleStatement s ω i.succ j)) ×
         Witness F s d i.succ.castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N := ∑ j' ∈ finRangeTo (k + 1) (Fin.last i.succ.val).val, (s j').1
+    let dom := ω.subdomainNatReversed N
+    let f : Fin (2 ^ (n - N)) → F :=
+      fun idx => ostmt (Fin.last i.succ.val)
+        ⟨dom idx, Finset.mem_image.mpr ⟨idx, Finset.mem_univ _, rfl⟩⟩
+    0 < δ ∧
+      δᵣ(f, (ReedSolomon.code (↑dom : Fin (2 ^ (n - N)) ↪ F)
+        (2 ^ ((∑ j', (s j').1) - N) * d.1) : Set _)) ≤ ↑δ
 
 /-- Each round of the FRI protocol begins with the verifier sending a random field element as the
   challenge to the prover, and ends with the prover sending an oracle to
@@ -450,8 +474,10 @@ namespace FinalFoldPhase
 --       let β := f'.eval (s₀.1.1 ^ (2 ^ s));
 --         RoundConsistency.roundConsistencyCheck x₀ pts β
 
-/- Input relation for the final folding round. This is currently sorried out, to be filled in later.
--/
+/-- Input relation for the final folding round, with proximity parameter `0 < δ`. The
+    round-`k` codeword (the last folding round's commit, indexed at `Fin.last k`) is
+    δ-close to the Reed-Solomon code on the round-`k` evaluation domain at the
+    pre-final-fold witness's degree bound. -/
 def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
@@ -460,16 +486,32 @@ def inputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
           (∀ j, OracleStatement s ω (Fin.last k) j)
         ) ×
         Witness F s d (Fin.last k).castSucc
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, _⟩ =>
+    let N := ∑ j' ∈ finRangeTo (k + 1) (Fin.last (Fin.last k).val).val, (s j').1
+    let dom := ω.subdomainNatReversed N
+    let f : Fin (2 ^ (n - N)) → F :=
+      fun idx => ostmt (Fin.last (Fin.last k).val)
+        ⟨dom idx, Finset.mem_image.mpr ⟨idx, Finset.mem_univ _, rfl⟩⟩
+    0 < δ ∧
+      δᵣ(f, (ReedSolomon.code (↑dom : Fin (2 ^ (n - N)) ↪ F)
+        (2 ^ ((∑ j', (s j').1) - N) * d.1) : Set _)) ≤ ↑δ
 
-/- Output relation for the final folding round. This is currently sorried out, to be filled in
-later. -/
+/-- Output relation for the final folding round. After the final round the prover
+    sends a polynomial in the clear (the final oracle entry at index
+    `Fin.last (k + 1)` carries `F[X]`, not an evaluation function). The relation
+    asserts that polynomial is exactly the witness — a degree `< d` polynomial
+    committed in plaintext. The proximity parameter `δ` is required positive for
+    uniformity with the folding-round relations. -/
 def outputRelation (cond : ∑ i, (s i).1 ≤ n) [DecidableEq F] (δ : ℝ≥0) :
     Set
       (
         (FinalStatement F k × ∀ j, FinalOracleStatement s ω j) ×
         Witness F s d (Fin.last (k + 1))
-      ) := sorry
+      ) :=
+  fun ⟨⟨_, ostmt⟩, w⟩ =>
+    0 < δ ∧
+      (cast (by simp [FinalOracleStatement]) (ostmt (Fin.last (k + 1))) : F[X]) = w.1
 
 /-- The final folding round of the FRI protocol begins with the verifier sending a random field
   element as the challenge to the prover, then in contrast to the previous folding rounds simply
