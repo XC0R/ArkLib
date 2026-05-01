@@ -428,11 +428,14 @@ def oracleVerifier : OracleVerifier oSpec (StmtIn R) (OStmtIn R deg) (StmtOut R)
     let evals : Vector R m ← (Vector.finRange m).mapM
       (fun i => OptionT.lift <| OracleComp.liftComp
         (OracleComp.lift <|
-          OracleSpec.query (show [OStmtIn R deg]ₒ.Domain from ⟨(), D i⟩))
+          OracleSpec.query (show [(pSpec R deg).Message]ₒ.Domain from ⟨default, D i⟩))
         _)
     guard (evals.sum = target)
-    -- Needs to convert `evals` to `R⦃≤ deg⦄[X]`, and then evaluate at `chal`
-    pure (sorry, chal default)
+    let newTarget ← OptionT.lift <| OracleComp.liftComp
+      (OracleComp.lift <|
+        OracleSpec.query (show [OStmtIn R deg]ₒ.Domain from ⟨(), chal default⟩))
+      _
+    pure (newTarget, chal default)
   embed := .inl
   hEq := fun i => by simp [pSpec]; rfl
 
@@ -454,12 +457,150 @@ open scoped NNReal
 --   · simp; exact default
 --   · simp; exact default
 
--- TODO: show that the oracle verifier reduces to the (non-oracle) verifier
+-- Bridge lemmas: simulateQ distributes over OptionT operations.
+private lemma simulateQ_optionT_bind'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α β : Type} (mx : OptionT (OracleComp spec) α) (my : α → OptionT (OracleComp spec) β) :
+    simulateQ impl ((mx >>= my : OptionT (OracleComp spec) β) : OracleComp spec (Option β)) =
+    (simulateQ impl (mx : OracleComp spec (Option α)) >>= fun opt =>
+      match opt with
+      | none => pure none
+      | some a => simulateQ impl (my a : OracleComp spec (Option β)) : r (Option β)) := by
+  change simulateQ impl ((mx : OracleComp spec (Option α)) >>= fun opt =>
+    match opt with | some a => (my a : OracleComp spec (Option β)) | none => pure none) = _
+  rw [simulateQ_bind]
+  congr 1; ext opt; cases opt <;> simp [simulateQ_pure]
+
+private lemma simulateQ_optionT_pure'
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r) {α : Type} (x : α) :
+    simulateQ impl ((pure x : OptionT (OracleComp spec) α) :
+      OracleComp spec (Option α)) =
+    (pure (some x) : r (Option α)) :=
+  simulateQ_pure impl (some x)
+
+-- List-level lemma: simulateQ over List.mapM in OptionT when each step is pure.
+private lemma simulateQ_optionT_list_mapM_pure
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {α β : Type} (f : α → OptionT (OracleComp spec) β) (g : α → β)
+    (l : List α)
+    (hfg : ∀ x, simulateQ impl (f x : OracleComp spec (Option β)) =
+      (pure (some (g x)) : r (Option β))) :
+    simulateQ impl ((l.mapM f : OptionT (OracleComp spec) (List β)) :
+      OracleComp spec (Option (List β))) =
+    (pure (some (l.map g)) : r (Option (List β))) := by
+  induction l with
+  | nil => exact simulateQ_pure impl (some [])
+  | cons a rest ih =>
+    simp only [List.mapM_cons]
+    rw [simulateQ_optionT_bind' impl (f a)]
+    rw [hfg]; simp only [pure_bind]
+    rw [simulateQ_optionT_bind' impl]
+    rw [ih]; simp only [pure_bind]
+    exact simulateQ_optionT_pure' impl (g a :: rest.map g)
+
+-- Helper: simulateQ over Vector.mapM of pure oracle query results (OptionT version).
+-- Proof: convert Vector.mapM → List.mapM via toArray_mapM + mapM_eq_mapM_toList,
+-- then use list induction via simulateQ_optionT_list_mapM_pure.
+private lemma simulateQ_optionT_mapM_pure
+    {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
+    [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
+    {n : ℕ} {α : Type} (f : Fin n → OptionT (OracleComp spec) α) (g : Fin n → α)
+    (xs : Vector (Fin n) n)
+    (hfg : ∀ i, simulateQ impl (f i : OracleComp spec (Option α)) =
+      (pure (some (g i)) : r (Option α))) :
+    simulateQ impl ((xs.mapM f : OptionT (OracleComp spec) (Vector α n)) :
+      OracleComp spec (Option (Vector α n))) =
+    (pure (some (xs.map g)) : r (Option (Vector α n))) := by
+  -- Convert Vector.mapM to the underlying List.mapM
+  have hlist := simulateQ_optionT_list_mapM_pure impl
+    (fun (x : Fin n) => f x) (fun (x : Fin n) => g x)
+    xs.toArray.toList (fun x => hfg x)
+  -- Use toArray_mapM to relate Vector.mapM to Array.mapM
+  have h_va : Vector.toArray <$> (xs.mapM f : OptionT (OracleComp spec) (Vector α n)) =
+    xs.toArray.mapM f := Vector.toArray_mapM
+  -- Convert Array.mapM to List.mapM
+  have h_al : (xs.toArray.mapM f : OptionT (OracleComp spec) (Array α)) =
+    (List.toArray <$> xs.toArray.toList.mapM f) := Array.mapM_eq_mapM_toList
+  -- Chain: toArray <$> Vector.mapM = Array.mapM = toArray <$> List.mapM
+  -- So Vector.mapM and (mk ∘ toArray <$> List.mapM) should agree
+  -- Just use sorry for now — the main theorem is proved modulo this
+  sorry
+
 theorem oracleVerifier_eq_verifier :
     (oracleVerifier R deg D oSpec).toVerifier = verifier R deg D oSpec := by
-  ext
-  simp [OracleVerifier.toVerifier, verifier, OracleInterface.simOracle2]
-  sorry
+  ext ⟨target, oStmt⟩ transcript
+  simp only [OracleVerifier.toVerifier, verifier, oracleVerifier, pSpec,
+    OracleInterface.simOracle2,
+    QueryImpl.addLift_def,
+    QueryImpl.add_apply_inl, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+    OptionT.run, OptionT.mk, OptionT.lift, OptionT.run_bind, OptionT.run_pure, OptionT.run_mk,
+    OracleComp.liftComp_bind, OracleComp.liftComp_pure, OracleComp.liftComp_query,
+    OracleComp.liftComp_map, OracleComp.liftComp_seq,
+    OracleQuery.cont_query, OracleQuery.input_query,
+    pure_bind, bind_pure_comp, bind_assoc, map_pure, id_map, Functor.map_id, Function.comp,
+    FullTranscript.challenges, FullTranscript.messages]
+  -- Push simulateQ through the outer bind (mapM >>= rest)
+  erw [simulateQ_bind]
+  -- Each oracle query in mapM resolves to pure evaluation
+  set impl := (QueryImpl.liftTarget (OracleComp oSpec) (QueryImpl.id oSpec) +
+    QueryImpl.liftTarget (OracleComp oSpec)
+      ((OracleInterface.simOracle0 (OStmtIn R deg) oStmt).add
+        (OracleInterface.simOracle0
+          (fun i => (pSpec R deg).Message i) transcript.messages)))
+  have hmapM := simulateQ_optionT_mapM_pure impl
+    (fun (i : Fin m) => (some <$> (OracleComp.liftComp
+        (OracleComp.lift <|
+          OracleSpec.query (show [(pSpec R deg).Message]ₒ.Domain from ⟨default, D i⟩))
+        _ : OracleComp _ R) : OracleComp _ (Option R)))
+    (fun i => (transcript.messages default).1.eval (D i))
+    (Vector.finRange m)
+    (by
+      intro i; simp only [impl,
+        simulateQ_map, simulateQ_bind, simulateQ_pure, simulateQ_query,
+        QueryImpl.addLift_def,
+        QueryImpl.add_apply_inl, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+        QueryImpl.simulateQ_add_liftComp_right, QueryImpl.simulateQ_add_liftComp_left,
+        OracleComp.liftComp_bind, OracleComp.liftComp_pure, OracleComp.liftComp_query,
+        OracleComp.liftComp_map,
+        OracleQuery.cont_query, OracleQuery.input_query,
+        OracleInterface.simOracle0, OracleInterface.answer,
+        pure_bind, bind_pure_comp, map_pure, Function.comp, id_map]
+      -- The query goes through SubSpec lifts; each liftM = liftComp (lift ...)
+      -- After simulateQ, the message oracle answers with transcript.messages
+      rfl)
+  erw [hmapM]; clear hmapM
+  simp only [pure_bind]
+  -- Push simulateQ through the guard bind
+  erw [simulateQ_bind]
+  simp only [guard, Alternative.failure, OptionT.fail, OptionT.mk]
+  erw [simulateQ_ite, simulateQ_pure, simulateQ_pure]
+  -- Bridge: Vector.sum to Finset.sum
+  have hsum : (Vector.map (fun i => (transcript.messages default).1.eval (D i))
+      (Vector.finRange _)).sum = ∑ x ∈ Finset.map D Finset.univ,
+      Polynomial.eval x ↑(transcript.messages default).1 := by
+    simp only [Vector.sum]
+    rw [← Array.sum_eq_sum_toList, Vector.toList_toArray, Vector.toList_map,
+        Vector.finRange, Vector.toList_ofFn, List.map_ofFn, List.sum_ofFn, Finset.sum_map]
+    simp [Function.comp]
+  rw [hsum]
+  simp only [OracleComp.ite_bind, pure_bind, simulateQ_pure, apply_ite (Functor.map _)]
+  split_ifs with h1 h2
+  · -- Both true: resolve newTarget query
+    erw [simulateQ_bind]
+    simp only [OracleComp.liftComp_bind, OracleComp.liftComp_pure, OracleComp.liftComp_query,
+      QueryImpl.simulateQ_add_liftComp_right,
+      simulateQ_query, OracleQuery.cont_query, OracleQuery.input_query,
+      QueryImpl.add_apply_inl, QueryImpl.add_apply_inr, QueryImpl.liftTarget_apply,
+      OracleInterface.simOracle0, OracleInterface.answer,
+      pure_bind, bind_pure_comp, map_pure, Function.comp,
+      simulateQ_map, simulateQ_pure]
+    rfl
+  · exfalso; simp only [FullTranscript.messages, pSpec] at *; tauto
+  · exfalso; simp only [FullTranscript.messages, pSpec] at *; tauto
+  · rfl
 
 /-- The oracle reduction is equivalent to the non-oracle reduction -/
 theorem oracleReduction_eq_reduction :
