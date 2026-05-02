@@ -502,8 +502,9 @@ private lemma simulateQ_optionT_list_mapM_pure
     exact simulateQ_optionT_pure' impl (g a :: rest.map g)
 
 -- Helper: simulateQ over Vector.mapM of pure oracle query results (OptionT version).
--- Proof: convert Vector.mapM → List.mapM via toArray_mapM + mapM_eq_mapM_toList,
--- then use list induction via simulateQ_optionT_list_mapM_pure.
+-- Proof: convert Vector.mapM → List.mapM via Vector.toArray_mapM + Array.mapM_eq_mapM_toList,
+-- then use list induction via simulateQ_optionT_list_mapM_pure, finally invert
+-- `Option.map Vector.toArray <$>` using injectivity (`map_inj_right`).
 private lemma simulateQ_optionT_mapM_pure
     {ι : Type} {spec : OracleSpec ι} {r : Type → Type*}
     [Monad r] [LawfulMonad r] (impl : QueryImpl spec r)
@@ -514,20 +515,57 @@ private lemma simulateQ_optionT_mapM_pure
     simulateQ impl ((xs.mapM f : OptionT (OracleComp spec) (Vector α n)) :
       OracleComp spec (Option (Vector α n))) =
     (pure (some (xs.map g)) : r (Option (Vector α n))) := by
-  -- Convert Vector.mapM to the underlying List.mapM
-  have hlist := simulateQ_optionT_list_mapM_pure impl
-    (fun (x : Fin n) => f x) (fun (x : Fin n) => g x)
-    xs.toArray.toList (fun x => hfg x)
-  -- Use toArray_mapM to relate Vector.mapM to Array.mapM
-  have h_va : Vector.toArray <$> (xs.mapM f : OptionT (OracleComp spec) (Vector α n)) =
-    xs.toArray.mapM f := Vector.toArray_mapM
-  -- Convert Array.mapM to List.mapM
-  have h_al : (xs.toArray.mapM f : OptionT (OracleComp spec) (Array α)) =
-    (List.toArray <$> xs.toArray.toList.mapM f) := Array.mapM_eq_mapM_toList
-  -- Chain: toArray <$> Vector.mapM = Array.mapM = toArray <$> List.mapM
-  -- So Vector.mapM and (mk ∘ toArray <$> List.mapM) should agree
-  -- Just use sorry for now — the main theorem is proved modulo this
-  sorry
+  -- Step 1: OptionT-level chain `toArray <$> xs.mapM f = List.toArray <$> xs.toList.mapM f`.
+  have h_vl :
+      (Vector.toArray <$> xs.mapM f : OptionT (OracleComp spec) (Array α)) =
+        List.toArray <$> xs.toList.mapM f :=
+    (Vector.toArray_mapM (xs := xs) (f := f)).trans Array.mapM_eq_mapM_toList
+  -- Step 2: At the OracleComp (run) level, this OptionT-level identity gives:
+  --   Option.map Vector.toArray <$> (xs.mapM f).run =
+  --   Option.map List.toArray <$> (xs.toList.mapM f).run
+  -- using `OptionT.run_map` to push `<$>` into `Option.map <$>`.
+  have h_run :
+      Option.map Vector.toArray <$>
+        ((xs.mapM f : OptionT (OracleComp spec) (Vector α n)) :
+          OracleComp spec (Option (Vector α n))) =
+      Option.map List.toArray <$>
+        ((xs.toList.mapM f : OptionT (OracleComp spec) (List α)) :
+          OracleComp spec (Option (List α))) := by
+    have h : (Vector.toArray <$> xs.mapM f : OptionT (OracleComp spec) (Array α)).run =
+        (List.toArray <$> xs.toList.mapM f : OptionT (OracleComp spec) (Array α)).run :=
+      congrArg OptionT.run h_vl
+    -- Goal: `Option.map Vector.toArray <$> _ = Option.map List.toArray <$> _`.
+    rw [OptionT.run_map, OptionT.run_map] at h
+    exact h
+  -- Step 3: Apply simulateQ to both sides; push through <$> using simulateQ_map.
+  have h_sim := congrArg (simulateQ impl) h_run
+  rw [simulateQ_map, simulateQ_map] at h_sim
+  -- Step 4: Reduce the list-side via the existing list lemma.
+  rw [simulateQ_optionT_list_mapM_pure impl f g xs.toList hfg] at h_sim
+  -- Now h_sim : Option.map Vector.toArray <$> simulateQ impl (xs.mapM f).run =
+  --             Option.map List.toArray <$> pure (some (xs.toList.map g))
+  -- Step 5: simplify the RHS so both sides are `Option.map Vector.toArray <$> _`.
+  have h_simp_rhs :
+      (Option.map List.toArray <$>
+          (pure (some (xs.toList.map g)) :
+            r (Option (List α)))) =
+      Option.map Vector.toArray <$>
+        (pure (some (xs.map g)) : r (Option (Vector α n))) := by
+    rw [map_pure, map_pure]
+    congr 1
+    simp only [Option.map_some, Option.some.injEq]
+    -- Goal: (xs.toList.map g).toArray = (xs.map g).toArray
+    rw [← Vector.toList_map]; exact Array.toArray_toList
+  rw [h_simp_rhs] at h_sim
+  -- Step 6: invert `Option.map Vector.toArray <$>` via injectivity (`map_inj_right`).
+  have h_inj : ∀ {x y : Option (Vector α n)},
+      Option.map Vector.toArray x = Option.map Vector.toArray y → x = y := by
+    intro x y hxy
+    rcases x with _ | x <;> rcases y with _ | y <;>
+      simp only [Option.map_none, Option.map_some, Option.some.injEq, reduceCtorEq] at hxy
+    · rfl
+    · exact congrArg some (Vector.toArray_inj.mp hxy)
+  exact (map_inj_right h_inj).mp h_sim
 
 theorem oracleVerifier_eq_verifier :
     (oracleVerifier R deg D oSpec).toVerifier = verifier R deg D oSpec := by
