@@ -155,6 +155,7 @@ import ArkLib.ProofSystem.Fri.RoundConsistency
 import ArkLib.ProofSystem.Fri.Spec.General
 import ArkLib.ProofSystem.Fri.Spec.SingleRound
 import ArkLib.ProofSystem.Plonk.Basic
+import ArkLib.ProofSystem.Plonk.PermutationCheck
 import ArkLib.ProofSystem.Spartan.Basic
 import ArkLib.ProofSystem.Stir.Combine
 import ArkLib.ProofSystem.Stir.Folding
