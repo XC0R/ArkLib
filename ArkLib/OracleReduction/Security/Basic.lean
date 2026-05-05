@@ -534,9 +534,28 @@ private lemma Reduction.run_mk_verifier_id {WitIn WitOut : Type}
 @[simp]
 theorem Verifier.id_soundness {lang : Set StmtIn} :
     (Verifier.id : Verifier oSpec _ _ _).soundness init impl lang lang 0 := by
-  sorry
-  -- Approach: after Reduction.run_mk_verifier_id, stmtOut = stmtIn always.
-  -- Needs StateT.run'_bind/pure or manual support reasoning through OptionT+simulateQ+StateT.
+  unfold soundness
+  intro WitIn WitOut witIn prover stmtIn hstmtIn
+  simp only [ENNReal.coe_zero, nonpos_iff_eq_zero, Reduction.run_mk_verifier_id, probEvent_eq_zero_iff]
+  intro x hx hev
+  apply hstmtIn
+  rw [OptionT.mem_support_iff] at hx
+  simp only [OptionT.run_mk, support_bind, Set.mem_iUnion] at hx
+  obtain ⟨s, _, hx⟩ := hx
+  simp only [StateT.run'_eq, support_map, Set.mem_image] at hx
+  obtain ⟨⟨a, s'⟩, ha, rfl⟩ := hx
+  have hliftM : (liftM ((fun pr => (pr, stmtIn)) <$> Prover.run stmtIn witIn prover) :
+      OptionT (OracleComp _) _).run =
+      (fun pr => some (pr, stmtIn)) <$> Prover.run stmtIn witIn prover := by
+    simp [Functor.map_map]
+  rw [hliftM, simulateQ_map, StateT.run_map] at ha
+  simp only [support_map, Set.mem_image, Prod.exists] at ha
+  obtain ⟨pr, s'', ⟨b, _, _, heq⟩⟩ := ha
+  have := (Prod.mk.inj heq).1
+  have := Option.some.inj this
+  have := (Prod.mk.inj this).2
+  rw [← this] at hev
+  exact hev
 
 /-- The straightline extractor for the identity / trivial reduction, which just returns the input
   witness. -/
@@ -548,10 +567,69 @@ def Extractor.Straightline.id : Extractor.Straightline oSpec StmtIn WitIn WitIn 
 @[simp]
 theorem Verifier.id_knowledgeSoundness {rel : Set (StmtIn × WitIn)} :
     (Verifier.id : Verifier oSpec _ _ _).knowledgeSoundness init impl rel rel 0 := by
-  sorry
-  -- Approach: Extractor.Straightline.id returns input witness.
-  -- Event (stmtIn, witIn) ∉ rel ∧ (stmtIn, witIn) ∈ rel is contradiction.
-  -- Same blocker: needs StateT.run'_bind/pure or manual support reasoning.
+  unfold knowledgeSoundness
+  refine ⟨Extractor.Straightline.id, fun stmtIn witIn prover => ?_⟩
+  simp only [Extractor.Straightline.id, ENNReal.coe_zero, nonpos_iff_eq_zero,
+    probEvent_eq_zero_iff]
+  intro x hx ⟨hNotIn, hIn⟩
+  -- hNotIn : (x.1, x.2.1) ∉ rel, hIn : (x.2.2.1, x.2.2.2) ∈ rel
+  -- From the computation structure: x.2.1 = x.2.2.2 (extractor returns witOut)
+  -- and x.1 = x.2.2.1 (Verifier.id gives stmtOut = stmtIn).
+  -- Follow id_soundness support analysis pattern.
+  -- Decompose support to extract x's structure.
+  rw [OptionT.mem_support_iff] at hx
+  simp only [OptionT.run_mk, support_bind, Set.mem_iUnion] at hx
+  obtain ⟨s, _, hx⟩ := hx
+  simp only [StateT.run'_eq, support_map, Set.mem_image] at hx
+  obtain ⟨⟨a, s'⟩, ha, rfl⟩ := hx
+  apply hNotIn
+  -- Simplify the OptionT do block in ha: liftM (pure v) = pure v, then bind collapses to map
+  -- Since OptionT is transparent, these rewrite inside .run
+  -- Decompose the OptionT bind via OptionT.run_bind + simulateQ_bind
+  simp only [OptionT.run_bind, Option.elimM] at ha
+  rw [simulateQ_bind] at ha
+  simp only [StateT.run_bind, support_bind, Set.mem_iUnion, Prod.exists] at ha
+  obtain ⟨opt, s₂, hopt, ha'⟩ := ha
+  -- Case split: runWithLog returns some d or none
+  rcases opt with _ | d
+  · -- none case: contradiction with some x
+    simp [simulateQ_pure, StateT.run_pure, support_pure] at ha'
+  · -- some d: continuation simplifies to pure (some (stmtIn, d.1.1.2.2, d.1.2, d.1.1.2.2))
+    dsimp at ha'
+    simp only [OptionT.run_pure] at ha'
+    have hx : x = (stmtIn, d.1.1.2.2, d.1.2, d.1.1.2.2) :=
+      Option.some.inj (Prod.mk.inj ha').1
+    rw [hx]; rw [hx] at hIn
+    -- Goal: (stmtIn, d.1.1.2.2) ∈ rel; hIn: (d.1.2, d.1.1.2.2) ∈ rel
+    suffices h : d.1.2 = stmtIn by rwa [h] at hIn
+    -- Derive d.1.2 = stmtIn from runWithLog_discard_logs_eq_run + run_mk_verifier_id
+    have hfst_eq := Reduction.runWithLog_discard_logs_eq_run
+      (reduction := { prover := prover, verifier := Verifier.id })
+      (stmt := stmtIn) (wit := witIn)
+    rw [Reduction.run_mk_verifier_id] at hfst_eq
+    -- Convert hfst_eq to OracleComp level via OptionT.run
+    have h_eq := congr_arg OptionT.run hfst_eq
+    simp only [OptionT.run_map] at h_eq
+    -- h_eq : (Option.map Prod.fst) <$> (runWithLog ...).run = (...) <$> prover.run
+    -- Build membership in the target support directly
+    have hmem : (some d.1, s₂) ∈ support
+        (((fun pr => some (pr, stmtIn)) <$>
+          simulateQ (impl.addLift challengeQueryImpl)
+            (Prover.run stmtIn witIn prover) : StateT σ ProbComp _).run s) := by
+      have h1 : (some d.1, s₂) ∈ support
+          (((Option.map Prod.fst) <$>
+            simulateQ (impl.addLift challengeQueryImpl)
+              (runWithLog stmtIn witIn
+                { prover := prover, verifier := Verifier.id }).run :
+            StateT σ ProbComp _).run s) := by
+        rw [StateT.run_map, support_map]; exact ⟨(some d, s₂), hopt, rfl⟩
+      rw [← simulateQ_map, h_eq] at h1
+      -- h1 has monadLift form which is definitionally equal to the goal
+      convert h1 using 2
+      simp [Functor.map_map, simulateQ_map]
+    rw [StateT.run_map, support_map, Set.mem_image] at hmem
+    obtain ⟨⟨pr, s₃⟩, _, heq⟩ := hmem
+    exact (Prod.mk.inj (Option.some.inj (Prod.mk.inj heq).1)).2.symm
 
 /-- The identity / trivial reduction is perfectly complete. -/
 @[simp]
