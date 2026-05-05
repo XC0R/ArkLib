@@ -53,6 +53,7 @@ import ArkLib.Data.CodingTheory.ProximityGap.Basic
 import ArkLib.Data.CodingTheory.ProximityGap.DG25.Basic
 import ArkLib.Data.CodingTheory.ProximityGap.DG25.MainResults
 import ArkLib.Data.CodingTheory.ProximityGap.DG25.ReedSolomon
+import ArkLib.Data.CodingTheory.ProximityGap.Folding
 import ArkLib.Data.CodingTheory.ReedSolomon
 import ArkLib.Data.CodingTheory.ReedSolomon.FftDomain
 import ArkLib.Data.EllipticCurve.BN254
@@ -64,6 +65,7 @@ import ArkLib.Data.Fin.Tuple.Defs
 import ArkLib.Data.Fin.Tuple.Lemmas
 import ArkLib.Data.Fin.Tuple.Notation
 import ArkLib.Data.Fin.Tuple.TakeDrop
+import ArkLib.Data.Finset.PickSubset
 import ArkLib.Data.GroupTheory.PrimeOrder
 import ArkLib.Data.GroupTheory.Smooth
 import ArkLib.Data.Hash.DomainSep
@@ -79,6 +81,7 @@ import ArkLib.Data.MvPolynomial.LinearMvExtension
 import ArkLib.Data.MvPolynomial.Multilinear
 import ArkLib.Data.Polynomial.Bivariate
 import ArkLib.Data.Polynomial.FoldingPolynomial
+import ArkLib.Data.Polynomial.Indicator
 import ArkLib.Data.Polynomial.Interface
 import ArkLib.Data.Polynomial.Prelims
 import ArkLib.Data.Polynomial.RationalFunctions
@@ -157,7 +160,6 @@ import ArkLib.ProofSystem.Fri.Spec.SingleRound
 import ArkLib.ProofSystem.Plonk.Basic
 import ArkLib.ProofSystem.Spartan.Basic
 import ArkLib.ProofSystem.Stir.Combine
-import ArkLib.ProofSystem.Stir.Folding
 import ArkLib.ProofSystem.Stir.MainThm
 import ArkLib.ProofSystem.Stir.OutOfDomSmpl
 import ArkLib.ProofSystem.Stir.ProximityBound
@@ -175,3 +177,5 @@ import ArkLib.ProofSystem.Whir.RBRSoundness
 import ArkLib.ToMathlib.BigOperators.Fin
 import ArkLib.ToMathlib.Finset.Basic
 import ArkLib.ToMathlib.List.Basic
+import ArkLib.ToMathlib.Polynomial.EvalExt
+import ArkLib.ToMathlib.Polynomial.NatDegreeOfSum
